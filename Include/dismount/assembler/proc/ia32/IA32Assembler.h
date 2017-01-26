@@ -457,8 +457,8 @@ private:
      * Adding uint16 or uint32. G
      * Guaranty little endian level.
      */
-    void writeUint16(uint16 data);
-    void writeUint32(uint32 data);
+    void _writeUint16(uint16 data);
+    void _writeUint32(uint32 data);
 
     /*
      * Return true if the operand is a 32 or a 16 bit. Determine by the

@@ -890,15 +890,15 @@ void IA32AssemblerStream::writeImmediate(IntegerEncoding::IntegerEncodingType pr
         }
         break;
     case IntegerEncoding::INTEGER_16BIT:
-        writeUint16(compilerOperand.getReference1());
+        _writeUint16(compilerOperand.getReference1());
         break;
     case IntegerEncoding::INTEGER_32BIT:
         if (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_DS)
         {
-            writeUint32(compilerOperand.getDisplacement());
+            _writeUint32(compilerOperand.getDisplacement());
         } else
         {
-            writeUint32(compilerOperand.getReference1());
+            _writeUint32(compilerOperand.getReference1());
         }
         break;
     default:
@@ -926,12 +926,12 @@ void IA32AssemblerStream::writeDisplacement(const IA32AssemblerStream::Operand& 
         if (compilerOperand.getDisplacementPacking() == IntegerEncoding::INTEGER_16BIT)
         {
             int16 data = (int16)compilerOperand.getDisplacement();
-            writeUint16((uint16)data);
+            _writeUint16((uint16)data);
         }
         break;
     case 4:
         if (compilerOperand.getDisplacementPacking() == IntegerEncoding::INTEGER_32BIT)
-            writeUint32((uint32)compilerOperand.getDisplacement());
+            _writeUint32((uint32)compilerOperand.getDisplacement());
         break;
     default:
         // ??
@@ -940,14 +940,14 @@ void IA32AssemblerStream::writeDisplacement(const IA32AssemblerStream::Operand& 
 
 }
 
-void IA32AssemblerStream::writeUint16(uint16 data)
+void IA32AssemblerStream::_writeUint16(uint16 data)
 {
     uint8 buffer[sizeof(uint16)];
     cLittleEndian::writeUint16(buffer, data);
     m_binary.appendBuffer(buffer, sizeof(buffer));
 }
 
-void IA32AssemblerStream::writeUint32(uint32 data)
+void IA32AssemblerStream::_writeUint32(uint32 data)
 {
     uint8 buffer[sizeof(uint32)];
     cLittleEndian::writeUint32(buffer, data);
