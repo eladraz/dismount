@@ -36,6 +36,9 @@
 */
 class AssemblerInterface {
 public:
+    // Virtual destructor
+    virtual ~AssemblerInterface() {};
+
     /*
      * Return the assembler stream
      *
