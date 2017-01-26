@@ -315,8 +315,8 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
         }
 
         // Marking the modrm as normal register transfer (mode 3)
-        if ((ia32disType == ia32dis::OPND_MODRM_dWORDPTR)
-            /*TODO!||(ia32disType == ia32dis::OPND_MODRM_MEM)*/)
+        if (ia32disType == ia32dis::OPND_MODRM_dWORDPTR)
+            /*TODO!||(ia32disType == ia32dis::OPND_MODRM_MEM)*/
         {
             // Change the modrm mod into 3
             modrmMod.m_bits.m_mod  = 3;
