@@ -798,7 +798,7 @@ IA32OpcodeDatastruct::MODRM IA32AssemblerStream::fillModrm(
         case 0: type = opcode->m_firstOperand;  operand = &first; break;
         case 1: type = opcode->m_secondOperand; operand = &second; break;
         case 2: type = opcode->m_thridOperand;  operand = &third;  break;
-        default: { ASSERT(false); }
+        default: { ASSERT(false); return ret; }
         }
         // Another assertion
         ASSERT(operand != NULL);
