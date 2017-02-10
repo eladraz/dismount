@@ -1,4 +1,4 @@
-INCLUDES = -I $(DISMOUNT_PATH)/Include -I $(XSTL_PATH)/Include -I $(PELIB_PATH)/Include
+INCLUDES = -I ../Include -I $(XSTL_PATH)/Include -I $(PELIB_PATH)/Include
 
 if DEBUG
 DBGFLAGS = -ggdb -DDEBUG

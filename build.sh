@@ -5,9 +5,7 @@ if [ "$PELIB_PATH" ] ; then
 	PE="--with-pelib=${PELIB_PATH}"
 fi
 
-if [ -z "$DISMOUNT_PATH" ] ; then
-	echo "Please specify DISMOUNT_PATH"
-elif [ -z "$XSTL_PATH" ] ; then
+if [ -z "$XSTL_PATH" ] ; then
         echo "Please specify XSTL_PATH"
 else
     PWD=`pwd`
