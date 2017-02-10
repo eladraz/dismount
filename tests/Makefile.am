@@ -27,6 +27,7 @@ test_dismount_CPPFLAGS+= -DXSTL_UNICODE -D_UNICODE
 endif
 
 test_dismount_LDADD = -L$(XSTL_PATH)/out/lib -lxstl \
+                      -L$(XSTL_PATH)/out/lib -lxstl_parser \
                       -L$(XSTL_PATH)/out/lib -lxstl_data \
                       -L$(XSTL_PATH)/out/lib -lxstl_except \
                       -L$(XSTL_PATH)/out/lib -lxstl_stream \
