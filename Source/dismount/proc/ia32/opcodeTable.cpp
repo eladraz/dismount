@@ -187,9 +187,8 @@ OpcodePrefixEntry gIa32PrefixTable[IA32_NUMBER_OF_PREFIXS] = {
     {"addressSize",  0x67, false,  false}
 };
 
-extern uint8 gIa32PrefixGroup3OperandSize = 0x66;
-
-extern uint8 gIa32PrefixGroup4AddressSize = 0x67;
+uint8 gIa32PrefixGroup3OperandSize = 0x66;
+uint8 gIa32PrefixGroup4AddressSize = 0x67;
 
 const uint8 gIa32TwoByteEscapeCharacter = 0x0F;
 
