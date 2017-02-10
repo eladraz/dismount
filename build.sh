@@ -11,5 +11,5 @@ elif [ -z "$XSTL_PATH" ] ; then
         echo "Please specify XSTL_PATH"
 else
     PWD=`pwd`
-    ./autogen.sh && ./configure --prefix=${PWD}/out --enable-tests --enable-debug --enable-unicode $PE --with-xstl=${XSTL_PATH} && make -j `nproc` && make install
+    ./autogen.sh && ./configure --prefix=${PWD}/out --enable-debug --enable-unicode $PE --with-xstl=${XSTL_PATH} && make -j `nproc` && make install
 fi
