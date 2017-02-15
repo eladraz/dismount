@@ -180,7 +180,7 @@ OpcodePtr IA32StreamDisassembler::next()
                 IA32OpcodeDatastruct::SIB sib;
                 bool sibExist = false;
                 uint displacementLength = 0;
-                IA32OpcodeDatastruct::DisplacementType displacement;
+                IA32OpcodeDatastruct::DisplacementType displacement = 0;
                 if (modrmFound)
                 {
                     ia32dis::ModRMTranslationType* modrmTable;
