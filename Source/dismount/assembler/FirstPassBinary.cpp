@@ -271,7 +271,9 @@ void FirstPassBinary::moveBasicBlocks(const cSetArray& setArray, FirstPassBinary
     }
 }
 
-FirstPassBinary::BasicBlock::BasicBlock() : m_data((uint)0, 256)
+FirstPassBinary::BasicBlock::BasicBlock() :
+	m_blockNumber(0),
+	m_data((uint)0, 256)
 {
 }
 
