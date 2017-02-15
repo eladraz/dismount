@@ -165,7 +165,7 @@ void StackInterface::freeTemporaryRegister(StackLocation registerNumber)
 
 void StackInterface::freeTemporaryStackBuffer(StackLocation stackPosition)
 {
-    ASSERT((stackPosition.u.flags | STACK_LOCATION_FLAGS_LOCAL) != 0);
+    ASSERT((stackPosition.u.flags & STACK_LOCATION_FLAGS_LOCAL) != 0);
 
     uint position = stackPosition.u.reg - LOCAL_STACK_START_VALUE;
     // CHECK(position < m_allocatedTemporaryStack.getSize());
