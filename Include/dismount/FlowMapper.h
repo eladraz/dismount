@@ -99,8 +99,8 @@ public:
      * walk() function from the starting memory location.
      * Returns the number of subsets found.
      */
-    uint map(const addressNumericValue start,
-             const addressNumericValue forcedEnd = 0,
+    uint map(const ProcessorAddress::uintAddress start,
+             const ProcessorAddress::uintAddress forcedEnd = 0,
              const bool isFaultTolerant = false);
 
     /*

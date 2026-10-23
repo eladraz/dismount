@@ -121,7 +121,7 @@ bool IA32Opcode::getOpcodeAddress(ProcessorAddress& address) const
     return true;
 }
 
-bool IA32Opcode::addBaseAddress(addressNumericValue address)
+bool IA32Opcode::addBaseAddress(ProcessorAddress::uintAddress address)
 {
     if (!m_shouldUseAddress)
         return false;

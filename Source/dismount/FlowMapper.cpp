@@ -332,8 +332,8 @@ bool FlowMapper::walk(const ProcessorAddress& startAddress,
     return true;
 }
 
-uint FlowMapper::map(const addressNumericValue start,
-                     const addressNumericValue forcedEnd /* = 0 */,
+uint FlowMapper::map(const ProcessorAddress::uintAddress start,
+                     const ProcessorAddress::uintAddress forcedEnd /* = 0 */,
                      const bool isFaultTolerant /* = false */)
 {
     // Create object for the start and the forced end addresses

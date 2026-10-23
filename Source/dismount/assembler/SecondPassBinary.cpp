@@ -68,7 +68,8 @@ SecondPassBinary::SecondPassBinary(FirstPassBinary& firstPass, uint blockNumber,
             ((blockNumber != (uint)SecondPassBinary::NO_BLOCKS_ALIGN) && (uint)((*i).m_blockNumber) == blockNumber))
         {
             uint oldSize = m_data.getSize();
-            uint newSize = Alignment::alignUp(oldSize, alignTo-1);
+            // Aligning the buffer size, which is a uint
+            uint newSize = (uint)Alignment::alignUp(oldSize, alignTo-1);
             if (newSize > oldSize)
             {
                 m_data.changeSize(newSize);
@@ -141,7 +142,7 @@ SecondPassBinary::SecondPassBinary(FirstPassBinary& firstPass, uint blockNumber,
                 case BinaryDependencies::DEP_RELATIVE:
                     {
                         // And resolve
-                        addressNumericValue depAddress;
+                        ProcessorAddress::uintAddress depAddress;
 
                         // Try to resolve using this binary
                         if (m_blocksPositions.hasKey(blockID))
@@ -167,14 +168,16 @@ SecondPassBinary::SecondPassBinary(FirstPassBinary& firstPass, uint blockNumber,
                             }
                             // Calculate target address within the other function
                             depAddress = (*iResolver).m_pResolver->m_blocksPositions[blockID];
-                            // Append a dependency to that method, at that place
+                            // Append a dependency to that method, at that place.
+                            // The block position is an offset inside the resolver's
+                            // buffer, so it fits into the dependency's int fix-offset
                             m_dependency.addDependency((*iResolver).m_sResolverName,
                                 (*x).m_position + pos,
                                 (*x).m_length,
                                 (*x).m_type,
                                 (*x).m_shiftRightCount,
                                 (*x).m_shouldAddExistValue,
-                                (*x).m_fixOffset + depAddress);
+                                (*x).m_fixOffset + (int)depAddress);
                         }
                     }
                     break;
@@ -228,11 +231,11 @@ OpcodeSubsystems::DisassemblerType SecondPassBinary::getAssemblerType() const
     return m_type;
 }
 
-void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& dependency, FirstPassBinary& firstPass, addressNumericValue binaryAddress, addressNumericValue dependencyAddress, uint dataStartAddress)
+void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& dependency, FirstPassBinary& firstPass, ProcessorAddress::uintAddress binaryAddress, ProcessorAddress::uintAddress dependencyAddress, uint dataStartAddress)
 {
-    uint relocatePositionTo = dependencyAddress;
-    uint currentPosition = binaryAddress + dependency.m_position;
-    int distance = relocatePositionTo;
+    ProcessorAddress::uintAddress relocatePositionTo = dependencyAddress;
+    ProcessorAddress::uintAddress currentPosition = binaryAddress + dependency.m_position;
+    ProcessorAddress::intAddress distance = relocatePositionTo;
     distance-= currentPosition;
 
     switch (dependency.m_type)
@@ -311,7 +314,7 @@ void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& depend
                 distance+= makeInt((((oldValue >> 8) << 2) + (oldValue & 3)) & 0x1F, 5);
             }
 
-            oldValue = (oldValue & 0xF83F) + ((distance & 3) << 6) + ((distance & 0x1C) << 4);
+            oldValue = (uint16)((oldValue & 0xF83F) + ((distance & 3) << 6) + ((distance & 0x1C) << 4));
             CHECK_RELOCATION_RANGE(t_abs(distance), 0x20);
 
             cEndian::writeUint16(m_data.getBuffer() + dependency.m_position + dataStartAddress,
@@ -330,7 +333,7 @@ void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& depend
             }
 
             CHECK_RELOCATION_RANGE(t_abs(distance), 0x100);
-            oldValue = ((distance & 0xF0) << 4) + (oldValue & 0xF0F0) + (distance & 0x0F);
+            oldValue = (uint16)(((distance & 0xF0) << 4) + (oldValue & 0xF0F0) + (distance & 0x0F));
 
             cEndian::writeUint16(m_data.getBuffer() + dependency.m_position + dataStartAddress,
                 oldValue,
@@ -351,7 +354,7 @@ void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& depend
             // If we fails here, it means that the basic-block should have been arranged better
             CHECK_RELOCATION_RANGE(t_abs(distance), 0x1000);
 
-            oldValue = (oldValue & ~0xFFF) | (distance & 0xFFF);
+            oldValue = (uint16)((oldValue & ~0xFFF) | (distance & 0xFFF));
 
             cEndian::writeUint16(m_data.getBuffer() + dependency.m_position + dataStartAddress,
                 oldValue,
@@ -364,17 +367,17 @@ void SecondPassBinary::resolveStack(BinaryDependencies::DependencyObject& depend
 }
 
 void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& dependency,
-                            addressNumericValue binaryAddress,
-                            addressNumericValue dependencyAddress,
+                            ProcessorAddress::uintAddress binaryAddress,
+                            ProcessorAddress::uintAddress dependencyAddress,
                             uint dataStartAddress,
                             bool shouldZeroData)
 {
     if ((dependency.m_type) == BinaryDependencies::DEP_RELATIVE)
     {
         // Relocate
-        uint relocatePositionTo = dependencyAddress;
-        uint currentPosition = binaryAddress + dependency.m_position;
-        int distance = relocatePositionTo;
+        ProcessorAddress::uintAddress relocatePositionTo = dependencyAddress;
+        ProcessorAddress::uintAddress currentPosition = binaryAddress + dependency.m_position;
+        ProcessorAddress::intAddress distance = relocatePositionTo;
         distance-= currentPosition;
         switch (dependency.m_length)
         {
@@ -413,7 +416,7 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
                 CHECK_RELOCATION_RANGE(t_abs(distance), 0x800);
                 // CHECK(t_abs(distance) < (1 << (11 + dependency.m_shiftRightCount - 1)));
 
-                oldValue = (oldValue & ~0x7FF) | (distance & 0x7FF);
+                oldValue = (uint16)((oldValue & ~0x7FF) | (distance & 0x7FF));
 
                 cEndian::writeUint16(m_data.getBuffer() + dataStartAddress + dependency.m_position,
                                      oldValue,
@@ -440,7 +443,7 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
                 CHECK_RELOCATION_RANGE(t_abs(distance), 0x1000);
                 // CHECK(t_abs(distance) < (1 << (12 + dependency.m_shiftRightCount - 1)));
 
-                oldValue = (oldValue & ~0xFFF) | (distance & 0xFFF);
+                oldValue = (uint16)((oldValue & ~0xFFF) | (distance & 0xFFF));
 
                 cEndian::writeUint16(m_data.getBuffer() + dataStartAddress + dependency.m_position,
                     oldValue,
@@ -471,11 +474,11 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
                 CHECK_RELOCATION_RANGE(t_abs(distance), 0x80000);
                 //CHECK(t_abs(distance) < (1 << (19 + dependency.m_shiftRightCount - 1)));
 
-                oldValue = (oldValue & ~0x2FFF003F) | // Clearing out old value
-                           (((distance >> 0) & 0x7FF) << 16) |
-                           (((distance >> 11) & 0x3F) <<  0) |
-                           (((distance >> 17) &  0x1) << 27) |
-                           (((distance >> 18) &  0x1) << 29);
+                oldValue = (uint32)((oldValue & ~0x2FFF003F) | // Clearing out old value
+                                    (((distance >> 0) & 0x7FF) << 16) |
+                                    (((distance >> 11) & 0x3F) <<  0) |
+                                    (((distance >> 17) &  0x1) << 27) |
+                                    (((distance >> 18) &  0x1) << 29));
 
                 cEndian::writeUint32(m_data.getBuffer() + dataStartAddress + dependency.m_position,
                                      oldValue,
@@ -526,7 +529,7 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
                 // Making sure we are not overflowing
                 CHECK_RELOCATION_RANGE(t_abs(distance), 0x1000000);
 
-                oldValue = (oldValue & 0xFF000000) + (distance & 0xFFFFFF);
+                oldValue = (uint32)((oldValue & 0xFF000000) + (distance & 0xFFFFFF));
 
                 cEndian::writeUint32(m_data.getBuffer() + dataStartAddress + dependency.m_position,
                                      oldValue,
@@ -546,10 +549,10 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
                 }
                 // Fix offset is used to adjust the distance in case of opcodes which calculate the distance, such as: jmp, call.
                 distance += dependency.m_fixOffset;
-                oldValue = distance & 0xFFFFFFFF;
+                oldValue = (uint32)(distance & 0xFFFFFFFF);
 
                 if (shouldZeroData)
-                    oldValue = dependencyAddress;
+                    oldValue = (uint32)dependencyAddress;
 
                 cEndian::writeUint32(m_data.getBuffer() + dataStartAddress + dependency.m_position,
                                      oldValue,
@@ -576,7 +579,9 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
             break;
 
         case 4:
-            // Encoding little/big-big endian
+            // Encoding little/big-big endian. The field is 32 bit, so only the
+            // lower 32 bits of the address are written (wrapping on purpose when
+            // the existing value is a negative offset)
             if (OpcodeSubsystems::isLittleEndian(m_type))
             {
                 if (!shouldZeroData && OpcodeSubsystems::isOverwriteRelativeLocations(m_type))
@@ -590,7 +595,7 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
 
                 cLittleEndian::writeUint32(
                     m_data.getBuffer() + dataStartAddress + dependency.m_position,
-                    dependencyAddress);
+                    (uint32)dependencyAddress);
             }
             else
             {
@@ -604,7 +609,7 @@ void SecondPassBinary::resolveDependency(BinaryDependencies::DependencyObject& d
 
                 cBigEndian::writeUint32(
                     m_data.getBuffer() + dataStartAddress + dependency.m_position,
-                    dependencyAddress);
+                    (uint32)dependencyAddress);
             }
 
             break;

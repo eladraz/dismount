@@ -11,6 +11,7 @@
  */
 #include "xStl/types.h"
 #include "xStl/exceptions.h"
+#include "dismount/ProcessorAddress.h"
 #include "dismount/assembler/BinaryDependencies.h"
 
 class DependencyException : public cException {
@@ -18,13 +19,13 @@ public:
     // Default constructor.
     DependencyException(char * file, uint32 line,
                         const BinaryDependencies::DependencyObject& dependency,
-                        uint desiredDistance);
+                        ProcessorAddress::uintAddress desiredDistance);
 
     // Return the dependency that caused
     const BinaryDependencies::DependencyObject& getFaultDependency() const;
 
     // Return the distance relocation size
-    uint getDesiredDistance() const;
+    ProcessorAddress::uintAddress getDesiredDistance() const;
 
     // Override the clone function
     virtual cException* clone() const;
@@ -35,7 +36,7 @@ public:
 
 private:
     BinaryDependencies::DependencyObject m_faultDependency;
-    uint m_desiredDistance;
+    ProcessorAddress::uintAddress m_desiredDistance;
 };
 
 

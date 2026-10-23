@@ -15,6 +15,7 @@
 #include "xStl/data/smartptr.h"
 #include "xStl/data/serializedObject.h"
 #include "xStl/stream/stringerStream.h"
+#include "dismount/ProcessorAddress.h"
 #include "dismount/assembler/BinaryDependencies.h"
 #include "dismount/assembler/FirstPassBinary.h"
 #include "dismount/assembler/SecondPassInfoAndDebug.h"
@@ -99,8 +100,8 @@ public:
 
     void resolveStack(BinaryDependencies::DependencyObject& dependency,
                       FirstPassBinary& firstPass,
-                      addressNumericValue binaryAddress,
-                      addressNumericValue dependencyAddress,
+                      ProcessorAddress::uintAddress binaryAddress,
+                      ProcessorAddress::uintAddress dependencyAddress,
                       uint dataStartAddress = 0);
 
     /*
@@ -113,8 +114,8 @@ public:
      * dataStartAddress  - [For inside use only] The inside address
      */
     void resolveDependency(BinaryDependencies::DependencyObject& dependency,
-                           addressNumericValue binaryAddress,
-                           addressNumericValue dependencyAddress,
+                           ProcessorAddress::uintAddress binaryAddress,
+                           ProcessorAddress::uintAddress dependencyAddress,
                            uint dataStartAddress = 0,
                            bool shouldZeroData = false);
 

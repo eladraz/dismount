@@ -32,17 +32,19 @@ void SectionMemoryInterface::initMaps()
         if (!((*i).m_flags & (SECTION_FLAG_WRITE | SECTION_FLAG_EXECUTABLE)))
             continue;
 
-        for (addressNumericValue addr = (*i).m_start; addr < (*i).m_end; addr++)
+        for (ProcessorAddress::uintAddress addr = (*i).m_start; addr < (*i).m_end; addr++)
         {
+            // The maps are indexed by uint, sized from the uint memory size
+            uint mapIndex = (uint)(addr / 8);
             uint bitField = (1 << ((uint)addr % 8));
-            //if ((*i).m_flags & SECTION_FLAG_READ)       m_readMap[addr / 8]  |= bitField;
-            if ((*i).m_flags & SECTION_FLAG_WRITE)      m_writeMap[addr / 8] |= bitField;
-            if ((*i).m_flags & SECTION_FLAG_EXECUTABLE) m_execMap[addr / 8]  |= bitField;
+            //if ((*i).m_flags & SECTION_FLAG_READ)       m_readMap[mapIndex]  |= bitField;
+            if ((*i).m_flags & SECTION_FLAG_WRITE)      m_writeMap[mapIndex] |= bitField;
+            if ((*i).m_flags & SECTION_FLAG_EXECUTABLE) m_execMap[mapIndex]  |= bitField;
         }
     }
 }
 
-bool SectionMemoryInterface::checkAddress(addressNumericValue address, uint flags)
+bool SectionMemoryInterface::checkAddress(ProcessorAddress::uintAddress address, uint flags)
 {
     // If the address is out of bounds
     if (address > m_memorySize)
@@ -63,7 +65,7 @@ bool SectionMemoryInterface::checkAddress(addressNumericValue address, uint flag
     return true;
 }
 
-uint SectionMemoryInterface::virtualToRawAddress(addressNumericValue virtualAddress)
+uint SectionMemoryInterface::virtualToRawAddress(ProcessorAddress::uintAddress virtualAddress)
 {
     // Enumerate the sections to find the section the address belongs to
     cList<SectionMemoryInterface::GeneralSection>::iterator i = m_sectionList.begin();
@@ -76,8 +78,8 @@ uint SectionMemoryInterface::virtualToRawAddress(addressNumericValue virtualAddr
     return 0;
 }
 
-SectionMemoryInterface::SectionMemoryInterface(addressNumericValue moduleBaseAddress,
-                                               addressNumericValue imageBase,
+SectionMemoryInterface::SectionMemoryInterface(ProcessorAddress::uintAddress moduleBaseAddress,
+                                               ProcessorAddress::uintAddress imageBase,
                                                uint memorySize,
                                                cList<GeneralSection> sectionList) :
     m_moduleBaseAddress(moduleBaseAddress),

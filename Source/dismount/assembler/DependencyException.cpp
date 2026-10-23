@@ -7,7 +7,7 @@ static const lpString DEPENDENCY_EXCEPTION = XSTL_STRING("Dependency exception")
 
 DependencyException::DependencyException(char * file, uint32 line,
                         const BinaryDependencies::DependencyObject& dependency,
-                        uint desiredDistance) :
+                        ProcessorAddress::uintAddress desiredDistance) :
     cException(file, line, NULL, 0),
     m_faultDependency(dependency),
     m_desiredDistance(desiredDistance)
@@ -19,7 +19,7 @@ const BinaryDependencies::DependencyObject& DependencyException::getFaultDepende
     return m_faultDependency;
 }
 
-uint DependencyException::getDesiredDistance() const
+ProcessorAddress::uintAddress DependencyException::getDesiredDistance() const
 {
     return m_desiredDistance;
 }

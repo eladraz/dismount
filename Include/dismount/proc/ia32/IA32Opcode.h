@@ -132,7 +132,7 @@ public:
      * Returns false if the opcode doesn't contain an address,
      * false otherwise.
      */
-    bool addBaseAddress(addressNumericValue address);
+    bool addBaseAddress(ProcessorAddress::uintAddress address);
 
     /*
      * Return one of the following:

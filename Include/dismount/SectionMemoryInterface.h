@@ -13,6 +13,7 @@
  */
 
 #include "xStl/types.h"
+#include "dismount/ProcessorAddress.h"
 
 class SectionMemoryInterface {
 public:
@@ -30,14 +31,14 @@ public:
      * and the section attribute flags.
      */
     struct GeneralSection {
-        addressNumericValue m_start;
-        addressNumericValue m_end;
-        addressNumericValue m_rawDataAddress;
+        ProcessorAddress::uintAddress m_start;
+        ProcessorAddress::uintAddress m_end;
+        ProcessorAddress::uintAddress m_rawDataAddress;
         uint m_flags;
 
-        GeneralSection(addressNumericValue start,
-                       addressNumericValue end,
-                       addressNumericValue rawDataAddress,
+        GeneralSection(ProcessorAddress::uintAddress start,
+                       ProcessorAddress::uintAddress end,
+                       ProcessorAddress::uintAddress rawDataAddress,
                        uint flags) : m_start(start),
                                      m_end(end),
                                      m_rawDataAddress(rawDataAddress),
@@ -56,8 +57,8 @@ public:
      *
      * Initializes member variables
      */
-    SectionMemoryInterface(addressNumericValue moduleBaseAddress,
-                           addressNumericValue imageBase,
+    SectionMemoryInterface(ProcessorAddress::uintAddress moduleBaseAddress,
+                           ProcessorAddress::uintAddress imageBase,
                            uint memorySize,
                            cList<GeneralSection> sectionList);
 
@@ -75,7 +76,7 @@ public:
      * Returns true if the address attributes contains the wanted flags.
      * false otherwise.
      */
-    bool checkAddress(addressNumericValue address, uint flags);
+    bool checkAddress(ProcessorAddress::uintAddress address, uint flags);
 
     /*
      * Translates virtual addresses (pointed to from inside the PE code)
@@ -87,17 +88,17 @@ public:
      * 0 otherwise.
      *
      */
-    uint virtualToRawAddress(addressNumericValue virtualAddress);
+    uint virtualToRawAddress(ProcessorAddress::uintAddress virtualAddress);
 
     /*
      * Returns the module base address.
      */
-    inline addressNumericValue getModuleBaseAddress() { return m_moduleBaseAddress;};
+    inline ProcessorAddress::uintAddress getModuleBaseAddress() { return m_moduleBaseAddress;};
 
     /*
      * Returns the image base.
      */
-    inline addressNumericValue getImageBase() { return m_imageBase;};
+    inline ProcessorAddress::uintAddress getImageBase() { return m_imageBase;};
 
     /*
      * Returns the memory size
@@ -122,9 +123,9 @@ private:
     void initMaps();
 
     // The module base address
-    addressNumericValue m_moduleBaseAddress;
+    ProcessorAddress::uintAddress m_moduleBaseAddress;
     // The image base
-    addressNumericValue m_imageBase;
+    ProcessorAddress::uintAddress m_imageBase;
     // The memory size
     uint m_memorySize;
     // The section list
