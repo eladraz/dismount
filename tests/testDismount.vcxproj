@@ -157,7 +157,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="testFlowMap.cpp" />
+    <ClCompile Include="testFlowMap.cpp" Condition="'$(PELIB_PATH)' != ''" />
     <ClCompile Include="testIA32.cpp" />
     <ClCompile Include="TestIA32AssemblerDisassembler.cpp" />
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp" />
@@ -166,7 +166,7 @@
     <ClInclude Include="$(XSTL_PATH)\tests\tests.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\pe\peLib.vcxproj">
+    <ProjectReference Include="..\..\pe\peLib.vcxproj" Condition="'$(PELIB_PATH)' != ''">
       <Project>{7e3f7378-91a7-47eb-8a3d-efeff66196e1}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\xStl\xStl.vcxproj">

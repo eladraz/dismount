@@ -1,0 +1,206 @@
+name: CI
+
+# All jobs use GitHub-hosted standard runners, which are free for public
+# repositories.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autotools:
+    name: Autotools ${{ matrix.cc }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      XSTL_PATH: ${{ github.workspace }}/xStl
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: dismount
+
+      - uses: actions/checkout@v5
+        with:
+          repository: eladraz/xStl
+          path: xStl
+
+      - name: Select clang
+        if: matrix.cc == 'clang'
+        run: |
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CXX=clang++" >> "$GITHUB_ENV"
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+
+      - name: Build xStl
+        working-directory: xStl
+        run: ./build.sh
+
+      - name: Build dismount
+        working-directory: dismount
+        run: ./build.sh
+
+  cmake:
+    name: CMake ${{ matrix.cc }} ${{ matrix.build_type }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+        build_type: [Debug, Release]
+    env:
+      XSTL_PATH: ${{ github.workspace }}/xStl
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: dismount
+
+      - uses: actions/checkout@v5
+        with:
+          repository: eladraz/xStl
+          path: xStl
+
+      - name: Select clang
+        if: matrix.cc == 'clang'
+        run: |
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CXX=clang++" >> "$GITHUB_ENV"
+
+      - name: Build xStl
+        working-directory: xStl
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake --build build -j 4
+
+      - name: Build dismount
+        working-directory: dismount
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake --build build -j 4
+
+  windows:
+    name: MSBuild windows ${{ matrix.platform }} ${{ matrix.configuration }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Win32, x64]
+        configuration: [Debug, Release]
+    env:
+      # The Visual Studio projects locate sources and headers through these
+      XSTL_PATH: ${{ github.workspace }}\xStl
+      DISMOUNT_PATH: ${{ github.workspace }}\dismount
+    steps:
+      # testDismount.vcxproj references ..\..\xStl, so check out side by side
+      - uses: actions/checkout@v5
+        with:
+          path: dismount
+
+      - uses: actions/checkout@v5
+        with:
+          repository: eladraz/xStl
+          path: xStl
+
+      - uses: microsoft/setup-msbuild@v2
+
+      # The projects don't pin a toolset the runner has, so build with the
+      # installed v143 toolset. Building the tests also builds xStl and dismount.
+      - name: Build tests
+        working-directory: dismount
+        run: >
+          msbuild tests\testDismount.vcxproj -m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+          /p:WindowsTargetPlatformVersion=10.0
+
+      - name: Run tests
+        shell: pwsh
+        working-directory: dismount\tests
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter testDismount.exe | Select-Object -First 1
+          if (-not $exe) { throw "testDismount.exe not found" }
+          Push-Location $exe.DirectoryName
+          & $exe.FullName
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { exit $code }
+
+  coverity:
+    name: Coverity Scan
+    # Coverity Scan is free for open-source projects. It runs on pushes to master
+    # only, and only when the COVERITY_SCAN_TOKEN repository secret is set.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'eladraz/dismount'
+    runs-on: ubuntu-latest
+    env:
+      COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      COVERITY_PROJECT: eladraz/dismount
+      XSTL_PATH: ${{ github.workspace }}/xStl
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: dismount
+
+      - uses: actions/checkout@v5
+        with:
+          repository: eladraz/xStl
+          path: xStl
+
+      - name: Check token
+        id: token
+        run: |
+          if [ -z "$COVERITY_SCAN_TOKEN" ]; then
+            echo "COVERITY_SCAN_TOKEN is not set; skipping Coverity Scan"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download Coverity build tool
+        if: steps.token.outputs.present == 'true'
+        run: |
+          curl -fsSL -o cov-analysis.tgz \
+            --form project="$COVERITY_PROJECT" --form token="$COVERITY_SCAN_TOKEN" \
+            https://scan.coverity.com/download/cxx/linux64
+          mkdir cov-analysis
+          tar xzf cov-analysis.tgz --strip-components=1 -C cov-analysis
+
+      - name: Build xStl
+        if: steps.token.outputs.present == 'true'
+        working-directory: xStl
+        run: |
+          sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+          ./build.sh
+
+      - name: Build with cov-build
+        if: steps.token.outputs.present == 'true'
+        working-directory: dismount
+        run: |
+          ./autogen.sh
+          ./configure --prefix="$PWD/out" --enable-debug --enable-unicode --with-xstl="$XSTL_PATH"
+          ../cov-analysis/bin/cov-build --dir cov-int make -j 4
+
+      - name: Submit to Coverity Scan
+        if: steps.token.outputs.present == 'true'
+        working-directory: dismount
+        run: |
+          tar czf dismount.tgz cov-int
+          curl -fsS \
+            --form token="$COVERITY_SCAN_TOKEN" \
+            --form email=e@eladraz.com \
+            --form file=@dismount.tgz \
+            --form version="${GITHUB_SHA}" \
+            --form description="dismount builds from GitHub Actions" \
+            "https://scan.coverity.com/builds?project=$(printf %s "$COVERITY_PROJECT" | sed 's|/|%2F|')"
