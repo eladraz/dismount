@@ -1,5 +1,5 @@
-![unmaintained](http://img.shields.io/badge/status-unmaintained-red.png)
-[![build status](https://travis-ci.org/eladraz/dismount.svg?branch=master)](https://travis-ci.org/eladraz/dismount/)
+![maintained](http://img.shields.io/badge/status-maintained-brightgreen.png)
+[![CI](https://github.com/eladraz/dismount/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/eladraz/dismount/actions/workflows/ci.yml)
 [![coverity status](https://scan.coverity.com/projects/11707/badge.svg)](https://scan.coverity.com/projects/eladraz-dismount)
 
 dismount
