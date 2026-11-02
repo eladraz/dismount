@@ -94,9 +94,9 @@ cString DefaultOpcodeDataFormatter::translateRelativeAddress(
     cString ret;
 
     if (relative >= 0)
-        return cString("$+") + HEXNUMBER((uint32)relative);
+        return cString("$+") + HEXNUMBER((uint32)relative) + m_hexadecimalSuffix;
     else
-        return cString("$-") + HEXNUMBER((uint32)(-relative));
+        return cString("$-") + HEXNUMBER((uint32)(-relative)) + m_hexadecimalSuffix;
 }
 
 cString DefaultOpcodeDataFormatter::getOpcodesSeparator(const cString&)

@@ -99,6 +99,8 @@ public:
     typedef struct {
         uint64 offset;
         uint16 segment;
+        // The second immediate (enter imm16, imm8)
+        uint64 secondOffset;
     } ImmediateType;
 };
 

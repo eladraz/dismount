@@ -13,6 +13,20 @@
 #include "dismount/OpcodeSubsystems.h"
 #include "dismount/proc/ia32/IA32IntelNotation.h"
 
+/*
+ * Return true for the opcode names which take a size suffix when the operand
+ * size is not the default one (nasm: retw, iretd, pushfw, ...)
+ */
+static bool isSizeSuffixed(const cString& name)
+{
+    static const char* names[] = {"ret", "retf", "iret", "leave", "enter",
+                                  "pushf#d", "popf#d", "pusha#d", "popa#d"};
+    for (uint i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+        if (name == names[i])
+            return true;
+    return false;
+}
+
 IA32IntelNotation::IA32IntelNotation(const OpcodePtr& instruction,
                                      OpcodeDataFormatter& dataFormatter) :
     m_dataFormatter(dataFormatter),
@@ -58,20 +72,33 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
                 ret+= " ";
             }
 
+    // The segment override of a string instruction (movs, lods...) has no
+    // memory operand to attach to, so it's written as a prefix: "fs movsb"
+    if (m_opcode->m_opcode->m_firstOperand == ia32dis::OPND_NO_OPERAND)
+    {
+        cString segment = getSegmentSelector();
+        if (segment.length() != 0)
+            ret+= segment.left(segment.length() - 1) + " ";
+    }
+
     if (formatStruct != NULL)
         formatStruct->m_opcodeNameStart = ret.length();
 
     // Add the opcode name
     cString opcodeName = m_opcode->m_opcode->m_opcodeName;
+    // The name conventions follow the operand size ('/', '#d' and '##') and
+    // the address size ('#e')
+    bool operand32 = (m_opcode->m_operandSize == IntegerEncoding::INTEGER_32BIT);
+    bool address32 = (m_opcode->m_addressSize == IntegerEncoding::INTEGER_32BIT);
     // Replace name convenstion
     if (opcodeName.find("/") < opcodeName.length())
     {
         // TODO! 64bit
-        if (is32bit())
+        if (!operand32)
             opcodeName = opcodeName.left(opcodeName.find("/"));
         else
             opcodeName = opcodeName.part(opcodeName.find("/") + 1,
-                                         opcodeName.length() - 1);
+                                         opcodeName.length());
     }
 
     uint namePos = opcodeName.find("#");
@@ -80,22 +107,30 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
         {
         case XSTL_CHAR('d'):
             opcodeName = opcodeName.left(namePos) +
-                (is32bit() ? "d" : "") +
-                opcodeName.part(namePos + 2, opcodeName.length() - 1);
+                (operand32 ? "d" : "") +
+                opcodeName.part(namePos + 2, opcodeName.length());
             break;
         case XSTL_CHAR('e'):
             opcodeName = opcodeName.left(namePos) +
-                (is32bit() ? "e" : "") +
-                opcodeName.part(namePos + 2, opcodeName.length() - 1);
+                (address32 ? "e" : "") +
+                opcodeName.part(namePos + 2, opcodeName.length());
             break;
         case XSTL_CHAR('#'):
             opcodeName = opcodeName.left(namePos) +
-                (is32bit() ? "d" : "w") +
-                opcodeName.part(namePos + 2, opcodeName.length() - 1);
+                (operand32 ? "d" : "w") +
+                opcodeName.part(namePos + 2, opcodeName.length());
             break;
         }
         namePos = opcodeName.find("#");
     }
+
+    // The stack frame and flags instructions with an operand size which is
+    // not the default one are written with the size suffix (66 C3 is 'retw').
+    // The '#d' names already end with 'd' for 32 bit.
+    cString tableName(m_opcode->m_opcode->m_opcodeName);
+    if ((operand32 != is32bit()) && isSizeSuffixed(tableName) &&
+        (!operand32 || (tableName.find("#d") == tableName.length())))
+        opcodeName+= operand32 ? "d" : "w";
 
     ret+= m_dataFormatter.reparseOpcode(opcodeName);
 
@@ -117,6 +152,12 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
     if (m_opcode->m_opcode->m_secondOperand == ia32dis::OPND_NO_OPERAND)
     {
         ASSERT(m_opcode->m_opcode->m_thridOperand == ia32dis::OPND_NO_OPERAND);
+        // loop/loopz/loopnz/jecxz (E0-E3) with an address size which is not the
+        // default one count with cx or ecx
+        if ((m_opcode->m_opcode->m_firstOperand == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8) &&
+            (m_opcode->m_opcode->m_prefix >= 0xE0) && (m_opcode->m_opcode->m_prefix <= 0xE3) &&
+            (address32 != is32bit()))
+            ret+= m_dataFormatter.getOpcodesSeparator(ret) + (address32 ? "ecx" : "cx");
         return m_dataFormatter.endInstruction(ret);
     }
 
@@ -192,7 +233,7 @@ uint IA32IntelNotation::parseOperandAddress(ProcessorAddress& address)
         break;
 
     case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
-        switch (m_opcode->m_addressSize)
+        switch (m_opcode->m_operandSize)
         {
         case IntegerEncoding::INTEGER_16BIT:
             if (m_opcode->m_shouldUseAddress)
@@ -234,21 +275,17 @@ bool IA32IntelNotation::is32bit() const
 cString IA32IntelNotation::getSegmentSelector() const
 {
     cString ret;
-    bool wasExecuted = false;
-    // Add the segment selector
+    // Add the segment selector. When the segment prefix is repeated the last
+    // one is used (as the processors do).
     for (uint i = 0; i < m_opcode->m_prefixsCount; i++)
         for (uint j = 0; j < ia32dis::IA32_NUMBER_OF_PREFIXS; j++)
             if ((m_opcode->m_prefixs[i] == ia32dis::gIa32PrefixTable[j].m_opcode) &&
                 (ia32dis::gIa32PrefixTable[j].m_isSegmentSelector))
             {
-                // The assembler language is invalid. Detected during parse, two
-                // same opcode prefixs. Don't know how the processor eats it.
-                CHECK(!wasExecuted);
                 ret = ia32dis::gIa32PrefixTable[j].m_prefixName;
-                wasExecuted = true;
             }
 
-            return ret;
+    return ret;
 }
 
 cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
@@ -365,39 +402,29 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
 
     if ((*modrmTranslator)[mod][reg].m_forceSib)
     {
-        // Start with the index register
-        // TODO: Should this be m_bits.m_base?
-        //if (m_opcode->m_sib.m_bits.m_base == ia32dis::IA32_GP32_EBP)
-        if (m_opcode->m_sib.m_bits.m_index == ia32dis::IA32_GP32_EBP)
-        {
-            // mod 0 has no index
-            if (mod != 0)
-            {
-                ret+= registersDescriptor[ia32dis::IA32_GP32_EBP].m_name;
-                ret+= "+";
-            }
-        } else
-        {
-            //ret+= registersDescriptor[m_opcode->m_sib.m_bits.m_base].m_name;
-            ret+= registersDescriptor[m_opcode->m_sib.m_bits.m_index].m_name;
-            ret+= "+";
-        }
-        // Add the scale register
-        // TODO: Should this be m_bits.m_index?
-        //if (m_opcode->m_sib.m_bits.m_index != ia32dis::IA32_GP32_ESP)
-        if (m_opcode->m_sib.m_bits.m_base != ia32dis::IA32_GP32_ESP)
-        {
-            //ret+= registersDescriptor[m_opcode->m_sib.m_bits.m_index].m_name;
+        // Start with the base register. Mod 0 with base EBP has no base (a
+        // disp32 is used instead)
+        bool hasBase = (mod != 0) ||
+                       (m_opcode->m_sib.m_bits.m_base != ia32dis::IA32_GP32_EBP);
+        if (hasBase)
             ret+= registersDescriptor[m_opcode->m_sib.m_bits.m_base].m_name;
-            if (m_opcode->m_sib.m_bits.m_scale != 0)
+        // Add the scaled index register. Index ESP means no index.
+        if (m_opcode->m_sib.m_bits.m_index != ia32dis::IA32_GP32_ESP)
+        {
+            if (hasBase)
+                ret+= "+";
+            ret+= registersDescriptor[m_opcode->m_sib.m_bits.m_index].m_name;
+            switch (m_opcode->m_sib.m_bits.m_scale)
             {
-                ret+= "*";
-                switch (m_opcode->m_sib.m_bits.m_scale)
-                {
-                case 1: ret+= "2"; break;
-                case 2: ret+= "4"; break;
-                case 3: ret+= "8"; break;
-                }
+            // With an EBP base the index is written with its scale: an
+            // assembler swaps [ebp+eax] into the shorter [eax+ebp]
+            case 0: if (hasBase &&
+                        (m_opcode->m_sib.m_bits.m_base == ia32dis::IA32_GP32_EBP))
+                        ret+= "*1";
+                    break;
+            case 1: ret+= "*2"; break;
+            case 2: ret+= "*4"; break;
+            case 3: ret+= "*8"; break;
             }
         }
     }
@@ -429,6 +456,9 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
             ret+= m_dataFormatter.translateRelativeDisplacement(displacement);
         } else
         {
+            // An absolute displacement which follows the SIB registers
+            if (ret[ret.length() - 1] != XSTL_CHAR('['))
+                ret+= "+";
             switch (m_opcode->m_displacementLength)
             {
             case 1: ret+= m_dataFormatter.translateUint8(displacement); break;
@@ -499,6 +529,10 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     case ia32dis::OPND_MODRM_BYTEPTR:
     case ia32dis::OPND_MODRM_MEM:
         return getModrmString(type);
+
+    case ia32dis::OPND_MODRM_FAR_OFFSET:
+        // jmp/call far through a m16:16 or m16:32 pointer
+        return cString("far ") + getModrmString(ia32dis::OPND_MODRM_dWORDPTR);
 
     case ia32dis::OPND_GP_SEGMENT_MODRM:
         tempu = m_opcode->m_modrm.m_bits.m_regOpcode;
@@ -601,10 +635,29 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
 
     case ia32dis::OPND_IMMEDIATE_8BIT:
         ASSERT(m_opcode->m_immediateLength == 1);
+        // The second immediate of 'enter imm16, imm8'
+        if (m_opcode->m_opcode->m_firstOperand == ia32dis::OPND_IMMEDIATE_16BIT)
+            return m_dataFormatter.translateUint8(
+                        (uint8)m_opcode->m_immediate.secondOffset);
+        // The sign-extended imm8 (83 /digit ib, 6B /r ib, 6A ib) is shown as a
+        // signed value. 'push imm8' with a 16 bit operand size pushes a word.
+        if ((m_opcode->m_opcode->m_prefix == 0x83) ||
+            (m_opcode->m_opcode->m_prefix == 0x6B) ||
+            (m_opcode->m_opcode->m_prefix == 0x6A))
+        {
+            cString size;
+            if ((m_opcode->m_opcode->m_prefix == 0x6A) &&
+                (m_opcode->m_operandSize == IntegerEncoding::INTEGER_16BIT))
+                size = "word ";
+            if ((int8)m_opcode->m_immediate.offset < 0)
+                return size + "-" + m_dataFormatter.translateUint8(
+                        (uint8)(-(int8)m_opcode->m_immediate.offset));
+            return size + m_dataFormatter.translateUint8(
+                        (uint8)m_opcode->m_immediate.offset);
+        }
         return m_dataFormatter.translateUint8(
                         (uint8)m_opcode->m_immediate.offset);
     case ia32dis::OPND_IMMEDIATE_16BIT:
-        ASSERT(m_opcode->m_immediateLength == 2);
         return m_dataFormatter.translateUint16(
                         (uint16)m_opcode->m_immediate.offset);
     case ia32dis::OPND_IMMEDIATE_DS:
@@ -640,14 +693,6 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         }
 
 
-    case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
-        return m_dataFormatter.translateRelativeAddress(
-            (ProcessorAddress::intAddress)((int32)m_opcode->m_immediate.offset) +
-                // NOTE: All ia32 relative calculate are from the next operation
-                m_opcode->m_opcodeData.getSize(),
-            m_opcode->m_shouldUseAddress,
-            m_opcode->m_opcodeAddress);
-
     case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
         return m_dataFormatter.translateRelativeAddress(
             (ProcessorAddress::intAddress)((int8)m_opcode->m_immediate.offset) +
@@ -656,47 +701,39 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
             m_opcode->m_shouldUseAddress,
             m_opcode->m_opcodeAddress);
 
+    case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
     case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
-        switch (m_opcode->m_addressSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-        return m_dataFormatter.translateRelativeAddress(
-                (ProcessorAddress::intAddress)((int16)m_opcode->m_immediate.offset) +
-                    // NOTE: All ia32 relative calculate are from the next operation
-                    m_opcode->m_opcodeData.getSize(),
+    {
+        // rel16 or rel32 according to the operand size
+        ProcessorAddress::intAddress relative =
+            (m_opcode->m_operandSize == IntegerEncoding::INTEGER_16BIT) ?
+                (ProcessorAddress::intAddress)((int16)m_opcode->m_immediate.offset) :
+                (ProcessorAddress::intAddress)((int32)m_opcode->m_immediate.offset);
+        // NOTE: All ia32 relative calculate are from the next operation
+        relative+= m_opcode->m_opcodeData.getSize();
+        // A near jcc/jmp whose target fits in the 2 bytes short form is marked
+        // 'near', otherwise it's assembled as short (call has no short form)
+        cString hint;
+        if ((m_opcode->m_opcode->m_prefix != 0xE8) &&
+            (relative - 2 >= -0x80) && (relative - 2 <= 0x7F))
+            hint = "near ";
+        return hint + m_dataFormatter.translateRelativeAddress(relative,
                 m_opcode->m_shouldUseAddress,
                 m_opcode->m_opcodeAddress);
-
-        case IntegerEncoding::INTEGER_32BIT:
-        return m_dataFormatter.translateRelativeAddress(
-                (ProcessorAddress::intAddress)((int32)m_opcode->m_immediate.offset) +
-                    // NOTE: All ia32 relative calculate are from the next operation
-                    m_opcode->m_opcodeData.getSize(),
-                m_opcode->m_shouldUseAddress,
-                m_opcode->m_opcodeAddress);
-        default:
-            CHECK_FAIL();
-        }
+    }
 
     case ia32dis::OPND_IMMEDIATE_OFFSET_FAR:
-        switch (m_opcode->m_addressSize)
+        // An absolute segment:offset, the offset is operand sized
+        switch (m_opcode->m_operandSize)
         {
         case IntegerEncoding::INTEGER_16BIT:
         return m_dataFormatter.translateUint16(m_opcode->m_immediate.segment) +
-               ":" + m_dataFormatter.translateRelativeAddress(
-                (ProcessorAddress::intAddress)((int16)m_opcode->m_immediate.offset) +
-                    // NOTE: All ia32 relative calculate are from the next operation
-                    m_opcode->m_opcodeData.getSize(),
-                m_opcode->m_shouldUseAddress,
-                m_opcode->m_opcodeAddress);
+               ":" + m_dataFormatter.translateUint16(
+                (uint16)m_opcode->m_immediate.offset);
         case IntegerEncoding::INTEGER_32BIT:
         return m_dataFormatter.translateUint16(m_opcode->m_immediate.segment) +
-                ":" + m_dataFormatter.translateRelativeAddress(
-                (ProcessorAddress::intAddress)((int32)m_opcode->m_immediate.offset) +
-                    // NOTE: All ia32 relative calculate are from the next operation
-                    m_opcode->m_opcodeData.getSize(),
-                m_opcode->m_shouldUseAddress,
-                m_opcode->m_opcodeAddress);
+                ":" + m_dataFormatter.translateUint32(
+                (uint32)m_opcode->m_immediate.offset);
         default:
             CHECK_FAIL();
         }

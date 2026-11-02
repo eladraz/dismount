@@ -186,11 +186,12 @@ OpcodePtr IA32StreamDisassembler::next()
                     ia32dis::ModRMTranslationType* modrmTable;
                     // TODO!!!
                     // Is any prefix changes this tables?
-                    switch (m_type) {
-                    case IA32eInstructionSet::INTEL_16:
+                    // The address size (67 prefix) selects the table
+                    switch (m_addressSize) {
+                    case IntegerEncoding::INTEGER_16BIT:
                         modrmTable = &ia32dis::gIa32ModRM16;
                         break;
-                    case IA32eInstructionSet::INTEL_32:
+                    case IntegerEncoding::INTEGER_32BIT:
                         modrmTable = &ia32dis::gIa32ModRM32;
                         break;
                     default:
@@ -231,8 +232,13 @@ OpcodePtr IA32StreamDisassembler::next()
                 // Read immediate, cast all possible operands
                 uint immediateLength = 0;
                 IA32OpcodeDatastruct::ImmediateType immediate = {0,0};
-                readImmediate(*m_stream, opcode->m_firstOperand,  immediateLength, immediate);
-                readImmediate(*m_stream, opcode->m_secondOperand, immediateLength, immediate);
+                bool firstImmediate =
+                    readImmediate(*m_stream, opcode->m_firstOperand,  immediateLength, immediate);
+                // A second immediate (enter imm16, imm8) has its own slot
+                IA32OpcodeDatastruct::ImmediateType secondImmediate = {0,0,0};
+                readImmediate(*m_stream, opcode->m_secondOperand, immediateLength,
+                              firstImmediate ? secondImmediate : immediate);
+                immediate.secondOffset = secondImmediate.offset;
                 readImmediate(*m_stream, opcode->m_thridOperand,  immediateLength, immediate);
 
                 // Generate the IA32Opcode
@@ -436,6 +442,16 @@ bool IA32StreamDisassembler::filterModRM(
         ok = (opcode->m_modrm & ia32dis::MODRM_MOD_111) != 0; break;
     }
 
+    // A reg field which names no segment or control register (8C/8E with reg
+    // 6-7, 0F 20/22 with cr1 or cr5-cr7) is an undefined encoding
+    if ((opcode->m_firstOperand == ia32dis::OPND_GP_SEGMENT_MODRM) ||
+        (opcode->m_secondOperand == ia32dis::OPND_GP_SEGMENT_MODRM))
+        ok = ok && (modrm.m_bits.m_regOpcode < ia32dis::NUMBER_OF_SEGMENTS_REGISTERS);
+    if ((opcode->m_firstOperand == ia32dis::OPND_CTRL_MODRM) ||
+        (opcode->m_secondOperand == ia32dis::OPND_CTRL_MODRM))
+        ok = ok && (modrm.m_bits.m_regOpcode != 1) &&
+             (modrm.m_bits.m_regOpcode < ia32dis::NUMBER_OF_CONTROL_REGISTERS);
+
     return ok;
 }
 
@@ -491,20 +507,22 @@ bool IA32StreamDisassembler::readImmediate(basicInput& data,
         simpleImmediate = IntegerEncoding::INTEGER_16BIT;
         break;
     case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
-        simpleImmediate = IntegerEncoding::INTEGER_32BIT;
-        break;
-
-    case ia32dis::OPND_IMMEDIATE_DS:
+        // rel16/rel32, according to the operand size
         simpleImmediate = m_operandSize;
         break;
 
+    case ia32dis::OPND_IMMEDIATE_DS:
     case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+        simpleImmediate = m_operandSize;
+        break;
+
     case ia32dis::OPND_MEMREF_OFFSET_DS:
         simpleImmediate = m_addressSize;
         break;
 
     case ia32dis::OPND_IMMEDIATE_OFFSET_FAR:
-        simpleImmediate = m_addressSize;
+        // offset16/32 (operand size) and the segment
+        simpleImmediate = m_operandSize;
         shouldReadSegment = true;
         break;
     default:

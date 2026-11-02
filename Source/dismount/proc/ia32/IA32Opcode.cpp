@@ -49,9 +49,9 @@ IA32Opcode::IA32Opcode(IA32eInstructionSet::DisassemblerTypes type,
     m_addressSize(addressSize)
 {
     CHECK(opcode != NULL);
-    // Cache the last byte of the opcode
+    // Cache the last byte of the opcode (the opcode follows the prefixes)
     CHECK(m_opcodeData.getSize() > 0);
-    m_lastOpcodeByte = m_opcodeData[opcodeSize - 1];
+    m_lastOpcodeByte = m_opcodeData[prefixsCount + opcodeSize - 1];
     // Test the address notation.
     switch (m_type)
     {
