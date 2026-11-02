@@ -147,6 +147,11 @@ OpcodePtr IA32StreamDisassembler::next()
                       ia32dis::OPCODEEOT) != 0;
              i++)
         {
+            // 90 is nop, but 66 90 is 'xchg ax, ax'
+            if ((table == ia32dis::gIa32OneByteOpcodeTable) && operandSizeOverride &&
+                (table[i].m_prefix == 0x90) &&
+                (table[i].m_firstOperand == ia32dis::OPND_NO_OPERAND))
+                continue;
             if ((table[i].m_prefixMask & nextByte) ==
                 table[i].m_prefix)
             {

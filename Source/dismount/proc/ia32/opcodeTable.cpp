@@ -209,10 +209,11 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     {"lgdt",       0x01,   0xFF,  OPND_MODRM_dWORDPTR, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010,  true,     Opcode::FLOW_NO_ALTER}, // lgdt    fword ptr [edx+2F6h]
     {"lidt",       0x01,   0xFF,  OPND_MODRM_dWORDPTR, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011,  true,     Opcode::FLOW_NO_ALTER}, // lidt    fword ptr [ebp+var_E]
     {"invlpg",     0x01,   0xFF,  OPND_MODRM_BYTEPTR,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111,  true,     Opcode::FLOW_NO_ALTER}, // invlpg  byte ptr [eax]
-    {"lar",        0x02,   0xFF,  OPND_MODRM_dWORDPTR, OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // lar     eax, eax
+    {"lar",        0x02,   0xFF,  OPND_GP_16_32BIT,    OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // lar     eax, eax
     {"clts",       0x06,   0xFF,  OPND_NO_OPERAND,     OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,                   true,     Opcode::FLOW_NO_ALTER}, // clts
     {"wbinvd",     0x09,   0xFF,  OPND_NO_OPERAND,     OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,                   true,     Opcode::FLOW_NO_ALTER}, // wbinvd
     {"prefetchnta",0x18,   0xFF,  OPND_MODRM_BYTEPTR,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000,  true,     Opcode::FLOW_NO_ALTER}, // prefetchnta byte ptr [ecx+0]
+    {"nop",        0x1F,   0xFF,  OPND_MODRM_dWORDPTR, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // nop     dword ptr [eax]
     {"mov",        0x20,   0xFF,  OPND_MODRM_dWORDPTR, OPND_CTRL_MODRM,      OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // mov     eax, cr0
     {"mov",        0x21,   0xFF,  OPND_MODRM_dWORDPTR, OPND_DBG_MODRM,       OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // mov     eax, dr0
     {"mov",        0x22,   0xFF,  OPND_CTRL_MODRM,     OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER}, // mov     cr0, ecx
@@ -288,14 +289,16 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     // TODO! The following two instruction are not fully understood for me
     {"shld",       0xA4,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"shld",       0xA5,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_CL,             MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
-    {"cmpxchg",    0xA6,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // cmpxchg dl, cl
     {"push",       0xA8,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // push    gs
     {"pop",        0xA9,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // pop     gs
     {"bts",        0xAB,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bts     [esp+24h+var_24], eax
     {"shrd",       0xAC,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // shrd    eax, ecx, 0Ch
     {"shrd",       0xAD,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_CL,             MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // shrd    eax, edx, cl
-    {"fxsave",     0xAE,   0xFF,  OPND_IMMEDIATE_8BIT,            OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // fxsave  dword ptr [ecx]
-    {"imul",       0xAF,   0xFF,  OPND_GP_16_32BIT,               OPND_MODRM_BYTEPTR,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // imul    esi, ecx
+    {"fxsave",     0xAE,   0xFF,  OPND_MODRM_MEM,                 OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEMORY | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER}, // fxsave  dword ptr [ecx]
+    {"fxrstor",    0xAE,   0xFF,  OPND_MODRM_MEM,                 OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEMORY | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER}, // fxrstor [eax]
+    {"ldmxcsr",    0xAE,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEMORY | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER}, // ldmxcsr dword ptr [eax]
+    {"stmxcsr",    0xAE,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_MOD_MEMORY | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER}, // stmxcsr dword ptr [eax]
+    {"imul",       0xAF,   0xFF,  OPND_GP_16_32BIT,               OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // imul    esi, ecx
     // Slots 6,7 are empty
 
     {"cmpxchg",    0xB0,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
@@ -307,18 +310,17 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     {"movzx",      0xB7,   0xFF,  OPND_GP_16_32BIT,               OPND_MODRM_WORDPTR,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"bt",         0xBA,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER}, // bt      word ptr [esp+arg_68], 0
     {"btr",        0xBA,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER}, // btr     ecx, 1
+    {"btc",        0xBA,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER}, // btc     ecx, 1
     {"bts",        0xBA,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER}, // bts ds:dword_473E58, 0
-    {"bsf",        0xBC,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bsf     ecx, eax
-    {"bsr",        0xBD,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bsr     edx, ebx
+    {"btc",        0xBB,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // btc     ecx, eax
+    {"bsf",        0xBC,   0xFF,  OPND_GP_16_32BIT,               OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bsf     ecx, eax
+    {"bsr",        0xBD,   0xFF,  OPND_GP_16_32BIT,               OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bsr     edx, ebx
     // TODO! Complete the table here
     {"xadd",       0xC0,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"xadd",       0xC1,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
-    {"movnti",     0xC3,   0xFF,  OPND_IMMEDIATE_8BIT,            OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // movnti  dword ptr [edi], eax
+    {"movnti",     0xC3,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // movnti  dword ptr [edi], eax
     {"cmpxchg8b",  0xC7,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // cmpxchg8b qword ptr [ebp+0]
-    {"bswap",      0xC8,   0xFF,  OPND_eAX,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // bswap   eax
-    {"bswap",      0xC9,   0xFF,  OPND_CL,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // bswap   ecx
-    {"bswap",      0xCA,   0xFF,  OPND_eAX,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // bswap   edx
-    {"bswap",      0xCE,   0xFF,  OPND_eSI,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // bswap   esi
+    {"bswap",      0xC8,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // bswap   eax
 
     {"pmullw",     0xD5,   0xFF,  OPND_SIMD_MODRM,                OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // pmullw  mm2, mm0
     {"paddusb",    0xDC,   0xFF,  OPND_SIMD_MODRM,                OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // paddusb mm4, qword ptr [esi-8]
@@ -427,11 +429,19 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"jo",          0x70,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW},             // jo     $+5
     {"jno",         0x71,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW | Opcode::FLOW_COND_NOT},             // jo     $+5
     {"jb",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},             // jo     $+5
+    {"jc",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
+    {"jnae",        0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
     {"jnb",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},             // jo     $+5
+    {"jnc",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
+    {"jae",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
     {"jz",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},             // jo     $+5
+    {"je",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},
     {"jnz",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},             // jo     $+5
+    {"jne",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},
     {"jbe",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},             // jo     $+5
+    {"jna",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
     {"ja",          0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},             // jo     $+5
+    {"jnbe",        0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
 
     {"add",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
     {"add",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
@@ -468,18 +478,15 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
 
     {"test",        0x84,   0xFF, OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // test al, [bx+si]    TODO! Wrong doc
     {"test",        0x85,   0xFF, OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // test ax, [bx+si]    TODO! Wrong doc
+    {"xchg",        0x86,   0xFF, OPND_GP_8BIT_MODRM,             OPND_MODRM_BYTEPTR,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // xchg cl, al
     {"xchg",        0x86,   0xFF, OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // test al, [bx+si]    TODO! Wrong doc
+    {"xchg",        0x87,   0xFF, OPND_GP_16_32BIT,               OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // xchg ecx, eax
     {"xchg",        0x87,   0xFF, OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // test ax, [bx+si]    TODO! Wrong doc
 
     // NOTE: How the scanning algorithm exclude opcode 0x90 to be nop instead of XCHG EAX,EAX
     {"nop",         0x90,   0xFF, OPND_NO_OPERAND,                OPND_NO_OPERAND,  OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-    {"xchg",        0x91,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, ecx
-    {"xchg",        0x92,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, edx
-    {"xchg",        0x93,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, ebx
-    {"xchg",        0x94,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, esp
-    {"xchg",        0x95,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, ebp
-    {"xchg",        0x96,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, esi
-    {"xchg",        0x97,   0xFF, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, edi
+    {"xchg",        0x90,   0xF8, OPND_eAX,  OPND_ONEBYTES_OPCODE_GP_16_32,         OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    eax, ecx
+    {"xchg",        0x90,   0xF8, OPND_ONEBYTES_OPCODE_GP_16_32,  OPND_eAX,              OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER}, // xchg    ecx, eax
 
     {"mov",         0xA0,   0xFF, OPND_AL,               OPND_MEMREF_OFFSET_DS, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
     {"mov",         0xA1,   0xFF, OPND_eAX,              OPND_MEMREF_OFFSET_DS, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
@@ -501,7 +508,9 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"rcr",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"rcr",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shr",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {"shr",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {INVALID,       0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_INVALID},  // INVALID
@@ -509,7 +518,7 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"sar",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
     {"sar",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
 
-    {"retn",        0xC2,   0xFF, OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION},
+    {"ret",         0xC2,   0xFF, OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION},
     {"ret",         0xC3,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION},
     {"les",         0xC4,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"lds",         0xC5,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -537,9 +546,13 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"rcr",         0xD2,   0xFF, OPND_MODRM_BYTEPTR,    OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"rcr",         0xD3,   0xFF, OPND_MODRM_dWORDPTR,   OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xD0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xD0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xD1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xD1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xD2,   0xFF, OPND_MODRM_BYTEPTR,    OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xD2,   0xFF, OPND_MODRM_BYTEPTR,    OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shl",         0xD3,   0xFF, OPND_MODRM_dWORDPTR,   OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"sal",         0xD3,   0xFF, OPND_MODRM_dWORDPTR,   OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"shr",         0xD0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {"shr",         0xD1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_ONE,              OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {"shr",         0xD2,   0xFF, OPND_MODRM_BYTEPTR,    OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
@@ -560,7 +573,9 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"xlatb",       0xD7,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
 
     {"loopnz",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
+    {"loopne",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
     {"loopz",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
+    {"loope",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
     {"loop",        0xE2,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
     {"j#ecxz",      0xE3,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
     {"in",          0xE4,   0xFF, OPND_AL,                       OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
@@ -646,11 +661,17 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"js",          0x78,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE},
     {"jns",         0x79,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE | Opcode::FLOW_COND_NOT},
     {"jp",          0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY},
+    {"jpe",         0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY},
     {"jnp",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
+    {"jpo",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
     {"jl",          0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER},
+    {"jnge",        0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER},
     {"jnl",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
+    {"jge",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
     {"jng",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
+    {"jle",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
     {"jg",          0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER},
+    {"jnle",        0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER},
 
     {"mov",         0x88,   0xFF,  OPND_MODRM_BYTEPTR,    OPND_GP_8BIT_MODRM,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"mov",         0x89,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_GP_16_32BIT,      OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -663,9 +684,9 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"mov",         0x8E,   0xFF,  OPND_GP_SEGMENT_MODRM, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"pop",         0x8F,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 
-    {"cwde",        0x98,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cbw for prefix
-    {"cdq",         0x99,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cwd for prefix
-    {"callf",       0x9A,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,  OPND_NO_OPERAND,  OPND_NO_OPERAND, MODRM_NO_MODRM, false,Opcode::FLOW_NO_ALTER},
+    {"cbw/cwde",    0x98,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cbw for prefix
+    {"cwd/cdq",     0x99,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cwd for prefix
+    {"call",        0x9A,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,  OPND_NO_OPERAND,  OPND_NO_OPERAND, MODRM_NO_MODRM, false,Opcode::FLOW_NO_ALTER},
     {"fwait",       0x9B,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"pushf#d",     0x9C,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"popf#d",      0x9D,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
@@ -687,9 +708,9 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"leave",       0xC9,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"retf",        0xCA,   0xFF,  OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RETF},
     {"retf",        0xCB,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RETF},
-    {"int",         0xCC,   0xFF,  OPND_THREE,            OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID},
-    {"int",         0xCD,   0xFF,  OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID},
-    {"into",        0xCE,   0xFF,  OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"int3",        0xCC,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"int",         0xCD,   0xFF,  OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"into",        0xCE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"iret",        0xCF,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RET},
 
     //{INVALID,       0xD8,   0xF8,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID},              // INVALID! ESC to coprocessor
@@ -735,37 +756,37 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
 // TODO: Add support for operands with +i (mnemonics st(i))
 const OpcodeEntry gIa32FPUOpcodeTable[] = {
     //Name          PREFIX  MASK  FIRST-OPERAND          SECOND-OPERAND         THIRD-OPERAND    MODRM-FILTER                     UNSIGNED  ALTERING                    EXAMPLE
-    {"fadd",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_NO_ALTER}, // fadd    dword ptr [esi+0]
-    {"fmul",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // fmul    dword ptr [eax+4]
-    {"fcom",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,     Opcode::FLOW_NO_ALTER}, // fcom    st(3)
-    {"fcomp",       0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // fcomp   dword ptr [edi+90044h]
-    {"fsub",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // fsub    st, st(5)
-    {"fdiv",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // fdiv    st, st(1)
-    {"fdivr",       0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // fdivr   dword ptr [edi+59h]
+    {"fadd",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // fadd    dword ptr [esi+0]
+    {"fmul",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_001, true,   Opcode::FLOW_NO_ALTER}, // fmul    dword ptr [eax+4]
+    {"fcom",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER}, // fcom    st(3)
+    {"fcomp",       0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // fcomp   dword ptr [edi+90044h]
+    {"fsub",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_100, true,   Opcode::FLOW_NO_ALTER}, // fsub    st, st(5)
+    {"fsubr",       0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_101, true,   Opcode::FLOW_NO_ALTER},
+    {"fdiv",        0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_110, true,   Opcode::FLOW_NO_ALTER}, // fdiv    st, st(1)
+    {"fdivr",       0xD8,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_111, true,   Opcode::FLOW_NO_ALTER}, // fdivr   dword ptr [edi+59h]
 
-    {"fld",         0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_NO_ALTER}, // /0
+    {"fld",         0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // /0
     {"fxch",        0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // /1
-    {"fst",         0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,     Opcode::FLOW_NO_ALTER}, // /2
-    {"fstp",        0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // /3
-    {"fldenv",      0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // /4
-    {"fldcw",       0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true,     Opcode::FLOW_NO_ALTER}, // /5
-    {"fnstenv",     0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // /6
-    {"fnstcw",      0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // /7
-    {"fld",         0xD9,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,                  true,     Opcode::FLOW_NO_ALTER}, // D9 XX
+    {"fst",         0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER}, // /2
+    {"fstp",        0xD9,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // /3
+    {"fldenv",      0xD9,   0xFF, OPND_MODRM_MEM,        OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_100, true,   Opcode::FLOW_NO_ALTER}, // /4
+    {"fldcw",       0xD9,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_101, true,   Opcode::FLOW_NO_ALTER}, // /5
+    {"fnstenv",     0xD9,   0xFF, OPND_MODRM_MEM,        OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_110, true,   Opcode::FLOW_NO_ALTER}, // /6
+    {"fnstcw",      0xD9,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_111, true,   Opcode::FLOW_NO_ALTER}, // /7
 
-    {"fiadd",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_NO_ALTER}, // /0
-    {"fimul",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // /1
-    {"ficom",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,     Opcode::FLOW_NO_ALTER}, // /2
-    {"ficomp",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // /3
-    {"fisub",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // /4
-    {"fisubr",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true,     Opcode::FLOW_NO_ALTER}, // /5
-    {"fidiv",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // /6
-    {"fidivr",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // /7
-    {"fucompp",     0xDA,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,                  true,     Opcode::FLOW_NO_ALTER}, // DA XX
+    {"fiadd",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // /0
+    {"fimul",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_001, true,   Opcode::FLOW_NO_ALTER}, // /1
+    {"ficom",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER}, // /2
+    {"ficomp",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // /3
+    {"fisub",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_100, true,   Opcode::FLOW_NO_ALTER}, // /4
+    {"fisubr",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_101, true,   Opcode::FLOW_NO_ALTER}, // /5
+    {"fidiv",       0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_110, true,   Opcode::FLOW_NO_ALTER}, // /6
+    {"fidivr",      0xDA,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_111, true,   Opcode::FLOW_NO_ALTER}, // /7
 
-    {"fild",        0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_NO_ALTER}, // fild    dword ptr [ecx]
-    {"fisttp",      0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // fisttp  dword ptr [eax+eax-54545455h]
-    {"fistp",       0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // fistp   [ebp+arg_0]
+    {"fild",        0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // fild    dword ptr [ecx]
+    {"fisttp",      0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_001, true,   Opcode::FLOW_NO_ALTER}, // fisttp  dword ptr [eax+eax-54545455h]
+    {"fist",        0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER},
+    {"fistp",       0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // fistp   [ebp+arg_0]
     {"fnclex",      0xDB,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // fnclex
     {"fld",         0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true,     Opcode::FLOW_NO_ALTER}, // fld     tbyte_473F50
     {INVALID,       0xDB,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_INVALID}, // INVALID
@@ -782,12 +803,18 @@ const OpcodeEntry gIa32FPUOpcodeTable[] = {
     {"fldMOD1",     0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // /1
     {"fst",         0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,     Opcode::FLOW_NO_ALTER}, // /2
     {"fstp",        0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // /3
-    {"frstor",      0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // /4
-    {"fldMOD5",     0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true,     Opcode::FLOW_NO_ALTER}, // /5
-    {"fnsave",      0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // /6
-    {"fnstsw",      0xDD,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // /7
-    {"fld",         0xDD,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,                  true,     Opcode::FLOW_NO_ALTER}, // DD XX
+    {"frstor",      0xDD,   0xFF, OPND_MODRM_MEM,        OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_100, true,   Opcode::FLOW_NO_ALTER}, // /4
+    {"fnsave",      0xDD,   0xFF, OPND_MODRM_MEM,        OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_110, true,   Opcode::FLOW_NO_ALTER}, // /6
+    {"fnstsw",      0xDD,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_111, true,   Opcode::FLOW_NO_ALTER}, // /7
 
+    {"fiadd",       0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // /0
+    {"fimul",       0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_001, true,   Opcode::FLOW_NO_ALTER}, // /1
+    {"ficom",       0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER}, // /2
+    {"ficomp",      0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // /3
+    {"fisub",       0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_100, true,   Opcode::FLOW_NO_ALTER}, // /4
+    {"fisubr",      0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_101, true,   Opcode::FLOW_NO_ALTER}, // /5
+    {"fidiv",       0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_110, true,   Opcode::FLOW_NO_ALTER}, // /6
+    {"fidivr",      0xDE,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_111, true,   Opcode::FLOW_NO_ALTER}, // /7
     {INVALID,       0xDE,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_INVALID},  // faddp   st, st
     {"fmulp",       0xDE,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_INVALID},  // fmulp   st(1), st
     {"fcompp",      0xDE,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // fcompp
@@ -796,15 +823,14 @@ const OpcodeEntry gIa32FPUOpcodeTable[] = {
     {"fdivrp",      0xDE,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // fdivrp  st(1), st
     {"fdivp",       0xDE,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // fdivp   st(1), st
 
-    {"fild",        0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true,     Opcode::FLOW_NO_ALTER}, // /0
-    {"fnstswMOD1",  0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,     Opcode::FLOW_NO_ALTER}, // /1
-    {"fist",        0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,     Opcode::FLOW_NO_ALTER}, // /2
-    {"fistp1",      0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true,     Opcode::FLOW_NO_ALTER}, // /3
+    {"fild",        0xDF,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_000, true,   Opcode::FLOW_NO_ALTER}, // /0
+    {"fisttp",      0xDF,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_001, true,   Opcode::FLOW_NO_ALTER}, // /1
+    {"fist",        0xDF,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_010, true,   Opcode::FLOW_NO_ALTER}, // /2
+    {"fistp",       0xDF,   0xFF, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEMORY | MODRM_MOD_011, true,   Opcode::FLOW_NO_ALTER}, // /3
     {"fbld",        0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, true,     Opcode::FLOW_NO_ALTER}, // /4
     {"fild2",       0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, true,     Opcode::FLOW_NO_ALTER}, // /5
     {"fbstp",       0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, true,     Opcode::FLOW_NO_ALTER}, // /6
     {"fistp",       0xDF,   0xFF, OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true,     Opcode::FLOW_NO_ALTER}, // /7
-    {"fnstsw",      0xDF,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,                  true,     Opcode::FLOW_NO_ALTER}, // DF XX
 
     // End marker
     {OPCODEEOT, 0,0, OPND_NO_OPERAND,OPND_NO_OPERAND,OPND_NO_OPERAND, 0, false, Opcode::FLOW_NO_ALTER}

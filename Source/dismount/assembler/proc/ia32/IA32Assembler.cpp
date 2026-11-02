@@ -720,6 +720,9 @@ void IA32AssemblerStream::encodeOpcode(uint table,
         CHECK((first.getType() & Operand::OPERAND_REGISTRY_MASK) != 0);
         opcodeData|= (first.getReference1() & (~opcode->m_prefixMask));
     }
+    // xchg r, eAX may be encoded as xchg eAX, r (90+r)
+    if (opcode->m_secondOperand == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32)
+        opcodeData|= (second.getReference1() & (~opcode->m_prefixMask));
     m_binary.appendUint8(opcodeData);
 
     // Add ModRM (if any)
