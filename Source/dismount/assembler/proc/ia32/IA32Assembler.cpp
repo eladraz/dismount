@@ -7,16 +7,17 @@
  * Author: Elad Raz <e@eladraz.com>
  */
 #include "xStl/types.h"
+#include "xStl/data/char.h"
 #include "xStl/data/endian.h"
 #include "xStl/except/trace.h"
+#include "xStl/exceptions.h"
 #include "xStl/parser/parser.h"
 #include "dismount/assembler/proc/ia32/IA32Assembler.h"
 #include "dismount/IntegerEncoding.h"
 #include "dismount/proc/ia32/opcodeTable.h"
 
-#ifdef _DEBUG
-#include "xStl/stream/traceStream.h"
-#endif
+// Throw an exception with a message describing the assembler failure
+#define ASM_CHECK(cond, msg) if (!(cond)) { XSTL_THROW(cException, XSTL_STRING(msg), EXCEPTION_FAILED); }
 
 IA32Assembler::IA32Assembler(FirstPassBinaryPtr binary,
                              IA32eInstructionSet::DisassemblerTypes processorMode) :
@@ -37,6 +38,168 @@ FirstPassBinaryPtr IA32Assembler::getFirstPass()
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Text helpers. The text is read through the xStl Parser, and the words are
+// cStrings. The text is lowercased before it is parsed.
+
+namespace {
+
+// True if the next character is 'c'
+bool isNextChar(Parser& parser, char c)
+{
+    return !parser.isEOS() && (parser.peekChar() == c);
+}
+
+// True if a letter, a digit or '_' (a word) starts at the parser
+bool isIdentifierChar(char c)
+{
+    return cChar::isLetter(c) || cChar::isDigit(c) || (c == '_');
+}
+
+bool isIdentifierAhead(Parser& parser)
+{
+    return !parser.isEOS() && isIdentifierChar(parser.peekChar());
+}
+
+// True if a letter starts at the parser (a register name or a keyword)
+bool isLetterAhead(Parser& parser)
+{
+    return !parser.isEOS() && cChar::isLetter(parser.peekChar());
+}
+
+// True if a decimal digit starts at the parser (a number)
+bool isDecimalAhead(Parser& parser)
+{
+    return !parser.isEOS() && cChar::isDigit(parser.peekChar());
+}
+
+// Return the word at the parser without reading it. Empty if there is no word.
+cString peekWord(Parser& parser)
+{
+    if (!isIdentifierAhead(parser))
+        return cString();
+    return parser.peekCString(false);
+}
+
+// Read the word at the parser and the blanks after it
+void skipWord(Parser& parser)
+{
+    parser.readCString(false);
+    parser.readBlanksUntilEOL();
+}
+
+// True if the instruction ends here: the end of the text, the end of the line
+// or the start of a ';' comment
+bool isEndOfInstruction(Parser& parser)
+{
+    if (parser.isEOS())
+        return true;
+    char c = parser.peekChar();
+    return cChar::isNewLine(c) || (c == ';');
+}
+
+// True if the operand ends here. A ',' separates the next operand.
+bool isEndOfOperand(Parser& parser)
+{
+    return isEndOfInstruction(parser) || isNextChar(parser, ',');
+}
+
+// Skip the rest of the line (including a ';' comment)
+void skipLine(Parser& parser)
+{
+    while (!parser.isEOS() && !cChar::isNewLine(parser.peekChar()))
+        parser.readChar();
+}
+
+// Read a number which must start at the parser. The number is decimal, 0x hex
+// or hex with a h suffix (7bh), and it must fit in 32 bits.
+uint64 readNumber(Parser& parser)
+{
+    ASM_CHECK(isDecimalAhead(parser), "number was expected");
+    uint64 value = 0;
+    ASM_CHECK(parser.isUnsignedInteger64(&value, true), "invalid number");
+    ASM_CHECK(value <= 0xFFFFFFFFULL, "number is too big");
+    return value;
+}
+
+// Size keywords and their size in bits
+struct SizeKeyword {
+    const char* m_name;
+    uint m_bits;
+};
+
+const SizeKeyword gSizeKeywords[] = {
+    { "byte",  8   },
+    { "word",  16  },
+    { "dword", 32  },
+    { "qword", 64  },
+    { "tword", 80  },
+    { "oword", 128 },
+    { "yword", 256 },
+    { "zword", 512 },
+};
+
+// Read a size keyword ('byte', 'dword ptr', ...) and return its size in bits.
+// Return 0 (and do not advance) if there is no size keyword at the parser.
+uint readSizeKeyword(Parser& parser)
+{
+    cString word = peekWord(parser);
+    for (uint i = 0; i < sizeof(gSizeKeywords) / sizeof(gSizeKeywords[0]); i++)
+    {
+        if (word == gSizeKeywords[i].m_name)
+        {
+            skipWord(parser);
+            // The 'ptr' is optional
+            if (peekWord(parser) == "ptr")
+                skipWord(parser);
+            return gSizeKeywords[i].m_bits;
+        }
+    }
+    return 0;
+}
+
+// Return the segment register index of a segment name, -1 if it's not one
+int segmentIndex(const cString& name)
+{
+    for (uint i = 0; i < ia32dis::NUMBER_OF_SEGMENTS_REGISTERS; i++)
+        if (name == ia32dis::gIa32SegmentsRegisters[i].m_name)
+            return (int)i;
+    return -1;
+}
+
+// Return the position of 'ch' inside 'text', -1 if it's not there
+int indexOf(const cString& text, character ch)
+{
+    for (int i = 0; i < (int)text.length(); i++)
+        if (text[i] == ch)
+            return i;
+    return -1;
+}
+
+// True for the operand sizes of the size keywords (byte..zword) that the
+// table can encode, 0 for no size keyword
+bool isKnownOperandSize(uint size)
+{
+    return (size == 0) || (size == 8) || (size == 16) || (size == 32) ||
+           (size == 64) || (size == 80) || (size == 128) || (size == 256) ||
+           (size == 512);
+}
+
+// Return the value of the bit in the scale field of the SIB byte
+uint scaleBits(uint scale)
+{
+    switch (scale)
+    {
+    case 1: return 0;
+    case 2: return 1;
+    case 4: return 2;
+    default:
+        return 3;
+    }
+}
+
+} // anonymous namespace
+
+//////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
 IA32AssemblerStream::IA32AssemblerStream(FirstPassBinary& binary,
@@ -44,9 +207,6 @@ IA32AssemblerStream::IA32AssemblerStream(FirstPassBinary& binary,
     m_binary(binary),
     m_processorMode(processorMode)
 {
-    // TODO! This module was only tested on 32 bit machines. When running in a
-    //       different context this mode should be tested.
-    CHECK(m_processorMode == IA32eInstructionSet::INTEL_32);
 }
 
 IA32AssemblerStream::~IA32AssemblerStream()
@@ -54,7 +214,8 @@ IA32AssemblerStream::~IA32AssemblerStream()
     // Destructors must not throw (the parser reports errors via exceptions)
     XSTL_TRY
     {
-        assemble();
+        if (getData().length() != 0)
+            assemble();
     }
     XSTL_CATCH_ALL
     {
@@ -67,44 +228,23 @@ void IA32AssemblerStream::assemble()
     if (getData().length() == 0)
         return;
 
-    // Start parsing data
-    cSArray<char> ascii = getData().getASCIIstring();
-    // Remove comments insert for debugging
-    Parser::easyParsing(ascii.getBuffer(), ascii.getSize());
+    // The syntax is case insensitive, so the text is lowercased before parsing
+    cString text = getData();
+    text.makeLower();
+    cSArray<char> ascii = text.getASCIIstring();
     Parser parser(ascii.getBuffer(),
                   ascii.getBuffer(),
                   ascii.getSize() - 1, // Reduce the null terminate character!
                   1);
 
-    // And start compiling
+    // Each line holds a single instruction, and a ';' starts a comment which
+    // lasts until the end of the line
     parser.readBlanks();
     while (!parser.isEOS())
     {
-        // Read opcode
-        cString opcode = parser.readWord();
-
-        // The first operand and whether it exist
-        Operand firstOperand;
-        // The second operand and whether it exist
-        Operand secondOperand;
-        // The third operand and whether it exist
-        Operand thirdOperand;
-
-        // Reading operands
-        if (!parser.readBlanksUntilEOL())
-            // Read first argument
-            firstOperand.readOperand(parser);
-        if (!parser.readBlanksUntilEOL())
-            // Read first argument
-            secondOperand.readOperand(parser);
-        if (!parser.readBlanksUntilEOL())
-            // Read first argument
-            thirdOperand.readOperand(parser);
-
-        // Find matching entry and encode...
-        writeOpcode(opcode, firstOperand, secondOperand, thirdOperand);
-
-        // Read new-line symbol
+        if (!isNextChar(parser, ';'))
+            assembleInstruction(parser);
+        skipLine(parser);
         parser.readBlanks();
     }
 
@@ -112,1155 +252,1625 @@ void IA32AssemblerStream::assemble()
     clean();
 }
 
+void IA32AssemblerStream::assembleInstruction(Parser& parser)
+{
+    Prefixes prefixes;
+    prefixes.m_segment = -1;
+    prefixes.m_lock = false;
+    prefixes.m_repeat = 0;
+
+    // Read the prefixes and the instruction name
+    cString name;
+    for (;;)
+    {
+        parser.readBlanksUntilEOL();
+        ASM_CHECK(isIdentifierAhead(parser), "instruction name was expected");
+        name = parser.readCString(false);
+        parser.readBlanksUntilEOL();
+
+        // A prefix is followed by the instruction (a lone 'fs' is a name)
+        if (isEndOfInstruction(parser))
+            break;
+
+        if (name == "lock")
+        {
+            ASM_CHECK(!prefixes.m_lock, "lock prefix used twice");
+            prefixes.m_lock = true;
+        } else if ((name == "rep") || (name == "repe") || (name == "repz"))
+        {
+            ASM_CHECK(prefixes.m_repeat == 0, "repeat prefix used twice");
+            prefixes.m_repeat = getPrefixOpcode("rep");
+        } else if ((name == "repne") || (name == "repnz"))
+        {
+            ASM_CHECK(prefixes.m_repeat == 0, "repeat prefix used twice");
+            prefixes.m_repeat = getPrefixOpcode("repne");
+        } else if (segmentIndex(name) >= 0)
+        {
+            ASM_CHECK(prefixes.m_segment < 0, "segment prefix used twice");
+            prefixes.m_segment = segmentIndex(name);
+        } else
+        {
+            break;
+        }
+    }
+
+    // Read the operands, separated by commas
+    Operand operands[3];
+    uint count = 0;
+    parser.readBlanksUntilEOL();
+    while (!isEndOfInstruction(parser))
+    {
+        ASM_CHECK(count < 3, "too many operands");
+        operands[count++].readOperand(parser);
+        if (isNextChar(parser, ','))
+        {
+            // A comma must be followed by another operand
+            parser.readChar();
+            parser.readBlanksUntilEOL();
+            ASM_CHECK(!isEndOfInstruction(parser), "operand was expected");
+        }
+    }
+
+    writeOpcode(name, prefixes, operands[0], operands[1], operands[2]);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 void IA32AssemblerStream::writeOpcode(const cString& name,
-                               const IA32AssemblerStream::Operand& first,
-                               const IA32AssemblerStream::Operand& second,
-                               const IA32AssemblerStream::Operand& third)
-{
-    uint selectedTable = (uint)-1;
-    uint selectedOpcodeSize = (uint)-1;
-    const ia32dis::OpcodeEntry* selectedOpcode = NULL;
-    bool selectedOperandSizePrefix = false;
-    bool selectedAddressSizePrefix = false;
-    bool selectedModrm = false;
-    IA32OpcodeDatastruct::MODRM selectedModrmMod;
-
-    // There are two tables opcodes so far: One-byte opcode table and two byte
-    // opcode table
-    // Tries to find best opcode...
-    for (uint tableIndex = 0; tableIndex < 2; tableIndex++)
-    {
-        // Find the table
-        const ia32dis::OpcodeEntry* opcode = NULL;
-        switch(tableIndex)
-        {
-        // One byte opcode table
-        case 0: opcode = ia32dis::gIa32OneByteOpcodeTable; break;
-        // Two bytes opcode table
-        case 1: opcode = ia32dis::gIa32TwoBytesOpcodeTable; break;
-        default:
-            // Cannot find the table!!!
-            CHECK_FAIL();
-        }
-
-        // And scan the table for a match
-        bool operandSizePrefix = false;
-        bool addressSizePrefix = false;
-        bool modrm = false;
-        IA32OpcodeDatastruct::MODRM modrmMod;
-        modrmMod.m_packed = 0;
-        while (opcode->m_opcodeName != ia32dis::OPCODEEOT)
-        {
-            // TODO! Extend this code to support special 16/32 bit opcode
-            //       wildcard  (e.g. pusha/pushad...)
-            if (name == opcode->m_opcodeName)
-            {
-                // Try to find a match with arguments
-                if (matchOpcode(opcode, first, second, third,
-                                operandSizePrefix, addressSizePrefix,
-                                modrm, modrmMod))
-                {
-                    // Calculate the length of the opcode
-                    uint opcodeSize = calculateOpcodeSize(tableIndex, opcode,
-                                                          operandSizePrefix,
-                                                          addressSizePrefix,
-                                                          modrm, modrmMod);
-                    if (opcodeSize < selectedOpcodeSize)
-                    {
-                        // Switch opcode
-                        selectedOpcodeSize = opcodeSize;
-                        selectedOpcode = opcode;
-                        selectedOperandSizePrefix = operandSizePrefix;
-                        selectedAddressSizePrefix = addressSizePrefix;
-                        selectedTable = tableIndex;
-                        selectedModrm = modrm;
-                        selectedModrmMod = modrmMod;
-                    }
-                }
-            }
-
-            // Continue until the table ends
-            opcode++;
-        }
-    }
-
-    // Check that we have found an opcode
-    CHECK(selectedOpcode != NULL);
-
-    // Encode it
-    encodeOpcode(selectedTable, selectedOpcode, first, second, third,
-                 selectedOperandSizePrefix, selectedAddressSizePrefix,
-                 selectedModrm, selectedModrmMod);
-}
-
-bool IA32AssemblerStream::matchOpcode(const ia32dis::OpcodeEntry* opcode,
-                               const IA32AssemblerStream::Operand& first,
-                               const IA32AssemblerStream::Operand& second,
-                               const IA32AssemblerStream::Operand& third,
-                               bool& operandSizePrefix,
-                               bool& addressSizePrefix,
-                               bool& modrm,
-                               IA32OpcodeDatastruct::MODRM& modrmMod) const
-{
-    // Don't even try matching irrelevant opcodes
-    if (opcode->m_opcodeName == ia32dis::INVALID)
-        return false;
-
-    operandSizePrefix = false;
-    addressSizePrefix = false;
-    modrm = false;
-    modrmMod.m_packed = 0;
-
-    // The comparison is simple try to match each type into the encoding process
-    if (!matchOperand(opcode->m_firstOperand,  first,
-                      operandSizePrefix, addressSizePrefix,
-                      modrm, modrmMod,
-                      opcode->m_isUnsigned))
-        return false;
-    if (!matchOperand(opcode->m_secondOperand, second,
-                      operandSizePrefix, addressSizePrefix,
-                      modrm, modrmMod,
-                      opcode->m_isUnsigned))
-        return false;
-    if (!matchOperand(opcode->m_thridOperand,  third,
-                      operandSizePrefix, addressSizePrefix,
-                      modrm, modrmMod,
-                      opcode->m_isUnsigned))
-        return false;
-
-    // Find a match
-    return true;
-}
-
-bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
-                                const Operand& compilerOperand,
-                                bool& operandSizePrefix,
-                                bool& addressSizePrefix,
-                                bool& modrm,
-                                IA32OpcodeDatastruct::MODRM& modrmMod,
-                                bool isUnsigedAllowed) const
-{
-    // DONT RESET PREFIXES!
-    //     (operandSizePrefix != false) && (addressSizePrefix != false)
-
-    if (compilerOperand.getType() == Operand::NO_OPERAND)
-    {
-        if (ia32disType == ia32dis::OPND_NO_OPERAND)
-            return true;
-        else
-            return false;
-    }
-
-    switch (compilerOperand.getType())
-    {
-    case Operand::OPERAND_8BIT_REG:
-        // 8 bit for both modrm and GP
-        if (ia32disType == ia32dis::OPND_ONEBYTES_OPCODE_GP_8)
-            return true;
-
-        if (ia32disType == ia32dis::OPND_GP_8BIT_MODRM)
-        {
-            modrm = true;
-            return true;
-        }
-
-        // Custom modes
-        if ((ia32disType == ia32dis::OPND_CL) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_GP8_CL))
-            return true;
-        if ((ia32disType == ia32dis::OPND_AL) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_GP8_AL))
-            return true;
-
-        // Marking the modrm as normal register transfer (mode 3)
-        if (ia32disType == ia32dis::OPND_MODRM_BYTEPTR)
-        {
-            modrmMod.m_bits.m_mod = 3;
-            modrm = true;
-            return true;
-        }
-
-
-        return false;
-
-    case Operand::OPERAND_16BIT_REG:
-        if (m_processorMode == IA32eInstructionSet::INTEL_32)
-            operandSizePrefix = true;
-
-        // 32 bit for both modrm and GP
-        if (ia32disType == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32)
-            return true;
-
-        if (ia32disType == ia32dis::OPND_GP_16_32BIT)
-        {
-            modrm = true;
-            return true;
-        }
-
-        // Marking the modrm as normal register transfer (mode 3)
-        if ((ia32disType == ia32dis::OPND_MODRM_dWORDPTR) ||
-            (ia32disType == ia32dis::OPND_MODRM_WORDPTR)
-            /*TODO!(ia32disType == ia32dis::OPND_MODRM_MEM)*/)
-        {
-            // Change the modrm mod into 3
-            modrmMod.m_bits.m_mod = 3;
-            modrm = true;
-            return true;
-        }
-
-        // Custom modes
-        if ((ia32disType == ia32dis::OPND_eAX) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_GP16_AX))
-            return true;
-
-        return false;
-
-    case Operand::OPERAND_32BIT_REG:
-        if (m_processorMode == IA32eInstructionSet::INTEL_16)
-            operandSizePrefix = true;
-
-        // 32 bit for both modrm and GP
-        if (ia32disType == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32)
-            return true;
-
-        if (ia32disType == ia32dis::OPND_GP_16_32BIT)
-        {
-            modrm = true;
-            return true;
-        }
-
-        // Marking the modrm as normal register transfer (mode 3)
-        if (ia32disType == ia32dis::OPND_MODRM_dWORDPTR)
-            /*TODO!||(ia32disType == ia32dis::OPND_MODRM_MEM)*/
-        {
-            // Change the modrm mod into 3
-            modrmMod.m_bits.m_mod  = 3;
-            modrm = true;
-            return true;
-        }
-
-        // Custom modes
-        if ((ia32disType == ia32dis::OPND_eAX) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_GP32_EAX))
-            return true;
-
-        return false;
-
-    case Operand::OPERAND_SEGMENT_REG:
-        if ((ia32disType == ia32dis::OPND_ES) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_ES))
-            return true;
-        if ((ia32disType == ia32dis::OPND_CS) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_CS))
-            return true;
-        if ((ia32disType == ia32dis::OPND_SS) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_SS))
-            return true;
-        if ((ia32disType == ia32dis::OPND_DS) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_DS))
-            return true;
-        if ((ia32disType == ia32dis::OPND_FS) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_FS))
-            return true;
-        if ((ia32disType == ia32dis::OPND_GS) &&
-            (compilerOperand.getReference1() == ia32dis::IA32_SEG_GS))
-            return true;
-        return false;
-
-    case Operand::OPERAND_IMMEDIATE_8BIT:
-        if ((ia32disType == ia32dis::OPND_IMMEDIATE_8BIT) ||
-            (ia32disType == ia32dis::OPND_IMMEDIATE_16BIT) ||
-            (ia32disType == ia32dis::OPND_IMMEDIATE_DS))
-            return true;
-
-        return false;
-
-    case Operand::OPERAND_IMMEDIATE_16BIT:
-        if ((ia32disType == ia32dis::OPND_IMMEDIATE_16BIT) ||
-            (ia32disType == ia32dis::OPND_IMMEDIATE_DS))
-            return true;
-
-        if ((isUnsigedAllowed) &&
-            (ia32disType == ia32dis::OPND_IMMEDIATE_8BIT) &&
-            (compilerOperand.getReference1() <= 0xFF))
-            return true;
-
-        return false;
-
-    case Operand::OPERAND_IMMEDIATE_32BIT:
-        if ((ia32disType == ia32dis::OPND_IMMEDIATE_DS) &&
-            (m_processorMode == IA32eInstructionSet::INTEL_32))
-            return true;
-
-        if ((isUnsigedAllowed) &&
-            (ia32disType == ia32dis::OPND_IMMEDIATE_16BIT) &&
-            (compilerOperand.getReference1() <= 0xFFFF))
-            return true;
-
-        return false;
-
-    case Operand::OPERAND_OFFSET_MASK:
-        if (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8)
-        {
-            // Check for displacement sizes
-            if (checkSignedImmediateSize8(compilerOperand.getDisplacement()))
-                return true;
-            // Wrong size
-            return false;
-        }
-
-        if ((ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_DS) ||
-            // TODO! OPND_IMMEDIATE_OFFSET_LONG_32 is valid for 16 bit mode.
-            (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32))
-        {
-            CHECK(m_processorMode == IA32eInstructionSet::INTEL_32);
-            return true;
-        }
-
-        return false;
-    }
-
-    // Check for memory operand
-    uint memorySize = compilerOperand.getType() & Operand::OPERAND_MEMORY_ACCESS_MASK;
-    CHECK(memorySize != 0);
-    // Filter size
-    switch (memorySize)
-    {
-    case Operand::OPERAND_MEMORY_32BIT:
-        if ((ia32disType == ia32dis::OPND_MEMREF_OFFSET_DS) ||
-            (ia32disType == ia32dis::OPND_MODRM_dWORDPTR) ||
-            (ia32disType == ia32dis::OPND_MODRM_MEM))
-            break;
-
-        // For all other values
-        return false;
-
-    case Operand::OPERAND_MEMORY_16BIT:
-        if ((ia32disType == ia32dis::OPND_MEMREF_OFFSET_DS) ||
-            (ia32disType == ia32dis::OPND_MODRM_dWORDPTR))
-            break;
-
-        if (ia32disType == ia32dis::OPND_MODRM_WORDPTR)
-            break;
-
-        // For all other values
-        return false;
-    case Operand::OPERAND_MEMORY_8BIT:
-        if (ia32disType != ia32dis::OPND_MODRM_BYTEPTR)
-            return false;
-        break;
-
-    default:
-        // Not a memory? Check operand
-        CHECK_FAIL();
-    }
-
-    // Update operand size
-    if (!updateOperandSize(memorySize, ia32disType, operandSizePrefix))
-        return false;
-
-    // Check for opcode data-size
-    uint memoryType = compilerOperand.getType() & Operand::OPERAND_MEMORY_TYPE_MASK;
-    switch (memoryType)
-    {
-    case Operand::OPERAND_MEMORY_DIRECT:
-        // TODO! What about 16 bit table?!
-        CHECK(is32operand(addressSizePrefix));
-        if (ia32disType != ia32dis::OPND_MEMREF_OFFSET_DS)
-        {
-            // MODRM reference memory
-            // Direct memory reference, mod 0 subcode 5
-            modrm = true;
-            modrmMod.m_bits.m_mod = 0;
-            modrmMod.m_bits.m_rm = 5;
-        }
-        return true;
-
-    case Operand::OPERAND_MEMORY_REG:
-        if (ia32disType == ia32dis::OPND_MEMREF_OFFSET_DS)
-            return false;
-        // TODO! What about 16 bit table?!
-        CHECK(is32operand(addressSizePrefix));
-        CHECK((compilerOperand.getType() & Operand::OPERAND_32BIT_REG));
-
-        // Direct registry reference, mod group 0.
-        modrm = true;
-        modrmMod.m_bits.m_mod = 0;
-        fillModrmRM(modrmMod, operandSizePrefix, compilerOperand.getType(),
-                    compilerOperand.getReference1());
-        return true;
-
-    case Operand::OPERAND_MEMORY_REG_PLUS_DISPLACEMENT:
-        if (ia32disType == ia32dis::OPND_MEMREF_OFFSET_DS)
-            return false;
-        // Check register. TODO! Change this code into the modrm mapping table!
-        if (is32operand(operandSizePrefix))
-        {
-            CHECK((compilerOperand.getType() & Operand::OPERAND_32BIT_REG) != 0)
-        } else
-        {
-            ASSERT(is16operand(operandSizePrefix));
-            CHECK((compilerOperand.getType() & Operand::OPERAND_16BIT_REG) != 0);
-        }
-        // Change according to displacement
-        modrm = true;
-        if (compilerOperand.getDisplacementPacking() ==
-            IntegerEncoding::INTEGER_8BIT)
-        {
-            // Displacement of 8 bit
-            modrmMod.m_bits.m_mod = 1;
-            // Fill r/m of the modrm according to register and table
-            fillModrmRM(modrmMod, operandSizePrefix, compilerOperand.getType(),
-                        compilerOperand.getReference1());
-        } else
-        {
-            // Displacement of 32 bit
-            modrmMod.m_bits.m_mod = 2;
-            // Fill r/m of the modrm according to register and table
-            fillModrmRM(modrmMod, operandSizePrefix, compilerOperand.getType(),
-                        compilerOperand.getReference1());
-        }
-        return true;
-
-    default:
-        // Not ready yet
-        CHECK_FAIL();
-    }
-
-    // Default will not find a match. note to developer. Add type.
-    ASSERT(false);
-    return false;
-}
-
-bool IA32AssemblerStream::updateOperandSize(uint memorySize,
-                                            ia32dis::OperandType ia32disType,
-                                            bool& operandSizePrefix) const
-{
-    if (memorySize == Operand::OPERAND_MEMORY_32BIT)
-    {
-        if (m_processorMode == IA32eInstructionSet::INTEL_32)
-        {
-            // Processor mode: 32 bit, access 32 bit value
-            CHECK(!operandSizePrefix);
-        } else
-        {
-            // Processor mode: 16 bit, access 32 bit value
-            // Should update the operand size prefix
-            operandSizePrefix = true;
-        }
-    } else if (memorySize == Operand::OPERAND_MEMORY_16BIT)
-    {
-        if (m_processorMode == IA32eInstructionSet::INTEL_32)
-        {
-            // Processor mode: 32 bit, access 16 bit value
-            if (ia32disType != ia32dis::OPND_MODRM_WORDPTR)
-            {
-                // The operand reference is illigal. TODO! Check all cases
-                if (ia32disType != ia32dis::OPND_MODRM_dWORDPTR)
-                    return false;
-                // Change prefix
-                operandSizePrefix = true;
-            }
-        } else
-        {
-            // Processor mode: 16 bit, access 16 bit value
-            CHECK(!operandSizePrefix);
-        }
-    }
-
-    return true;
-}
-
-uint IA32AssemblerStream::calculateOpcodeSize(uint tableIndex,
-                                       const ia32dis::OpcodeEntry* opcode,
-                                       bool operandSizePrefix,
-                                       bool addressSizePrefix,
-                                       bool modrm,
-                                       IA32OpcodeDatastruct::MODRM modrmMod) const
-{
-    uint size = 0;
-    if (tableIndex == 1) size++;
-    if (operandSizePrefix) size++;
-    if (addressSizePrefix) size++;
-
-    // Calculate operation size
-    IntegerEncoding::IntegerEncodingType operandSize =
-        getProcessorOperandSize(operandSizePrefix);
-    IntegerEncoding::IntegerEncodingType addressSize =
-        getProcessorOperandSize(addressSizePrefix);
-
-    // Add opcode base size
-    size++;
-    // Add modrm, SIB and displacement
-    if (modrm)
-    {
-        ASSERT(opcode->m_modrm != ia32dis::MODRM_NO_MODRM);
-        // ASSERT(filter modrm)
-        // Add modRM byte
-        size++;
-
-        // TODO!!!
-        // Is any prefix changes this tables?
-        ia32dis::ModRMTranslationType* modrmTable;
-        switch (m_processorMode) {
-        case IA32eInstructionSet::INTEL_16:
-            modrmTable = &ia32dis::gIa32ModRM16;
-            break;
-        case IA32eInstructionSet::INTEL_32:
-            modrmTable = &ia32dis::gIa32ModRM32;
-            break;
-        default:
-            CHECK_FAIL();
-        }
-
-        size+= (*modrmTable)[modrmMod.m_bits.m_mod][modrmMod.m_bits.m_rm].
-                m_displacementLength;
-        if ((*modrmTable)[modrmMod.m_bits.m_mod][modrmMod.m_bits.m_rm].
-                m_forceSib)
-                // The SIB exist
-                size++;
-    }
-
-    // Add immediate sizes
-    size+= getOperandSize(operandSize, addressSize, opcode->m_firstOperand);
-    size+= getOperandSize(operandSize, addressSize, opcode->m_secondOperand);
-    size+= getOperandSize(operandSize, addressSize, opcode->m_thridOperand);
-
-    return size;
-}
-
-IntegerEncoding::IntegerEncodingType IA32AssemblerStream::getOperandSize(
-    IntegerEncoding::IntegerEncodingType processorOperandSize,
-    IntegerEncoding::IntegerEncodingType processorAddressSize,
-    ia32dis::OperandType ia32disType)
-{
-    switch (ia32disType)
-    {
-    case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
-    case ia32dis::OPND_IMMEDIATE_8BIT:
-        return IntegerEncoding::INTEGER_8BIT;
-    case ia32dis::OPND_IMMEDIATE_16BIT:
-        return  IntegerEncoding::INTEGER_16BIT;
-    case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
-        return IntegerEncoding::INTEGER_32BIT;
-
-    case ia32dis::OPND_IMMEDIATE_DS:
-        return processorOperandSize;
-
-    case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
-    case ia32dis::OPND_MEMREF_OFFSET_DS:
-        return processorAddressSize;
-
-    case ia32dis::OPND_IMMEDIATE_OFFSET_FAR:
-        // TODO!
-        CHECK_FAIL();
-        // simpleImmediate = m_addressSize;
-        // shouldReadSegment = true;
-
-    default:
-        // No immediate
-        return IntegerEncoding::INTEGER_NOT_EXIST;
-    }
-}
-
-IntegerEncoding::IntegerEncodingType IA32AssemblerStream::getProcessorOperandSize(
-                                                        bool sizePrefix) const
-{
-    switch (m_processorMode)
-    {
-    case IA32eInstructionSet::INTEL_32:
-        if (sizePrefix)
-            return IntegerEncoding::INTEGER_16BIT;
-        return IntegerEncoding::INTEGER_32BIT;
-
-    case IA32eInstructionSet::INTEL_16:
-        if (sizePrefix)
-            return IntegerEncoding::INTEGER_32BIT;
-        return IntegerEncoding::INTEGER_16BIT;
-
-    default:
-        // Stop operation
-        CHECK_FAIL();
-    }
-}
-
-void IA32AssemblerStream::encodeOpcode(uint table,
-                                const ia32dis::OpcodeEntry* opcode,
-                                const Operand& first,
-                                const Operand& second,
-                                const Operand& third,
-                                bool operandSizePrefix,
-                                bool addressSizePrefix,
-                                bool modrm,
-                                IA32OpcodeDatastruct::MODRM modrmMod)
-{
-    // Write the operand-size/address size opcode and decide on activity mode
-    // Calculate operation size
-    IntegerEncoding::IntegerEncodingType operandSize =
-        getProcessorOperandSize(operandSizePrefix);
-    IntegerEncoding::IntegerEncodingType addressSize =
-        getProcessorOperandSize(addressSizePrefix);
-    if (operandSizePrefix)
-        m_binary.appendUint8(ia32dis::gIa32PrefixGroup3OperandSize);
-    if (addressSizePrefix)
-        m_binary.appendUint8(ia32dis::gIa32PrefixGroup4AddressSize);
-
-    // Write the table index prefix. Used only for two bytes table
-    if (table == 1)
-        m_binary.appendUint8(ia32dis::gIa32TwoByteEscapeCharacter);
-
-    // Start by encoding opcode
-    uint8 opcodeData = opcode->m_prefix;
-
-    // Add internal opcode information (if any)
-    // For example push reg32 encoded as 9X
-    if ((opcode->m_firstOperand == ia32dis::OPND_ONEBYTES_OPCODE_GP_8) ||
-        (opcode->m_firstOperand == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32))
-    {
-        CHECK((first.getType() & Operand::OPERAND_REGISTRY_MASK) != 0);
-        opcodeData|= (first.getReference1() & (~opcode->m_prefixMask));
-    }
-    // xchg r, eAX may be encoded as xchg eAX, r (90+r)
-    if (opcode->m_secondOperand == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32)
-        opcodeData|= (second.getReference1() & (~opcode->m_prefixMask));
-    m_binary.appendUint8(opcodeData);
-
-    // Add ModRM (if any)
-    if (modrm)
-    {
-        // TODO!!!
-        // Is any prefix changes this tables?
-        ia32dis::ModRMTranslationType* modrmTable;
-        switch (m_processorMode) {
-        case IA32eInstructionSet::INTEL_16:
-            modrmTable = &ia32dis::gIa32ModRM16;
-            break;
-        case IA32eInstructionSet::INTEL_32:
-            modrmTable = &ia32dis::gIa32ModRM32;
-            break;
-        default:
-            CHECK_FAIL();
-        }
-
-        // Start by filling the modrm data
-        IA32OpcodeDatastruct::MODRM modrm =
-            fillModrm(modrmMod, opcode, first, second, third);
-
-        // Fix modrm according to filter opcode name
-        if (opcode->m_modrm != ia32dis::MODRM_ALL_FILTER)
-        {
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_000) != 0)
-                modrm.m_bits.m_regOpcode = 0;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_001) != 0)
-                modrm.m_bits.m_regOpcode = 1;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_010) != 0)
-                modrm.m_bits.m_regOpcode = 2;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_011) != 0)
-                modrm.m_bits.m_regOpcode = 3;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_100) != 0)
-                modrm.m_bits.m_regOpcode = 4;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_101) != 0)
-                modrm.m_bits.m_regOpcode = 5;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_110) != 0)
-                modrm.m_bits.m_regOpcode = 6;
-            if ((opcode->m_modrm & ia32dis::MODRM_MOD_111) != 0)
-                modrm.m_bits.m_regOpcode = 7;
-        }
-
-        // Write down the modrm
-        m_binary.appendUint8(modrm.m_packed);
-
-        // Write displacement
-        uint displacement = (*modrmTable)[modrmMod.m_bits.m_mod][modrmMod.m_bits.m_rm].
-                m_displacementLength;
-
-        if (displacement != 0)
-        {
-            writeDisplacement(first,  displacement);
-            writeDisplacement(second, displacement);
-            writeDisplacement(third,  displacement);
-        }
-
-        if ((*modrmTable)[modrmMod.m_bits.m_mod][modrmMod.m_bits.m_rm].
-                m_forceSib)
-        {
-            // The SIB exist
-            // TODO!
-            CHECK_FAIL();
-        }
-    }
-
-    // Add immediate
-    writeImmediate(operandSize, addressSize, opcode->m_firstOperand, first);
-    writeImmediate(operandSize, addressSize, opcode->m_secondOperand, second);
-    writeImmediate(operandSize, addressSize, opcode->m_thridOperand, third);
-}
-
-IA32OpcodeDatastruct::MODRM IA32AssemblerStream::fillModrm(
-                                      IA32OpcodeDatastruct::MODRM modrmMod,
-                                      const ia32dis::OpcodeEntry* opcode,
+                                      const Prefixes& prefixes,
                                       const Operand& first,
                                       const Operand& second,
                                       const Operand& third)
 {
-    // Reset modrm
-    IA32OpcodeDatastruct::MODRM ret(modrmMod);
+    Operand none;
+    Operand a = first;
+    Operand b = second;
+    Operand c = third;
+    cString opName = name;
+    uint addressWidth = 0;
+    bool hasB = (b.getKind() != Operand::NO_OPERAND);
+    bool hasC = (c.getKind() != Operand::NO_OPERAND);
 
+    // nasm spellings: 'movsx eax, ax' is cwde and 'movsx ax, al' is cbw
+    if ((name == "movsx") && hasB && !hasC)
+    {
+        if (a.isRegister(Operand::REG_32BIT, ia32dis::IA32_GP32_EAX) &&
+            b.isRegister(Operand::REG_16BIT, ia32dis::IA32_GP16_AX))
+        {
+            opName = "cwde";
+            a = none;
+            b = none;
+        } else if (a.isRegister(Operand::REG_16BIT, ia32dis::IA32_GP16_AX) &&
+                   b.isRegister(Operand::REG_8BIT, ia32dis::IA32_GP8_AL))
+        {
+            opName = "cbw";
+            a = none;
+            b = none;
+        }
+    }
+
+    // Operands that the instruction implies: 'aad' and 'aam' are base 10 (0x0a),
+    // a bare 'ffree' is ffree st1
+    if (((name == "aad") || (name == "aam")) &&
+        (a.getKind() == Operand::NO_OPERAND))
+        a = Operand::fromText("0x0a");
+    if ((name == "ffree") && (a.getKind() == Operand::NO_OPERAND))
+        a = Operand::fromText("st1");
+
+    // 'loop label, cx' and 'loop label, ecx' select the address size
+    bool isLoop = (name == "loop") || (name == "loopz") ||
+                  (name == "loope") || (name == "loopnz") ||
+                  (name == "loopne");
+    if (isLoop && hasB && !hasC)
+    {
+        if (b.isRegister(Operand::REG_16BIT, ia32dis::IA32_GP16_CX))
+            addressWidth = 16;
+        else if (b.isRegister(Operand::REG_32BIT, ia32dis::IA32_GP32_ECX))
+            addressWidth = 32;
+        if (addressWidth != 0)
+        {
+            b = none;
+            hasB = false;
+        }
+    }
+
+    // The segment override can come from the prefix or from the memory operand
+    int segment = prefixes.m_segment;
+    const Operand* operands[3] = { &a, &b, &c };
     for (uint i = 0; i < 3; i++)
     {
-        // Choose the operand number
-        ia32dis::OperandType type;
-        const Operand* operand = NULL;
-        switch (i)
+        if ((operands[i]->getKind() == Operand::MEMORY) &&
+            (operands[i]->getSegment() >= 0))
         {
-        case 0: type = opcode->m_firstOperand;  operand = &first; break;
-        case 1: type = opcode->m_secondOperand; operand = &second; break;
-        case 2: type = opcode->m_thridOperand;  operand = &third;  break;
-        default: { ASSERT(false); return ret; }
-        }
-        // Another assertion
-        ASSERT(operand != NULL);
-
-        // Fill the modrm
-        switch (type)
-        {
-        case ia32dis::OPND_GP_8BIT_MODRM:
-        case ia32dis::OPND_GP_16BIT_MODRM:
-        case ia32dis::OPND_GP_16_32BIT:
-        // case ia32dis::OPND_GP_SEGMENT_MODRM
-            CHECK(operand->getReference1() < 8);
-            ret.m_bits.m_regOpcode = operand->getReference1();
-            break;
-
-        case ia32dis::OPND_MODRM_dWORDPTR:
-        case ia32dis::OPND_MODRM_WORDPTR:
-        case ia32dis::OPND_MODRM_BYTEPTR:
-        case ia32dis::OPND_MODRM_MEM:
-            if ((operand->getType() & Operand::OPERAND_MEMORY_TYPE_MASK) !=
-                Operand::OPERAND_MEMORY_DIRECT)
-            {
-                // Use reference value
-                CHECK(operand->getReference1() < 8);
-                ret.m_bits.m_rm = operand->getReference1();;
-            }
-            break;
-        default:
-            break;
+            ASM_CHECK(segment < 0, "segment prefix used twice");
+            segment = operands[i]->getSegment();
         }
     }
 
-    return ret;
+    Encoding best;
+    if (findEncoding(opName, prefixes, segment, addressWidth, a, b, c, best, true))
+    {
+        encodeOpcode(best, a, b, c);
+        return;
+    }
+
+    // x87 register forms with an implicit ST(0): 'fadd st1' is 'fadd st0, st1'
+    // and 'faddp st1' is 'faddp st1, st0'. The other way round, 'fcom st0, st1'
+    // is 'fcom st1' (the table has one operand for it).
+    if (a.isFpuRegister() && !hasB && !hasC)
+    {
+        Operand st0 = Operand::fromText("st0");
+        if (findEncoding(opName, prefixes, segment, 0, st0, a, none, best, false))
+        {
+            encodeOpcode(best, st0, a, none);
+            return;
+        }
+        if (findEncoding(opName, prefixes, segment, 0, a, st0, none, best, false))
+        {
+            encodeOpcode(best, a, st0, none);
+            return;
+        }
+    }
+    if (a.isFpuRegister() && b.isFpuRegister() && !hasC &&
+        ((a.getRegisterClass() == Operand::REG_FPU) &&
+         ((a.getReference() == 0) || (b.getReference() == 0))))
+    {
+        const Operand& single = (a.getReference() == 0) ? b : a;
+        if (findEncoding(opName, prefixes, segment, 0, single, none, none, best, false))
+        {
+            encodeOpcode(best, single, none, none);
+            return;
+        }
+    }
+
+    bool hasMemory = false;
+    bool hasImmediate = false;
+    for (uint i = 0; i < 3; i++)
+    {
+        uint size = operands[i]->getSize();
+        ASM_CHECK(isKnownOperandSize(size), "unsupported operand size");
+        if (operands[i]->getKind() == Operand::MEMORY)
+            hasMemory = (size == 0) || hasMemory;
+        if (operands[i]->getKind() == Operand::IMMEDIATE)
+            hasImmediate = true;
+    }
+    ASM_CHECK(!(hasMemory && hasImmediate),
+              "operation size not specified (mov [eax], 5 needs byte, word or dword)");
+    ASM_CHECK(false, "no instruction matches these operands");
 }
 
-void IA32AssemblerStream::fillModrmRM(IA32OpcodeDatastruct::MODRM& modrm,
-                                      bool operandSizePrefix,
-                                      uint regType,
-                                      uint registerReference) const
+bool IA32AssemblerStream::findEncoding(const cString& name,
+                                       const Prefixes& prefixes,
+                                       int segment,
+                                       uint addressWidth,
+                                       const Operand& first,
+                                       const Operand& second,
+                                       const Operand& third,
+                                       Encoding& best,
+                                       bool preferDcForSt0) const
 {
-    CHECK(modrm.m_bits.m_mod != 3);
-    if (((regType & Operand::OPERAND_REGISTRY_MASK) ==
-          Operand::OPERAND_32BIT_REG))
-    {
-        // Check that the registry is correct
-        CHECK(registerReference < 8);
-        // 32 bit modrm table
-        // Mod 0 - Register without displacement
-        // Mod 1 - Register with 8 bit displacement
-        // Mod 2 - Register with 32 bit displacement
-        // Mod 3 - Doesn't channel throw this function
-        modrm.m_bits.m_rm = registerReference;
+    // Find the best encoding: the shortest instruction. The first pass uses
+    // the sign-extended 8 bit immediates only, the second pass the full 8 bit
+    // range (for operands that have no other choice, like 'int 0xff').
+    bool found = false;
+    uint bestImmediateBytes = 0;
 
-        // R/M #4 stand for SIB
-        CHECK(registerReference != 4);
-        // In mod #0 R/M #5 is commited for 32 bit displacement
-        if (modrm.m_bits.m_mod == 0)
-            CHECK(registerReference != 5);
+    // nasm size suffixes: 'retw' is ret with a 16 bit operand and 'iretd' is
+    // iret with a 32 bit operand. The name without the suffix is tried when the
+    // name itself is not in the table.
+    cString bareName;
+    uint suffixWidth = 0;
+    uint nameLength = name.length();
+    if ((nameLength > 1) &&
+        ((name[nameLength - 1] == 'w') || (name[nameLength - 1] == 'd')))
+    {
+        bareName = name.part(0, nameLength - 1);
+        suffixWidth = (name[nameLength - 1] == 'w') ? 16 : 32;
+    }
+
+    for (uint pass = 0; (pass < 2) && !found; pass++)
+    {
+        for (uint tableIndex = 0; tableIndex < 3; tableIndex++)
+        {
+            const ia32dis::OpcodeEntry* table = (tableIndex == 0) ?
+                ia32dis::gIa32OneByteOpcodeTable :
+                ((tableIndex == 1) ? ia32dis::gIa32TwoBytesOpcodeTable :
+                                     ia32dis::gIa32FPUOpcodeTable);
+            for (const ia32dis::OpcodeEntry* opcode = table;
+                 opcode->m_opcodeName != ia32dis::OPCODEEOT; opcode++)
+            {
+                if (opcode->m_opcodeName == ia32dis::INVALID)
+                    continue;
+
+                bool operandSizeFlip = false;
+                bool addressSizeFlip = false;
+                bool suffixMatch = false;
+                if (!matchMnemonic(opcode->m_opcodeName, name,
+                                   operandSizeFlip, addressSizeFlip))
+                {
+                    if ((suffixWidth == 0) ||
+                        !matchMnemonic(opcode->m_opcodeName, bareName,
+                                       operandSizeFlip, addressSizeFlip))
+                        continue;
+                    suffixMatch = true;
+                    operandSizeFlip = false;
+                    addressSizeFlip = false;
+                }
+
+                Encoding enc;
+                enc.m_table = tableIndex;
+                enc.m_opcode = opcode;
+                enc.m_operandWidth = 0;
+                enc.m_addressSizePrefix = addressSizeFlip ||
+                    ((addressWidth != 0) && (addressWidth != getDefaultOperandWidth()));
+                enc.m_hasModrm = false;
+                enc.m_regFieldSet = false;
+                enc.m_modrm.m_packed = 0;
+                enc.m_hasSib = false;
+                enc.m_sib.m_packed = 0;
+                enc.m_displacementSize = 0;
+                enc.m_segment = segment;
+                enc.m_prefixes = prefixes;
+                enc.m_length = 0;
+                if (operandSizeFlip)
+                    enc.m_operandWidth = (getDefaultOperandWidth() == 16) ? 32 : 16;
+                if (suffixMatch)
+                    enc.m_operandWidth = suffixWidth;
+
+                // A fixed ModRM byte (x87 'fchs' is D9 E0) is part of the opcode
+                if (opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG)
+                {
+                    enc.m_hasModrm = true;
+                    enc.m_regFieldSet = true;
+                    enc.m_modrm.m_packed =
+                        (uint8)((opcode->m_modrm >> 16) & 0xFF);
+                }
+
+                if (!matchOpcode(opcode, first, second, third, pass == 1, enc))
+                    continue;
+
+                // The modrm filter of the entry may allow memory references
+                // only (fnstsw m16 is DD /7, fnstsw ax is DF E0)
+                if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod == 3) &&
+                    ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
+                    ((opcode->m_modrm & ia32dis::MODRM_MOD_REGISTERS) == 0))
+                    continue;
+
+                enc.m_length = calculateLength(enc);
+                if (!checkOffsets(enc, first, second, third))
+                    continue;
+
+                // The shortest instruction wins. On a tie the smaller immediate
+                // wins (add ax, 0x7f is 83 /0 ib, not 05 iw), as nasm does.
+                uint immediateBytes = 0;
+                ia32dis::OperandType types[3] = { opcode->m_firstOperand,
+                                                  opcode->m_secondOperand,
+                                                  opcode->m_thridOperand };
+                for (uint i = 0; i < 3; i++)
+                    immediateBytes += getImmediateSize(types[i], enc);
+
+                // nasm encodes 'fadd st0, st0' as DC C0 (ST(i), ST(0)), not D8 C0
+                bool preferDc = preferDcForSt0 && (enc.m_table == 2) && found &&
+                    (enc.m_length == best.m_length) &&
+                    (opcode->m_prefix == 0xDC) && (best.m_opcode->m_prefix == 0xD8) &&
+                    first.isFpuRegister() && second.isFpuRegister() &&
+                    (first.getReference() == 0) && (second.getReference() == 0);
+
+                if (!found || (enc.m_length < best.m_length) || preferDc ||
+                    ((enc.m_length == best.m_length) &&
+                     (immediateBytes < bestImmediateBytes)))
+                {
+                    best = enc;
+                    bestImmediateBytes = immediateBytes;
+                    found = true;
+                }
+            }
+        }
+    }
+    return found;
+}
+
+bool IA32AssemblerStream::matchMnemonic(const char* tableName, const cString& name,
+                                        bool& operandSizeFlip,
+                                        bool& addressSizeFlip) const
+{
+    operandSizeFlip = false;
+    addressSizeFlip = false;
+
+    // The 16 bit and 32 bit spelling of the table entry
+    const cString table(tableName);
+    cString name16;
+    cString name32;
+    bool isAddressSize = false;
+    int slash = indexOf(table, '/');
+    int hash = indexOf(table, '#');
+    if (slash >= 0)
+    {
+        name16 = table.part(0, slash);
+        name32 = table.part(slash + 1, table.length());
+    } else if (hash >= 0)
+    {
+        cString base = table.part(0, hash);
+        cString rest = table.part(hash + 2, table.length());
+        cString kind = table.part(hash + 1, hash + 2);
+        if (kind == "#")
+        {
+            // '##' is 'w' in 16 bit and 'd' in 32 bit (movsw/movsd)
+            name16 = base + "w" + rest;
+            name32 = base + "d" + rest;
+        } else if (kind == "d")
+        {
+            // '#d' is 'd' in 32 bit and nothing in 16 bit (pusha/pushad)
+            name16 = base + rest;
+            name32 = base + "d" + rest;
+        } else
+        {
+            // '#e' is 'e' in 32 bit and nothing in 16 bit (jcxz/jecxz)
+            ASM_CHECK(kind == "e", "invalid opcode name in table");
+            isAddressSize = true;
+            name16 = base + rest;
+            name32 = base + "e" + rest;
+        }
     } else
     {
-        // 16 bit modrm table
-        CHECK_FAIL();
+        name16 = table;
+        name32 = table;
+    }
+
+    bool is32 = (m_processorMode == IA32eInstructionSet::INTEL_32);
+    const cString& own = is32 ? name32 : name16;
+    const cString& other = is32 ? name16 : name32;
+    if (name == own)
+        return true;
+    if (name == other)
+    {
+        // The other size of the table entry, the prefix must be changed
+        if (isAddressSize)
+            addressSizeFlip = true;
+        else
+            operandSizeFlip = true;
+        return true;
+    }
+    return false;
+}
+
+bool IA32AssemblerStream::matchOpcode(const ia32dis::OpcodeEntry* opcode,
+                                      const Operand& first,
+                                      const Operand& second,
+                                      const Operand& third,
+                                      bool relaxed,
+                                      Encoding& enc) const
+{
+    const ia32dis::OperandType types[3] = { opcode->m_firstOperand,
+                                            opcode->m_secondOperand,
+                                            opcode->m_thridOperand };
+    const Operand* operands[3] = { &first, &second, &third };
+
+    bool hasImmediate = false;
+    bool hasUnsizedMemory = false;
+    for (uint i = 0; i < 3; i++)
+    {
+        if (!matchOperand(types[i], *operands[i], relaxed, enc))
+            return false;
+
+        // The opcode encodes the register (push eax is 0x50+r), the table
+        // entry for a register must match the register it encodes
+        if (((types[i] == ia32dis::OPND_ONEBYTES_OPCODE_GP_8) ||
+             (types[i] == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32)) &&
+            (opcode->m_prefixMask == 0xFF) &&
+            (operands[i]->getReference() != (opcode->m_prefix & 7)))
+            return false;
+
+        if ((operands[i]->getKind() == Operand::MEMORY) &&
+            (operands[i]->getSize() == 0) &&
+            (types[i] != ia32dis::OPND_MEMREF_OFFSET_DS))
+            hasUnsizedMemory = true;
+        if ((operands[i]->getKind() == Operand::IMMEDIATE) ||
+            (operands[i]->getKind() == Operand::FAR_POINTER))
+            hasImmediate = true;
+    }
+
+    // An unsized memory operand needs another operand to define its size
+    // (nasm: 'operation size not specified'). Without an immediate the size
+    // is taken from the table entry.
+    if (hasUnsizedMemory && hasImmediate && (enc.m_operandWidth == 0))
+        return false;
+
+    return true;
+}
+
+bool IA32AssemblerStream::setOperandWidth(uint width, Encoding& enc) const
+{
+    if ((enc.m_operandWidth != 0) && (enc.m_operandWidth != width))
+        return false;
+    enc.m_operandWidth = width;
+    return true;
+}
+
+bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
+                                       const Operand& compilerOperand,
+                                       bool relaxed,
+                                       Encoding& enc) const
+{
+    switch (compilerOperand.getKind())
+    {
+    case Operand::NO_OPERAND:
+        return (ia32disType == ia32dis::OPND_NO_OPERAND);
+
+    case Operand::REGISTER:
+    {
+        Operand::RegisterClass regClass = compilerOperand.getRegisterClass();
+        uint index = compilerOperand.getReference();
+        bool is8 = (regClass == Operand::REG_8BIT);
+        bool is16 = (regClass == Operand::REG_16BIT);
+        bool is32 = (regClass == Operand::REG_32BIT);
+        bool isMmx = (regClass == Operand::REG_MMX);
+        bool isXmm = (regClass == Operand::REG_XMM);
+        bool isFpu = (regClass == Operand::REG_FPU);
+
+        switch (ia32disType)
+        {
+        // Fixed registers
+        case ia32dis::OPND_AL:
+            return is8 && (index == ia32dis::IA32_GP8_AL);
+        case ia32dis::OPND_AX:
+            // The fixed AX of 'fnstsw ax': no operand size is implied
+            return is16 && (index == ia32dis::IA32_GP16_AX);
+        case ia32dis::OPND_CL:
+            return is8 && (index == ia32dis::IA32_GP8_CL);
+        case ia32dis::OPND_DX:
+            return is16 && (index == ia32dis::IA32_GP16_DX);
+        case ia32dis::OPND_eAX:
+        case ia32dis::OPND_eBX:
+        case ia32dis::OPND_eBP:
+        case ia32dis::OPND_eSI:
+        case ia32dis::OPND_eDI:
+        {
+            // The register index of the fixed register, same for 16 and 32 bit
+            uint wanted = ia32dis::IA32_GP16_AX;
+            if (ia32disType == ia32dis::OPND_eBX) wanted = ia32dis::IA32_GP16_BX;
+            if (ia32disType == ia32dis::OPND_eBP) wanted = ia32dis::IA32_GP16_BP;
+            if (ia32disType == ia32dis::OPND_eSI) wanted = ia32dis::IA32_GP16_SI;
+            if (ia32disType == ia32dis::OPND_eDI) wanted = ia32dis::IA32_GP16_DI;
+            if (!(is16 || is32) || (index != wanted))
+                return false;
+            return setOperandWidth(is16 ? 16 : 32, enc);
+        }
+        case ia32dis::OPND_CS:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_CS);
+        case ia32dis::OPND_DS:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_DS);
+        case ia32dis::OPND_ES:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_ES);
+        case ia32dis::OPND_SS:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_SS);
+        case ia32dis::OPND_FS:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_FS);
+        case ia32dis::OPND_GS:
+            return (regClass == Operand::REG_SEGMENT) && (index == ia32dis::IA32_SEG_GS);
+
+        // The register is encoded in the opcode (push eax is 0x50+r)
+        case ia32dis::OPND_ONEBYTES_OPCODE_GP_8:
+            return is8;
+        case ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32:
+            if (!(is16 || is32))
+                return false;
+            return setOperandWidth(is16 ? 16 : 32, enc);
+
+        // The register is in the reg field of the modrm
+        case ia32dis::OPND_GP_8BIT_MODRM:
+            if (!is8) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_GP_16BIT_MODRM:
+            if (!is16) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_GP_16_32BIT:
+            if (!(is16 || is32))
+                return false;
+            if (!setOperandWidth(is16 ? 16 : 32, enc))
+                return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_GP_SEGMENT_MODRM:
+            if (regClass != Operand::REG_SEGMENT) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_CTRL_MODRM:
+            if (regClass != Operand::REG_CONTROL) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_DBG_MODRM:
+            if (regClass != Operand::REG_DEBUG) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_MMX_MODRM:
+            if (!isMmx) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+        case ia32dis::OPND_SIMD_MODRM:
+            if (!isXmm) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
+
+        // x87 ST(i) in the modrm r/m field (mod 11)
+        case ia32dis::OPND_FPU_ST0:
+            return isFpu && (index == 0);
+        case ia32dis::OPND_FPU_ST_RM:
+            if (!isFpu) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+
+        // MMX and SSE registers in the modrm r/m field (mod 11)
+        case ia32dis::OPND_MMX_RM:
+            if (!isMmx) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+        case ia32dis::OPND_SIMD_RM:
+        case ia32dis::OPND_SIMD_RM_QWORD:
+            if (!isXmm) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+
+        // The register is the modrm r/m (mod 3)
+        case ia32dis::OPND_MODRM_BYTEPTR:
+            if (!is8) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+        case ia32dis::OPND_MODRM_WORDPTR:
+            if (!is16) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+        case ia32dis::OPND_MODRM_dWORDPTR:
+            if (is16 || is32)
+            {
+                if (!setOperandWidth(is16 ? 16 : 32, enc))
+                    return false;
+            } else
+                return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
+
+        default:
+            return false;
+        }
+    }
+
+    case Operand::IMMEDIATE:
+    {
+        // A size keyword sets the operand size: 'push word 0x12' is 66 6a 12
+        uint size = compilerOperand.getSize();
+        if ((size == 16) || (size == 32))
+        {
+            if (!setOperandWidth(size, enc))
+                return false;
+        } else if ((size != 0) && (size != 8))
+            return false;
+        return checkImmediate(ia32disType, compilerOperand, relaxed, enc);
+    }
+
+    case Operand::OFFSET:
+        switch (ia32disType)
+        {
+        case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
+            return compilerOperand.getBranchHint() != Operand::HINT_NEAR;
+        case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
+        case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+            return compilerOperand.getBranchHint() != Operand::HINT_SHORT;
+        default:
+            return false;
+        }
+
+    case Operand::FAR_POINTER:
+        return (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_FAR);
+
+    case Operand::MEMORY:
+        return matchMemory(ia32disType, compilerOperand, enc);
+    }
+
+    return false;
+}
+
+bool IA32AssemblerStream::checkImmediate(ia32dis::OperandType ia32disType,
+                                         const Operand& compilerOperand,
+                                         bool relaxed,
+                                         const Encoding& enc) const
+{
+    int64 value = compilerOperand.getValue();
+    switch (ia32disType)
+    {
+    case ia32dis::OPND_IMMEDIATE_8BIT:
+        // Signed 8 bit, or the unsigned byte value in the relaxed pass
+        // In the relaxed pass the value is truncated to the low byte, as nasm
+        // does (psrld mm1, 0x12345678 is psrld mm1, 0x78)
+        if (relaxed)
+            return (value >= -0x80000000LL) && (value <= 0xFFFFFFFFLL);
+        return (value >= -0x80) && (value <= 0x7F);
+
+    case ia32dis::OPND_IMMEDIATE_16BIT:
+        return (value >= -0x8000) && (value <= 0xFFFF);
+
+    case ia32dis::OPND_IMMEDIATE_DS:
+        if (getEncodingWidth(enc) == 16)
+            return (value >= -0x8000) && (value <= 0xFFFF);
+        return (value >= -0x80000000LL) && (value <= 0xFFFFFFFFLL);
+
+    case ia32dis::OPND_ONE:
+        return (value == 1);
+
+    case ia32dis::OPND_THREE:
+        // 'int 3' is cd 03 in nasm, the 0xcc form is the 'int3' mnemonic,
+        // which the table does not name, so the operand never matches here
+        return false;
+
+    default:
+        return false;
     }
 }
 
-void IA32AssemblerStream::writeImmediate(IntegerEncoding::IntegerEncodingType processorOperandSize,
-                                  IntegerEncoding::IntegerEncodingType processorAddressSize,
-                                  ia32dis::OperandType ia32disType,
-                                  const Operand& compilerOperand)
+bool IA32AssemblerStream::matchMemory(ia32dis::OperandType ia32disType,
+                                      const Operand& compilerOperand,
+                                      Encoding& enc) const
 {
-    IntegerEncoding::IntegerEncodingType simpleImmediate =
-                            getOperandSize(processorOperandSize,
-                                           processorAddressSize,
-                                           ia32disType);
-    // bool shouldReadSegment = false;
+    uint size = compilerOperand.getSize();
+    if (!isKnownOperandSize(size))
+        return false;
 
-    // Check the operand compiler data and write the immediate
-    switch (simpleImmediate)
+    // 'far' selects the far pointer rows only, and they need the keyword
+    if (compilerOperand.isFar() != (ia32disType == ia32dis::OPND_MODRM_FAR_OFFSET))
+        return false;
+
+    uint defaultWidth = getDefaultOperandWidth();
+    bool isDirect = (compilerOperand.getBase() < 0) &&
+                    (compilerOperand.getIndex() < 0);
+
+    // Direct address with the accumulator (mov eax, [0x1234] is A1 id)
+    if (ia32disType == ia32dis::OPND_MEMREF_OFFSET_DS)
     {
-    case IntegerEncoding::INTEGER_NOT_EXIST:
+        if (!isDirect)
+            return false;
+        if ((compilerOperand.getAddressWidth() != 0) &&
+            (compilerOperand.getAddressWidth() != defaultWidth))
+            enc.m_addressSizePrefix = true;
+        enc.m_displacementSize = (defaultWidth == 16) ? 2 : 4;
+        return true;
+    }
+
+    switch (ia32disType)
+    {
+    case ia32dis::OPND_MODRM_MEM:
+    case ia32dis::OPND_MODRM_FAR_OFFSET:
+        break;
+    case ia32dis::OPND_MODRM_BYTEPTR:
+        if ((size != 0) && (size != 8))
+            return false;
+        break;
+    case ia32dis::OPND_MODRM_WORDPTR:
+        if ((size != 0) && (size != 16))
+            return false;
+        break;
+    case ia32dis::OPND_MODRM_QWORDPTR:
+    case ia32dis::OPND_MMX_RM:
+    case ia32dis::OPND_SIMD_RM_QWORD:
+        if ((size != 0) && (size != 64))
+            return false;
+        break;
+    case ia32dis::OPND_MODRM_TWORDPTR:
+        if ((size != 0) && (size != 80))
+            return false;
+        break;
+    case ia32dis::OPND_SIMD_RM:
+        if ((size != 0) && (size != 128))
+            return false;
+        break;
+    case ia32dis::OPND_MODRM_dWORDPTR:
+        if ((size == 8) || (size == 64) || (size == 80) || (size == 128))
+            return false;
+        // The x87 memory size selects the opcode (fild word is df /0), it
+        // doesn't change the operand size
+        if (enc.m_table == 2)
+        {
+            if (size == 16)
+                return false;
+            break;
+        }
+        // The memory size selects the operand size (mov word [eax], ax)
+        if (size != 0)
+        {
+            if (!setOperandWidth(size, enc))
+                return false;
+        }
+        break;
+    default:
+        return false;
+    }
+
+    // The address size comes from the registers of the address
+    uint addressWidth = compilerOperand.getAddressWidth();
+    if (addressWidth == 0)
+        addressWidth = defaultWidth;
+    if (addressWidth != defaultWidth)
+        enc.m_addressSizePrefix = true;
+
+    if (addressWidth == 16)
+        encodeMemory16(compilerOperand, enc);
+    else
+        encodeMemory32(compilerOperand, enc);
+    enc.m_hasModrm = true;
+    return true;
+}
+
+void IA32AssemblerStream::encodeMemory32(const Operand& compilerOperand,
+                                         Encoding& enc)
+{
+    int base = compilerOperand.getBase();
+    int index = compilerOperand.getIndex();
+    uint scale = compilerOperand.getScale();
+    int64 displacement = compilerOperand.getDisplacement();
+
+    enc.m_hasSib = false;
+
+    // [disp32]: mod 00, rm 101
+    if ((base < 0) && (index < 0))
+    {
+        enc.m_modrm.m_bits.m_mod = 0;
+        enc.m_modrm.m_bits.m_rm = 5;
+        enc.m_displacementSize = 4;
         return;
-    case IntegerEncoding::INTEGER_8BIT:
-        if (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8)
-        {
-            m_binary.appendUint8((uint8)((int8)compilerOperand.getDisplacement()));
-        } else
-        {
-            m_binary.appendUint8(compilerOperand.getReference1());
-        }
-        break;
-    case IntegerEncoding::INTEGER_16BIT:
-        _writeUint16(compilerOperand.getReference1());
-        break;
-    case IntegerEncoding::INTEGER_32BIT:
-        if (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_DS)
-        {
-            _writeUint32(compilerOperand.getDisplacement());
-        } else
-        {
-            _writeUint32(compilerOperand.getReference1());
-        }
-        break;
-    default:
-        // Not ready yet!
-        CHECK_FAIL();
     }
 
-    // if (shouldReadSegment)
-    //    immediate.segment = read16bit(data);
-}
-
-void IA32AssemblerStream::writeDisplacement(const IA32AssemblerStream::Operand& compilerOperand,
-                                     uint displacementSize)
-{
-    switch (displacementSize)
+    // [index*4+disp32] and [index*8+disp32]: SIB with no base (base 101)
+    if (base < 0)
     {
-    case 1:
-        if (compilerOperand.getDisplacementPacking() == IntegerEncoding::INTEGER_8BIT)
-        {
-            int8 data = (int8)compilerOperand.getDisplacement();
-            m_binary.appendUint8((uint8)data);
-        }
-        break;
-    case 2:
-        if (compilerOperand.getDisplacementPacking() == IntegerEncoding::INTEGER_16BIT)
-        {
-            int16 data = (int16)compilerOperand.getDisplacement();
-            _writeUint16((uint16)data);
-        }
-        break;
-    case 4:
-        if (compilerOperand.getDisplacementPacking() == IntegerEncoding::INTEGER_32BIT)
-            _writeUint32((uint32)compilerOperand.getDisplacement());
-        break;
-    default:
-        // ??
-        CHECK_FAIL();
+        ASM_CHECK((scale == 4) || (scale == 8), "invalid scale");
+        enc.m_modrm.m_bits.m_mod = 0;
+        enc.m_modrm.m_bits.m_rm = 4;
+        enc.m_hasSib = true;
+        enc.m_sib.m_bits.m_scale = scaleBits(scale);
+        enc.m_sib.m_bits.m_index = index;
+        enc.m_sib.m_bits.m_base = ia32dis::IA32_GP32_EBP;
+        enc.m_displacementSize = 4;
+        return;
     }
 
+    // Displacement: none for 0 (except EBP as base, which needs disp8 0),
+    // disp8 for -128..127, disp32 otherwise
+    uint mod;
+    uint displacementSize;
+    if ((displacement == 0) && (base != ia32dis::IA32_GP32_EBP))
+    {
+        mod = 0;
+        displacementSize = 0;
+    } else if ((displacement >= -0x80) && (displacement <= 0x7F))
+    {
+        mod = 1;
+        displacementSize = 1;
+    } else
+    {
+        mod = 2;
+        displacementSize = 4;
+    }
+
+    // ESP as base and any index need the SIB byte
+    bool needsSib = (index >= 0) || (base == ia32dis::IA32_GP32_ESP);
+    enc.m_modrm.m_bits.m_mod = mod;
+    enc.m_displacementSize = displacementSize;
+    if (needsSib)
+    {
+        enc.m_modrm.m_bits.m_rm = 4;
+        enc.m_hasSib = true;
+        enc.m_sib.m_bits.m_scale = (index >= 0) ? scaleBits(scale) : 0;
+        enc.m_sib.m_bits.m_index = (index >= 0) ? index : ia32dis::IA32_GP32_ESP;
+        enc.m_sib.m_bits.m_base = base;
+    } else
+        enc.m_modrm.m_bits.m_rm = base;
 }
 
-void IA32AssemblerStream::_writeUint16(uint16 data)
+void IA32AssemblerStream::encodeMemory16(const Operand& compilerOperand,
+                                         Encoding& enc) const
 {
-    uint8 buffer[sizeof(uint16)];
-    cLittleEndian::writeUint16(buffer, data);
-    m_binary.appendBuffer(buffer, sizeof(buffer));
+    int base = compilerOperand.getBase();
+    int index = compilerOperand.getIndex();
+    int64 displacement = compilerOperand.getDisplacement();
+
+    enc.m_hasSib = false;
+
+    // [disp16]: mod 00, rm 110
+    if ((base < 0) && (index < 0))
+    {
+        enc.m_modrm.m_bits.m_mod = 0;
+        enc.m_modrm.m_bits.m_rm = 6;
+        enc.m_displacementSize = 2;
+        return;
+    }
+
+    // The table lists the register pairs for each modrm value
+    uint first = (base >= 0) ? (uint)base : ia32dis::NO_REGISTER;
+    uint second = (index >= 0) ? (uint)index : ia32dis::NO_REGISTER;
+
+    uint firstMod = 2;
+    if (displacement == 0)
+        firstMod = 0;
+    else if ((displacement >= -0x80) && (displacement <= 0x7F))
+        firstMod = 1;
+
+    for (uint mod = firstMod; mod <= 2; mod++)
+    {
+        for (uint rm = 0; rm < ia32dis::MODRM_RM_COUNT; rm++)
+        {
+            const ia32dis::ModRMTranslation& entry =
+                ia32dis::gIa32ModRM16[mod][rm];
+            if (!entry.m_isReference)
+                continue;
+            bool isMatch =
+                ((entry.m_firstRegisterPointer == first) &&
+                 (entry.m_secondRegisterPointer == second)) ||
+                ((entry.m_firstRegisterPointer == second) &&
+                 (entry.m_secondRegisterPointer == first));
+            if (!isMatch)
+                continue;
+
+            enc.m_modrm.m_bits.m_mod = mod;
+            enc.m_modrm.m_bits.m_rm = rm;
+            enc.m_displacementSize = (mod == 0) ? 0 : ((mod == 1) ? 1 : 2);
+            return;
+        }
+    }
+
+    // Not a 16 bit addressing form (e.g. [ax])
+    ASM_CHECK(false, "invalid 16 bit address");
 }
 
-void IA32AssemblerStream::_writeUint32(uint32 data)
+uint IA32AssemblerStream::calculateLength(const Encoding& enc) const
+{
+    // The table entry gives the sizes of the immediates
+    ia32dis::OperandType types[3] = { enc.m_opcode->m_firstOperand,
+                                      enc.m_opcode->m_secondOperand,
+                                      enc.m_opcode->m_thridOperand };
+
+    uint length = 0;
+    // Prefixes: segment, address size, lock, operand size, repeat, mandatory
+    if (enc.m_segment >= 0)
+        length++;
+    if (enc.m_addressSizePrefix)
+        length++;
+    if (enc.m_prefixes.m_lock)
+        length++;
+    if (needsOperandSizePrefix(enc))
+        length++;
+    if (enc.m_prefixes.m_repeat != 0)
+        length++;
+    if (enc.m_opcode->m_mandatoryPrefix != ia32dis::MANDATORY_NONE)
+        length++;
+
+    // Opcode, modrm, sib and displacement
+    if (enc.m_table == 1)
+        length++;
+    length++;
+    if (enc.m_hasModrm)
+        length++;
+    if (enc.m_hasSib)
+        length++;
+    length += enc.m_displacementSize;
+
+    // Immediates and offsets
+    for (uint i = 0; i < 3; i++)
+        length += getImmediateSize(types[i], enc);
+    return length;
+}
+
+bool IA32AssemblerStream::checkOffsets(const Encoding& enc,
+                                       const Operand& first,
+                                       const Operand& second,
+                                       const Operand& third) const
+{
+    const Operand* operands[3] = { &first, &second, &third };
+    ia32dis::OperandType types[3] = { enc.m_opcode->m_firstOperand,
+                                      enc.m_opcode->m_secondOperand,
+                                      enc.m_opcode->m_thridOperand };
+    for (uint i = 0; i < 3; i++)
+    {
+        if (operands[i]->getKind() != Operand::OFFSET)
+            continue;
+
+        // The offset is measured from the start of the instruction
+        int64 relative = operands[i]->getValue() - (int64)enc.m_length;
+        if (types[i] == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8)
+        {
+            if ((relative < -0x80) || (relative > 0x7F))
+                return false;
+        } else
+        {
+            // Near offsets: 16 or 32 bit according to the operand size
+            if (getEncodingWidth(enc) == 16)
+            {
+                if ((relative < -0x8000) || (relative > 0x7FFF))
+                    return false;
+            } else if ((relative < -0x80000000LL) || (relative > 0x7FFFFFFFLL))
+                return false;
+        }
+    }
+    return true;
+}
+
+uint IA32AssemblerStream::getImmediateSize(ia32dis::OperandType ia32disType,
+                                           const Encoding& enc) const
+{
+    switch (ia32disType)
+    {
+    case ia32dis::OPND_IMMEDIATE_8BIT:
+    case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
+        return 1;
+    case ia32dis::OPND_IMMEDIATE_16BIT:
+        return 2;
+    case ia32dis::OPND_IMMEDIATE_DS:
+    case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
+    case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+        return getEncodingWidth(enc) / 8;
+    case ia32dis::OPND_IMMEDIATE_OFFSET_FAR:
+        // offset16/32 followed by the segment
+        return getEncodingWidth(enc) / 8 + 2;
+    default:
+        return 0;
+    }
+}
+
+void IA32AssemblerStream::encodeOpcode(const Encoding& enc,
+                                       const Operand& first,
+                                       const Operand& second,
+                                       const Operand& third)
+{
+    const Operand* operands[3] = { &first, &second, &third };
+    ia32dis::OperandType types[3] = { enc.m_opcode->m_firstOperand,
+                                      enc.m_opcode->m_secondOperand,
+                                      enc.m_opcode->m_thridOperand };
+
+    // Prefixes in nasm order: segment, address size, lock, operand size,
+    // repeat, and the mandatory prefix (66, F2, F3) which is right before 0F
+    if (enc.m_segment >= 0)
+        m_binary.appendUint8(getSegmentPrefix(enc.m_segment));
+    if (enc.m_addressSizePrefix)
+        m_binary.appendUint8(ia32dis::gIa32PrefixGroup4AddressSize);
+    if (enc.m_prefixes.m_lock)
+        m_binary.appendUint8(getPrefixOpcode("lock"));
+    if (needsOperandSizePrefix(enc))
+        m_binary.appendUint8(ia32dis::gIa32PrefixGroup3OperandSize);
+    if (enc.m_prefixes.m_repeat != 0)
+        m_binary.appendUint8(enc.m_prefixes.m_repeat);
+    if (enc.m_opcode->m_mandatoryPrefix != ia32dis::MANDATORY_NONE)
+        m_binary.appendUint8(enc.m_opcode->m_mandatoryPrefix);
+
+    // The table index prefix. Used only for two bytes table (the x87 table
+    // has its escape as the opcode prefix)
+    if (enc.m_table == 1)
+        m_binary.appendUint8(ia32dis::gIa32TwoByteEscapeCharacter);
+
+    // The opcode. The register of a '+r' opcode is added into the opcode
+    uint8 opcodeData = enc.m_opcode->m_prefix;
+    for (uint i = 0; i < 3; i++)
+    {
+        if ((types[i] == ia32dis::OPND_ONEBYTES_OPCODE_GP_8) ||
+            (types[i] == ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32))
+            opcodeData |= (uint8)(operands[i]->getReference() &
+                                  (~enc.m_opcode->m_prefixMask));
+    }
+    m_binary.appendUint8(opcodeData);
+
+    // The modrm, sib and displacement
+    if (enc.m_hasModrm)
+    {
+        IA32OpcodeDatastruct::MODRM modrm = enc.m_modrm;
+
+        // Fix modrm according to filter opcode name (the /digit of the opcode).
+        // An operand register in the reg field wins over the filter.
+        if ((enc.m_opcode->m_modrm != ia32dis::MODRM_ALL_FILTER) && !enc.m_regFieldSet)
+        {
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_000) != 0)
+                modrm.m_bits.m_regOpcode = 0;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_001) != 0)
+                modrm.m_bits.m_regOpcode = 1;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_010) != 0)
+                modrm.m_bits.m_regOpcode = 2;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_011) != 0)
+                modrm.m_bits.m_regOpcode = 3;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_100) != 0)
+                modrm.m_bits.m_regOpcode = 4;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_101) != 0)
+                modrm.m_bits.m_regOpcode = 5;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_110) != 0)
+                modrm.m_bits.m_regOpcode = 6;
+            if ((enc.m_opcode->m_modrm & ia32dis::MODRM_MOD_111) != 0)
+                modrm.m_bits.m_regOpcode = 7;
+        }
+        m_binary.appendUint8(modrm.m_packed);
+    }
+
+    if (enc.m_hasSib)
+        m_binary.appendUint8(enc.m_sib.m_packed);
+
+    // The memory displacement (the memory operand is the only one)
+    if (enc.m_displacementSize != 0)
+    {
+        for (uint i = 0; i < 3; i++)
+        {
+            if (operands[i]->getKind() == Operand::MEMORY)
+            {
+                writeValue(operands[i]->getDisplacement(), enc.m_displacementSize);
+                break;
+            }
+        }
+    }
+
+    // Immediates and offsets, in operand order
+    for (uint i = 0; i < 3; i++)
+        writeImmediate(types[i], *operands[i], enc);
+}
+
+void IA32AssemblerStream::writeImmediate(ia32dis::OperandType ia32disType,
+                                         const Operand& compilerOperand,
+                                         const Encoding& enc)
+{
+    uint width = getEncodingWidth(enc) / 8;
+    int64 value = compilerOperand.getValue();
+    switch (ia32disType)
+    {
+    case ia32dis::OPND_IMMEDIATE_8BIT:
+        writeValue(value, 1);
+        break;
+    case ia32dis::OPND_IMMEDIATE_16BIT:
+        writeValue(value, 2);
+        break;
+    case ia32dis::OPND_IMMEDIATE_DS:
+        writeValue(value, width);
+        break;
+    case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
+        writeValue(value - (int64)enc.m_length, 1);
+        break;
+    case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
+    case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+        writeValue(value - (int64)enc.m_length, width);
+        break;
+    case ia32dis::OPND_IMMEDIATE_OFFSET_FAR:
+        writeValue(value, width);
+        writeValue(compilerOperand.getSegmentValue(), 2);
+        break;
+    default:
+        // Registers, memory displacement and the implicit operands
+        break;
+    }
+}
+
+void IA32AssemblerStream::writeValue(int64 value, uint bytes)
 {
     uint8 buffer[sizeof(uint32)];
-    cLittleEndian::writeUint32(buffer, data);
-    m_binary.appendBuffer(buffer, sizeof(buffer));
+    for (uint i = 0; i < bytes; i++)
+        buffer[i] = (uint8)(value >> (8 * i));
+    m_binary.appendBuffer(buffer, bytes);
 }
 
-bool IA32AssemblerStream::is32operand(bool operandPrefix) const
+bool IA32AssemblerStream::needsOperandSizePrefix(const Encoding& enc) const
 {
-    ASSERT(m_processorMode == IA32eInstructionSet::INTEL_32);
-    return !operandPrefix;
+    // A mandatory 66 prefix is the operand size prefix too (movd xmm, eax)
+    if (enc.m_opcode->m_mandatoryPrefix == ia32dis::MANDATORY_66)
+        return false;
+    return getEncodingWidth(enc) != getDefaultOperandWidth();
 }
 
-bool IA32AssemblerStream::is16operand(bool operandPrefix) const
+uint IA32AssemblerStream::getDefaultOperandWidth() const
 {
-    ASSERT(m_processorMode == IA32eInstructionSet::INTEL_32);
-    return operandPrefix;
+    return (m_processorMode == IA32eInstructionSet::INTEL_16) ? 16 : 32;
 }
 
-bool IA32AssemblerStream::checkSignedImmediateSize8(int32 value)
+uint IA32AssemblerStream::getEncodingWidth(const Encoding& enc) const
 {
-    return (value >= -0x80) && (value <= 0x7F);
+    return (enc.m_operandWidth != 0) ? enc.m_operandWidth : getDefaultOperandWidth();
 }
 
-bool IA32AssemblerStream::checkSignedImmediateSize16(int32 value)
+uint8 IA32AssemblerStream::getSegmentPrefix(uint segment)
 {
-    return (value >= -0x8000) && (value <= 0x7FFF);
+    // The table name of the segment prefix is the register name and ':'
+    cString name(ia32dis::gIa32SegmentsRegisters[segment].m_name);
+    name += XSTL_CHAR(':');
+    return getPrefixOpcode(name);
 }
 
+uint8 IA32AssemblerStream::getPrefixOpcode(const cString& name)
+{
+    for (uint i = 0; i < ia32dis::IA32_NUMBER_OF_PREFIXS; i++)
+    {
+        if (name == ia32dis::gIa32PrefixTable[i].m_prefixName)
+            return ia32dis::gIa32PrefixTable[i].m_opcode;
+    }
+    ASM_CHECK(false, "prefix is not in the table");
+    return 0;
+}
 
-//////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////
 // IA32AssemblerStream::Operand
 
 IA32AssemblerStream::Operand::Operand() :
-    m_type(NO_OPERAND),
-    m_reference1(0),
-    m_displacement(0),
-    m_displacementEncodingType(IntegerEncoding::INTEGER_NOT_EXIST)
+    m_kind(NO_OPERAND),
+    m_size(0),
+    m_regClass(REG_8BIT),
+    m_reference(0),
+    m_value(0),
+    m_hasDisplacement(false),
+    m_segmentValue(0),
+    m_hint(HINT_NONE),
+    m_far(false),
+    m_segment(-1),
+    m_base(-1),
+    m_index(-1),
+    m_scale(1),
+    m_addressWidth(0)
 {
+}
+
+IA32AssemblerStream::Operand IA32AssemblerStream::Operand::fromText(const cString& text)
+{
+    cSArray<char> ascii = text.getASCIIstring();
+    Parser parser(ascii.getBuffer(),
+                  ascii.getBuffer(),
+                  ascii.getSize() - 1, // Reduce the null terminate character!
+                  1);
+    Operand operand;
+    operand.readOperand(parser);
+    return operand;
 }
 
 void IA32AssemblerStream::Operand::readOperand(Parser& parser)
 {
-    // Read the first word and start comparing it to known values
-    // There are couple of operand modes:
-    if (parser.isCUnsignedInteger())
+    parser.readBlanksUntilEOL();
+
+    // Branch hint: 'short $+N' or 'near $+N'
+    cString word = peekWord(parser);
+    if ((word == "short") || (word == "near"))
     {
-        // Unsigned immediate
-        m_reference1 = parser.readCUnsignedInteger();
-        limitedImmediate();
-        readUntilOpcode(parser);
-        return;
+        m_hint = (word == "short") ? HINT_SHORT : HINT_NEAR;
+        skipWord(parser);
     }
 
-    // Try to read mangled names
-
-    // Try to read offset locations
-    if (parser.peekChar() == '$')
+    // Far keyword: 'jmp far dword [eax]'
+    if (peekWord(parser) == "far")
     {
-        // Read relative addressing
-        parser.readChar();
-        parser.readBlanks();
-        bool negative = parser.readSignedValue();
-        parser.readBlanks();
-        m_type = OPERAND_OFFSET_MASK;
-        m_displacement = parser.readCUnsignedInteger();
-        if (negative)
-            m_displacement= -m_displacement;
-        // And done.
-        readUntilOpcode(parser);
-        return;
+        m_far = true;
+        skipWord(parser);
     }
 
-    // Try to find memory address
-    cString word;
-    if (parser.peekChar() == '[')
-    {
-        parser.readChar();
-        // TODO!
-        //m_type = (m_processorMode == IA32eInstructionSet::INTEL_32) ?
-        //            OPERAND_MEMORY_32BIT : OPERAND_MEMORY_16BIT;
-        m_type = OPERAND_MEMORY_32BIT;
-    } else
-    {
-        // Otherwise just read a CString word for registers,
-        word = parser.readCString();
-        parser.readBlanksUntilEOL();
+    // Size keyword (the 'ptr' is optional)
+    m_size = readSizeKeyword(parser);
 
-        //////////////////////////////////////////////////////////////////////////
-        // Check for memory reference
-        // Memory reference must be started with access token: dword/word/byte ptr
-        if (word == "dword")
-            m_type = OPERAND_MEMORY_32BIT;
-        if (word == "word")
-            m_type = OPERAND_MEMORY_16BIT;
-        if (word == "byte")
-            m_type = OPERAND_MEMORY_8BIT;
-
-        // Memory operation
-        if (m_type != NO_OPERAND)
+    // A word which starts with a letter is a register name, or a segment
+    // override when it is followed by ':' ('fs:[eax]')
+    int segment = -1;
+    cString name;
+    if (isLetterAhead(parser))
+    {
+        cString token = parser.readCString(false);
+        if ((segmentIndex(token) >= 0) && isNextChar(parser, ':'))
         {
-            CHECK(parser.readCString() == "ptr");
+            segment = segmentIndex(token);
+            parser.readChar();
             parser.readBlanksUntilEOL();
-            CHECK(parser.readChar() == '[');
-        }
-    }
-
-
-    if (m_type != NO_OPERAND)
-    {
-        // Read opening memory token [
-        parser.readBlanksUntilEOL();
-
-        // There are several of options in memory transaction
-        bool isNegative = parser.readSignedValue();
-        if (parser.isCUnsignedInteger())
-        {
-            // Just displacement
-            m_type|= OPERAND_MEMORY_DIRECT;
-            m_displacement = parser.readCUnsignedInteger();
-            // Negiate number
-            if (isNegative)
-                m_displacement = -m_displacement;
-            limitedDisplacement();
-            // Change reference1, used in immediates
-            m_reference1 = m_displacement;
         } else
         {
-            // reg+disp, reg+reg+disp, SIB+disp..
-            word = parser.readCString();
-            parser.readBlanksUntilEOL();
-            // Read the first register
-            uint type;
-            CHECK(checkRegister(word, type, m_reference1));
-            m_type|= type;
-            // Check for more elements
-            if (parser.peekChar() != ']')
-            {
-                // Check for appending mark
-                char mark = parser.readChar();
-                parser.readBlanksUntilEOL();
-                CHECK((mark == '+') || (mark == '-'));
-                // Check for another register or displacement
-                if (parser.isCUnsignedInteger())
-                {
-                    m_type|= OPERAND_MEMORY_REG_PLUS_DISPLACEMENT;
-                    m_displacement = parser.readCUnsignedInteger();
-                    // Negiate number
-                    if (mark == '-')
-                        m_displacement = -m_displacement;
-                    limitedDisplacement();
-                    parser.readBlanksUntilEOL();
-                } else
-                {
-                    // Not ready yet
-                    CHECK_FAIL();
-                }
-            } else
-            {
-                // Only a register
-                m_type|= OPERAND_MEMORY_REG;
-            }
+            name = token;
         }
-
-        // Read modrm mod + register in use
-
-        // Read SIB
-
-        CHECK(parser.readChar() == ']');
-        parser.readBlanksUntilEOL();
-
-        // And done
-        readUntilOpcode(parser);
-        return;
     }
 
-    //////////////////////////////////////////////////////////////////////////
-    // Registers:  (EAX, EBX, ECX, EDX)
-    if (checkRegister(word, m_type, m_reference1))
+    if (name.length() != 0)
     {
-        // And done
-        readUntilOpcode(parser);
-        return;
+        ASM_CHECK(checkRegister(name, m_regClass, m_reference),
+                  "unknown register or operand");
+        ASM_CHECK(m_size == 0, "size keyword can't be used with a register");
+        m_kind = REGISTER;
+    } else if (isNextChar(parser, '['))
+    {
+        parser.readChar();
+        m_kind = MEMORY;
+        m_segment = segment;
+        readAddress(parser);
+        ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
+        parser.readChar();
+    } else if (segment >= 0)
+    {
+        ASM_CHECK(false, "segment override must be followed by a memory reference");
+    } else if (isNextChar(parser, '$'))
+    {
+        readOffset(parser);
+    } else if (isNextChar(parser, '-') || isNextChar(parser, '+') ||
+               isDecimalAhead(parser))
+    {
+        bool negative = parser.readSignedValue();
+        uint64 number = readNumber(parser);
+
+        if (isNextChar(parser, ':') && !negative)
+        {
+            // Far pointer: segment:offset
+            parser.readChar();
+            ASM_CHECK(isDecimalAhead(parser), "offset was expected");
+            uint64 offset = readNumber(parser);
+            m_kind = FAR_POINTER;
+            m_segmentValue = (uint32)number;
+            m_value = (int64)offset;
+        } else
+        {
+            m_kind = IMMEDIATE;
+            m_value = negative ? -(int64)number : (int64)number;
+        }
+    } else
+    {
+        ASM_CHECK(false, "operand was expected");
     }
-
-    // Couldn't find the operand
-    CHECK_FAIL();
-}
-
-uint IA32AssemblerStream::Operand::getType() const
-{
-    return m_type;
-}
-
-uint32 IA32AssemblerStream::Operand::getReference1() const
-{
-    return m_reference1;
-}
-
-int32 IA32AssemblerStream::Operand::getDisplacement() const
-{
-    return m_displacement;
-}
-
-IntegerEncoding::IntegerEncodingType
-            IA32AssemblerStream::Operand::getDisplacementPacking() const
-{
-    return m_displacementEncodingType;
-}
-
-void IA32AssemblerStream::Operand::readUntilOpcode(Parser& parser)
-{
-    if (parser.readBlanksUntilEOL())
-        return;
-
-    // TODO! Add comments support
-    CHECK(parser.readChar() == ',');
 
     parser.readBlanksUntilEOL();
+    ASM_CHECK(isEndOfOperand(parser), "unexpected text after the operand");
+}
+
+void IA32AssemblerStream::Operand::readOffset(Parser& parser)
+{
+    // '$' (the start of the instruction), '$+N' or '$-N'
+    parser.readChar();
+    parser.readBlanksUntilEOL();
+    bool negative = false;
+    if (isNextChar(parser, '-') || isNextChar(parser, '+'))
+    {
+        negative = parser.readSignedValue();
+        parser.readBlanksUntilEOL();
+    }
+    uint64 number = 0;
+    if (isDecimalAhead(parser))
+        number = readNumber(parser);
+    m_kind = OFFSET;
+    m_value = negative ? -(int64)number : (int64)number;
+}
+
+void IA32AssemblerStream::Operand::readAddress(Parser& parser)
+{
+    parser.readBlanksUntilEOL();
+
+    // Segment override inside the brackets: '[fs:eax]'. A segment register
+    // which is not followed by ':' is rejected as an address register below.
+    int segment = segmentIndex(peekWord(parser));
+    if (segment >= 0)
+    {
+        parser.readCString(false);
+        ASM_CHECK(isNextChar(parser, ':'), "register was expected in address");
+        parser.readChar();
+        ASM_CHECK(m_segment < 0, "segment prefix used twice");
+        m_segment = segment;
+        parser.readBlanksUntilEOL();
+    }
+
+    // Terms of the form [+-]number, [+-]reg, [+-]number*reg, [+-]reg*number
+    int sign = 1;
+    if (isNextChar(parser, '-'))
+    {
+        sign = -1;
+        parser.readChar();
+    } else if (isNextChar(parser, '+'))
+        parser.readChar();
+
+    for (;;)
+    {
+        parser.readBlanksUntilEOL();
+        if (isDecimalAhead(parser))
+        {
+            uint64 number = readNumber(parser);
+            parser.readBlanksUntilEOL();
+            if (isNextChar(parser, '*'))
+            {
+                // number*reg
+                parser.readChar();
+                parser.readBlanksUntilEOL();
+                ASM_CHECK(isLetterAhead(parser), "register was expected after '*'");
+                cString name = parser.readCString(false);
+                RegisterClass regClass;
+                uint index;
+                ASM_CHECK(checkRegister(name, regClass, index) &&
+                          ((regClass == REG_32BIT) || (regClass == REG_16BIT)),
+                          "register was expected in address");
+                addAddressRegister(regClass, index, (uint)number, sign);
+            } else
+            {
+                m_value += sign * (int64)number;
+                m_hasDisplacement = true;
+            }
+        } else if (isLetterAhead(parser))
+        {
+            cString name = parser.readCString(false);
+            RegisterClass regClass;
+            uint index;
+            ASM_CHECK(checkRegister(name, regClass, index) &&
+                      ((regClass == REG_32BIT) || (regClass == REG_16BIT)),
+                      "register was expected in address");
+            parser.readBlanksUntilEOL();
+            uint scale = 0;
+            if (isNextChar(parser, '*'))
+            {
+                // reg*number
+                parser.readChar();
+                parser.readBlanksUntilEOL();
+                ASM_CHECK(isDecimalAhead(parser), "scale was expected after '*'");
+                scale = (uint)readNumber(parser);
+                parser.readBlanksUntilEOL();
+            }
+            addAddressRegister(regClass, index, scale, sign);
+        } else
+        {
+            ASM_CHECK(false, "address was expected");
+        }
+
+        parser.readBlanksUntilEOL();
+        if (isNextChar(parser, ']'))
+            break;
+        ASM_CHECK(isNextChar(parser, '+') || isNextChar(parser, '-'),
+                  "'+' or '-' was expected in address");
+        sign = isNextChar(parser, '-') ? -1 : 1;
+        parser.readChar();
+    }
+
+    // Normalize the address: nasm encodes [eax*1] as [eax], and [eax*2] as
+    // [eax+eax*1]. Without a base the index must be encodable as a base.
+    if (m_addressWidth == 32)
+    {
+        if ((m_index >= 0) && (m_base < 0))
+        {
+            if (m_scale == 1)
+            {
+                m_base = m_index;
+                m_index = -1;
+            } else if (m_scale == 2)
+            {
+                m_base = m_index;
+                m_scale = 1;
+            }
+        }
+        ASM_CHECK(m_index != (int)ia32dis::IA32_GP32_ESP,
+                  "esp can't be used as an index register");
+    } else if (m_addressWidth == 16)
+    {
+        // A single 16 bit register is the base
+        if ((m_index >= 0) && (m_base < 0))
+        {
+            m_base = m_index;
+            m_index = -1;
+        }
+    }
+    ASM_CHECK((m_base >= 0) || (m_index >= 0) || m_hasDisplacement,
+              "empty address");
+}
+
+void IA32AssemblerStream::Operand::addAddressRegister(RegisterClass regClass,
+                                                      uint index,
+                                                      uint scale,
+                                                      int sign)
+{
+    ASM_CHECK(sign > 0, "a register can't be subtracted");
+
+    // The address size is defined by the first register
+    uint addressWidth = (regClass == REG_16BIT) ? 16 : 32;
+    if (m_addressWidth == 0)
+        m_addressWidth = addressWidth;
+    ASM_CHECK(m_addressWidth == addressWidth,
+              "16 and 32 bit registers can't be mixed in an address");
+
+    if (addressWidth == 16)
+    {
+        // Only bx, bp, si and di can be used in 16 bit addresses
+        ASM_CHECK((index == ia32dis::IA32_GP16_BX) || (index == ia32dis::IA32_GP16_BP) ||
+                  (index == ia32dis::IA32_GP16_SI) || (index == ia32dis::IA32_GP16_DI),
+                  "only bx, bp, si and di can be used in 16 bit addresses");
+        ASM_CHECK(scale == 0, "scale is not allowed in 16 bit addresses");
+    }
+
+    if (scale != 0)
+    {
+        // Scaled index: reg*scale
+        ASM_CHECK((scale == 1) || (scale == 2) || (scale == 4) || (scale == 8),
+                  "scale must be 1, 2, 4 or 8");
+        ASM_CHECK(m_index < 0, "only one index register is allowed");
+        m_index = index;
+        m_scale = scale;
+    } else if (m_base < 0)
+    {
+        m_base = index;
+    } else
+    {
+        ASM_CHECK(m_index < 0, "only one index register is allowed");
+        m_index = index;
+        m_scale = 1;
+    }
+}
+
+bool IA32AssemblerStream::Operand::isRegister(RegisterClass regClass, uint index) const
+{
+    return (m_kind == REGISTER) && (m_regClass == regClass) && (m_reference == index);
+}
+
+bool IA32AssemblerStream::Operand::isFpuRegister() const
+{
+    return (m_kind == REGISTER) && (m_regClass == REG_FPU);
+}
+
+IA32AssemblerStream::Operand::Kind IA32AssemblerStream::Operand::getKind() const
+{
+    return m_kind;
+}
+
+uint IA32AssemblerStream::Operand::getSize() const
+{
+    return m_size;
+}
+
+IA32AssemblerStream::Operand::RegisterClass
+    IA32AssemblerStream::Operand::getRegisterClass() const
+{
+    return m_regClass;
+}
+
+uint IA32AssemblerStream::Operand::getReference() const
+{
+    return m_reference;
+}
+
+int64 IA32AssemblerStream::Operand::getValue() const
+{
+    return m_value;
+}
+
+uint32 IA32AssemblerStream::Operand::getSegmentValue() const
+{
+    return m_segmentValue;
+}
+
+IA32AssemblerStream::Operand::BranchHint
+    IA32AssemblerStream::Operand::getBranchHint() const
+{
+    return m_hint;
+}
+
+bool IA32AssemblerStream::Operand::isFar() const
+{
+    return m_far;
+}
+
+int IA32AssemblerStream::Operand::getSegment() const
+{
+    return m_segment;
+}
+
+int IA32AssemblerStream::Operand::getBase() const
+{
+    return m_base;
+}
+
+int IA32AssemblerStream::Operand::getIndex() const
+{
+    return m_index;
+}
+
+uint IA32AssemblerStream::Operand::getScale() const
+{
+    return m_scale;
+}
+
+uint IA32AssemblerStream::Operand::getAddressWidth() const
+{
+    return m_addressWidth;
+}
+
+int64 IA32AssemblerStream::Operand::getDisplacement() const
+{
+    return m_value;
 }
 
 bool IA32AssemblerStream::Operand::checkRegister(const cString& regname,
-                                                 uint& regType,
-                                                 uint32& regIndex)
+                                                 RegisterClass& regClass,
+                                                 uint& regIndex)
 {
-    uint32 i = 0;
-    for (; i < ia32dis::NUMBER_OF_REGISTERS; i++)
+    for (uint i = 0; i < ia32dis::NUMBER_OF_REGISTERS; i++)
     {
         if (regname == ia32dis::gIa8Registers[i].m_name)
         {
-            regType = OPERAND_8BIT_REG;
+            regClass = REG_8BIT;
             regIndex = i;
             return true;
         }
-
         if (regname == ia32dis::gIa16Registers[i].m_name)
         {
-            regType = OPERAND_16BIT_REG;
+            regClass = REG_16BIT;
             regIndex = i;
             return true;
         }
-
         if (regname == ia32dis::gIa32Registers[i].m_name)
         {
-            regType = OPERAND_32BIT_REG;
+            regClass = REG_32BIT;
             regIndex = i;
             return true;
         }
-
         if (regname == ia32dis::gIa32SIMDRegisters[i].m_name)
         {
-            regType = OPERAND_SIMD_REG;
+            regClass = REG_XMM;
             regIndex = i;
             return true;
         }
-
         if (regname == ia32dis::gIa32MMXRegisters[i].m_name)
         {
-            regType = OPERAND_XMM_REG;
+            regClass = REG_MMX;
+            regIndex = i;
+            return true;
+        }
+        if (regname == ia32dis::gIa32DebugRegisters[i].m_name)
+        {
+            regClass = REG_DEBUG;
             regIndex = i;
             return true;
         }
     }
 
-    for (i = 0; i < ia32dis::NUMBER_OF_SEGMENTS_REGISTERS; i++)
+    for (uint i = 0; i < ia32dis::NUMBER_OF_CONTROL_REGISTERS; i++)
+    {
+        if (regname == ia32dis::gIa32ControlRegisters[i].m_name)
+        {
+            regClass = REG_CONTROL;
+            regIndex = i;
+            return true;
+        }
+    }
+
+    for (uint i = 0; i < ia32dis::NUMBER_OF_SEGMENTS_REGISTERS; i++)
     {
         if (regname == ia32dis::gIa32SegmentsRegisters[i].m_name)
         {
-            regType = OPERAND_SEGMENT_REG;
+            regClass = REG_SEGMENT;
             regIndex = i;
             return true;
         }
     }
-
+    // The x87 stack: 'st' is 'st0', 'st0' to 'st7' are the stack entries
+    if (regname == "st")
+    {
+        regClass = REG_FPU;
+        regIndex = 0;
+        return true;
+    }
+    if ((regname.length() == 3) && (regname[0] == 's') && (regname[1] == 't') &&
+        (regname[2] >= '0') && (regname[2] <= '7'))
+    {
+        regClass = REG_FPU;
+        regIndex = (uint)(regname[2] - '0');
+        return true;
+    }
     return false;
-}
-
-void IA32AssemblerStream::Operand::limitedImmediate()
-{
-    if (m_reference1 < 0x80)
-        m_type = Operand::OPERAND_IMMEDIATE_8BIT;
-    else if (m_reference1 < 0x8000)
-        m_type = Operand::OPERAND_IMMEDIATE_16BIT;
-    else
-        m_type = Operand::OPERAND_IMMEDIATE_32BIT;
-}
-
-void IA32AssemblerStream::Operand::limitedDisplacement()
-{
-    if ((m_displacement < 128) && (m_displacement > -129))
-        // -128..127
-        m_displacementEncodingType = IntegerEncoding::INTEGER_8BIT;
-    // else if ((m_displacement < 128) || (m_displacement > -129))
-    //    m_displacementEncodingType = IntegerEncoding::INTEGER_16BIT;
-    else
-        m_displacementEncodingType = IntegerEncoding::INTEGER_32BIT;
 }
