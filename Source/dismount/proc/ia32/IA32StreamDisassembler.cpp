@@ -416,6 +416,9 @@ bool IA32StreamDisassembler::filterModRM(
                 const IA32OpcodeDatastruct::MODRM& modrm,
                 const ia32dis::OpcodeEntry* opcode) const
 {
+    if ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) != 0)
+        return modrm.m_packed == ((opcode->m_modrm >> 16) & 0xFF);
+
     bool ok = true;
     switch (modrm.m_bits.m_mod)
     {

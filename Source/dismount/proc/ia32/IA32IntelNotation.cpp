@@ -149,7 +149,12 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
     ret+= m_dataFormatter.reparseFirstOperand(
                     stringOperand(m_opcode->m_opcode->m_firstOperand));
 
-    if (m_opcode->m_opcode->m_secondOperand == ia32dis::OPND_NO_OPERAND)
+    // D8 C0 is written 'fadd st0' (nasm assembles 'fadd st0, st0' as DC C0)
+    bool isSt0St0 = (m_opcode->m_opcode->m_prefix == 0xD8) &&
+                    (m_opcode->m_opcode->m_secondOperand == ia32dis::OPND_FPU_ST_RM) &&
+                    (m_opcode->m_modrm.m_bits.m_rm == 0);
+
+    if ((m_opcode->m_opcode->m_secondOperand == ia32dis::OPND_NO_OPERAND) || isSt0St0)
     {
         ASSERT(m_opcode->m_opcode->m_thridOperand == ia32dis::OPND_NO_OPERAND);
         // loop/loopz/loopnz/jecxz (E0-E3) with an address size which is not the
@@ -380,6 +385,10 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
             ret+= "word ptr "; break;
         case ia32dis::OPND_MODRM_BYTEPTR:
             ret+= "byte ptr "; break;
+        case ia32dis::OPND_MODRM_QWORDPTR:
+            ret+= "qword ptr "; break;
+        case ia32dis::OPND_MODRM_TWORDPTR:
+            ret+= "tword ptr "; break;
         default:
             break;
         }
@@ -527,8 +536,29 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     case ia32dis::OPND_MODRM_dWORDPTR:
     case ia32dis::OPND_MODRM_WORDPTR:
     case ia32dis::OPND_MODRM_BYTEPTR:
+    case ia32dis::OPND_MODRM_QWORDPTR:
+    case ia32dis::OPND_MODRM_TWORDPTR:
     case ia32dis::OPND_MODRM_MEM:
         return getModrmString(type);
+
+    case ia32dis::OPND_MMX_MODRM:
+        return ia32dis::gIa32MMXRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
+            m_name;
+    case ia32dis::OPND_MMX_RM:
+        if (m_opcode->m_modrm.m_bits.m_mod == 3)
+            return ia32dis::gIa32MMXRegisters[m_opcode->m_modrm.m_bits.m_rm].m_name;
+        return cString("qword ptr ") + getModrmString(ia32dis::OPND_MODRM_MEM);
+    case ia32dis::OPND_SIMD_RM:
+    case ia32dis::OPND_SIMD_RM_QWORD:
+        if (m_opcode->m_modrm.m_bits.m_mod == 3)
+            return ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_rm].m_name;
+        return cString((type == ia32dis::OPND_SIMD_RM) ? "oword ptr " : "qword ptr ") +
+               getModrmString(ia32dis::OPND_MODRM_MEM);
+
+    case ia32dis::OPND_FPU_ST0:
+        return "st0";
+    case ia32dis::OPND_FPU_ST_RM:
+        return cString("st") + cString((int32)m_opcode->m_modrm.m_bits.m_rm);
 
     case ia32dis::OPND_MODRM_FAR_OFFSET:
         // jmp/call far through a m16:16 or m16:32 pointer
@@ -555,6 +585,8 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
 
     case ia32dis::OPND_AL:
         return ia32dis::gIa8Registers[ia32dis::IA32_GP8_AL].m_name;
+    case ia32dis::OPND_AX:
+        return ia32dis::gIa16Registers[ia32dis::IA32_GP16_AX].m_name;
     case ia32dis::OPND_CL:
         return ia32dis::gIa8Registers[ia32dis::IA32_GP8_CL].m_name;
     case ia32dis::OPND_eAX:

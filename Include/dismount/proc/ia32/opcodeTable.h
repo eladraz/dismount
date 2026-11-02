@@ -240,7 +240,32 @@ typedef enum {
     OPND_MODRM_FAR_OFFSET,
     // Used at opcode 'lea, les, bound' indicate that the operand is only valid
     // for memory reference
-    OPND_MODRM_MEM
+    OPND_MODRM_MEM,
+    // The operand is encode at the modrm bytes and treated as qword operation
+    // (m64fp, m64int)
+    OPND_MODRM_QWORDPTR,
+    // The operand is encode at the modrm bytes and treated as tword operation
+    // (m80fp, m80bcd)
+    OPND_MODRM_TWORDPTR,
+
+    // The operand is an MMX register stored at modrm reg/opcode
+    OPND_MMX_MODRM,
+    // The operand is encode at the modrm bytes, an MMX register or a qword
+    // memory reference
+    OPND_MMX_RM,
+    // The operand is encode at the modrm bytes, an SSE register or an oword
+    // (128 bit) memory reference
+    OPND_SIMD_RM,
+    // The operand is encode at the modrm bytes, an SSE register or a qword
+    // memory reference (movq, movsd)
+    OPND_SIMD_RM_QWORD,
+
+    // The operand is ST(0), the top of the FPU stack
+    OPND_FPU_ST0,
+    // The operand is ST(i), stored at the modrm r/m
+    OPND_FPU_ST_RM,
+    // The operand is AX register (fnstsw ax)
+    OPND_AX
 } OperandType;
 
 /*
@@ -271,7 +296,14 @@ typedef enum {
 
     // Indicate that the opcode is valid for all possible combinations..
     MODRM_ALL_FILTER    = 0xFFFF,
+
+    // Indicate that only the modrm byte at bits 16..23 is valid (FPU opcodes
+    // such as fchs, D9 E0). See MODRM_EXACT
+    MODRM_EXACT_FLAG    = 0x1000000
 } ModrmFilter;
+
+// The modrm filter of an opcode which is valid for a single modrm byte
+#define MODRM_EXACT(modrm) (MODRM_EXACT_FLAG | ((modrm) << 16))
 
 /*
  * Here is a list of all information needed from an opcode:
