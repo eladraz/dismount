@@ -21,3 +21,5 @@ Makefile.in
 /README
 /TEMP.TMP
 
+/build/
+__pycache__/

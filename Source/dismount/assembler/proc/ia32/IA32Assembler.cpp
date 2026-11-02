@@ -51,6 +51,18 @@ IA32AssemblerStream::IA32AssemblerStream(FirstPassBinary& binary,
 
 IA32AssemblerStream::~IA32AssemblerStream()
 {
+    // Destructors must not throw (the parser reports errors via exceptions)
+    XSTL_TRY
+    {
+        assemble();
+    }
+    XSTL_CATCH_ALL
+    {
+    }
+}
+
+void IA32AssemblerStream::assemble()
+{
     // Check whether the data should be ignored
     if (getData().length() == 0)
         return;
@@ -95,6 +107,9 @@ IA32AssemblerStream::~IA32AssemblerStream()
         // Read new-line symbol
         parser.readBlanks();
     }
+
+    // The buffered text has been consumed
+    clean();
 }
 
 void IA32AssemblerStream::writeOpcode(const cString& name,

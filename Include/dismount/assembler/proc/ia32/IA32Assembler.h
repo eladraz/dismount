@@ -84,9 +84,15 @@ public:
                         IA32eInstructionSet::DisassemblerTypes processorMode);
 
     /*
-     * Destructor. Compile the stream
+     * Destructor. Compile the stream (if any data is pending) and never throws.
      */
     virtual ~IA32AssemblerStream();
+
+    /*
+     * Parse and encode all the buffered text into the binary, then clear the
+     * buffer. Throws on invalid input. Called by the destructor.
+     */
+    void assemble();
 
 private:
     /*

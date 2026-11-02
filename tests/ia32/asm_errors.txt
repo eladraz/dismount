@@ -1,0 +1,49 @@
+mvo eax, ebx
+mov eax, qax
+mov eax, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+movxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx eax, ebx
+mov eax, eaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+pushqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
+mov eax, [eax
+mov eax, [eax*3]
+mov eax, [eax*2+ebx*4]
+mov eax, [eax+ebx*2+ecx]
+mov eax, 1, 2, 3
+mov eax, ebx, ecx, edx
+mov eax,
+mov eax, ebx junk
+mov eax, 0x1ffffffff
+mov eax, 0xzz
+mov eax, [[eax]]
+mov eax, [eax]]
+lock
+lock lock nop
+rep rep nop
+mov eax, dword ptr
+mov eax, fs:[gs:eax]
+mov eax, fs:ebx
+push 0x1234567890
+mov eax, 12ab
+mov eax, 0x
+mov eax, 1h2
+jmp $+zz
+jmp 0x12:
+mov eax, -
+mov eax, [eax+]
+mov eax, [eax+*2]
+mov eax, [esp*2]
+mov eax, [ebx-eax]
+inc byte eax
+mov eax, st9
+fadd st1, st2, st3
+mov [eax], 5
+mov eax, ebx]
+mov eax, [eax+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx+ebx]
+mov eax, ,ebx
+mov eax, [ , ]
+mov eax, (ebx)
+mov eax, 0x1ffffffffffffffffff
+mov eax, 99999999999999999999999999
+push eax,
+add eax, ebx,
+imul eax, ebx, 4,

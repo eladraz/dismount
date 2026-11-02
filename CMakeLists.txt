@@ -85,3 +85,22 @@ endif()
 if (WIN32)
 	add_definitions(-DWIN32)
 endif()
+
+# Test programs: `dismount_cli` (tests/ia32, used by run_compat.py) and
+# `test_dismount` (the xStl harness unit test). Off by default.
+option(DISMOUNT_BUILD_TESTS "Build dismount_cli and test_dismount" OFF)
+if(DISMOUNT_BUILD_TESTS)
+	find_package(Threads)
+	if(NOT LIBXSTLCM)
+		message(FATAL_ERROR "DISMOUNT_BUILD_TESTS needs the CMake xStl library (libxStlcm)")
+	endif()
+	set(DISMOUNT_TEST_LIBS dismount_static ${LIBXSTLCM} ${CMAKE_THREAD_LIBS_INIT})
+
+	add_executable(dismount_cli tests/ia32/dismount_cli.cpp)
+	target_link_libraries(dismount_cli ${DISMOUNT_TEST_LIBS})
+
+	add_executable(test_dismount
+		tests/TestIA32AssemblerDisassembler.cpp
+		$ENV{XSTL_PATH}/tests/tests.cpp)
+	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
+endif()
