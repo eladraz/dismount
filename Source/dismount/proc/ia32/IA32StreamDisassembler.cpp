@@ -152,6 +152,16 @@ OpcodePtr IA32StreamDisassembler::next()
                 (table[i].m_prefix == 0x90) &&
                 (table[i].m_firstOperand == ia32dis::OPND_NO_OPERAND))
                 continue;
+            // An opcode with a mandatory prefix is valid only with the prefix
+            uint mandatory = prefixsCount;
+            if (table[i].m_mandatoryPrefix != ia32dis::MANDATORY_NONE)
+            {
+                for (mandatory = 0; mandatory < prefixsCount; mandatory++)
+                    if (prefixs[mandatory] == table[i].m_mandatoryPrefix)
+                        break;
+                if (mandatory == prefixsCount)
+                    continue;
+            }
             if ((table[i].m_prefixMask & nextByte) ==
                 table[i].m_prefix)
             {
@@ -179,6 +189,21 @@ OpcodePtr IA32StreamDisassembler::next()
                         ASSERT(false);
                         CHECK_FAIL();
                     }
+                }
+
+                // The mandatory prefix is a part of the opcode, it is not an
+                // operand-size or a repeat prefix
+                if (mandatory != prefixsCount)
+                {
+                    prefixsCount--;
+                    for (uint j = mandatory; j < prefixsCount; j++)
+                        prefixs[j] = prefixs[j + 1];
+                    operandSizeOverride = false;
+                    for (uint j = 0; j < prefixsCount; j++)
+                        if (prefixs[j] == ia32dis::gIa32PrefixGroup3OperandSize)
+                            operandSizeOverride = true;
+                    calculateAddressAndOperandSize(operandSizeOverride,
+                                                   addressSizeOverride);
                 }
 
                 // Try to read displacement and SIB.

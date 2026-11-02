@@ -24,10 +24,10 @@ tests/ia32/
   TEST_PLAN.md            this file
   corpus/*.asm            the test sources (generated, checked in, plain nasm)
   tools/gen_corpus.py     regenerates corpus/ from insns.dat + addressing matrix
-  tools/gen_future_opcodes.py  regenerates the commented-out opcode inventory
+  tools/gen_future_opcodes.py  regenerates opcodeTableFuture.inc, the opcode inventory
   dismount_cli.cpp        `asm`, `dis` and `cpuinfo` sub-commands over libdismount
   cpuprobe.c              stand-alone CPUID probe (used under Rosetta on arm64 macOS)
-  opcodeTableFuture.inc   generated, comment-only inventory of 0F38/0F3A/VEX/EVEX opcodes
+  opcodeTableFuture.inc   generated, comment-only inventory of the opcodes not implemented
   run_compat.py           the driver: nasm <-> dismount comparison + report
   tools/fuzz_lengths.py   random byte sequences: dismount vs ndisasm lengths and errors
 ```
@@ -138,14 +138,17 @@ dismount hex/text, reason).
 ## Future-expansion opcode inventory
 
 Every 32-bit-valid opcode that dismount does not implement is written as a
-**commented-out** entry, grouped by feature, with its SDM encoding:
+**commented-out** entry, grouped by feature, with its SDM encoding, to
+`tests/ia32/opcodeTableFuture.inc` (not compiled; it is reference data for future
+table work, kept next to its generator). Nothing is written into
+`Source/dismount/proc/ia32/opcodeTable.cpp`. The file has a separate section for:
 
-- legacy one-byte, two-byte (0F) and x87 opcodes go inline in
-  `Source/dismount/proc/ia32/opcodeTable.cpp`, in their table position;
-- three-byte maps (0F38, 0F3A) and VEX/EVEX-encoded instructions (AVX, AVX2, FMA,
-  AVX-512, ...), which the current table format cannot express, go in
-  `tests/ia32/opcodeTableFuture.inc` (not compiled; it is reference data for
-  future table work, kept next to its generator).
+- each table of `opcodeTable.cpp` (legacy one-byte, two-byte (0F) and x87
+  opcodes). Each entry is followed by the ready-to-uncomment table row when its
+  operands map to the existing operand types, or by the reason it can't be added
+  yet;
+- the three-byte maps (0F38, 0F3A) and the VEX/EVEX-encoded instructions (AVX,
+  AVX2, FMA, AVX-512, ...), which the current table format cannot express.
 
 ## Library work expected to fall out of the tests (assembler side)
 

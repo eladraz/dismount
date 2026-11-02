@@ -306,6 +306,18 @@ typedef enum {
 #define MODRM_EXACT(modrm) (MODRM_EXACT_FLAG | ((modrm) << 16))
 
 /*
+ * The mandatory prefix of an opcode: the prefix byte which selects the opcode
+ * (SSE/SSE2 instructions). For example 0F 6E is 'movd mm, r/m32' and 66 0F 6E
+ * is 'movd xmm, r/m32'.
+ */
+enum MandatoryPrefix {
+    MANDATORY_NONE = 0x00,
+    MANDATORY_66   = 0x66,
+    MANDATORY_F2   = 0xF2,
+    MANDATORY_F3   = 0xF3
+};
+
+/*
  * Here is a list of all information needed from an opcode:
  *   - A way to calculate it's length
  *   - The prefix of an opcode (How to separate opcodes)
@@ -354,6 +366,12 @@ struct OpcodeEntry {
     // The flow altering properties of the opcode
     // Generally - jmps, calls and rets
     int m_alterProperty;
+
+    // The mandatory prefix of the opcode, see MandatoryPrefix. The opcode is
+    // valid only when the prefix exists, and the prefix is then a part of the
+    // opcode (not an operand-size or a repeat prefix). The entries with a
+    // mandatory prefix come before the entries of the same opcode without it.
+    uint8 m_mandatoryPrefix;
 };
 
 extern const char* INVALID;
