@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 2.6...3.5)
 project (dismount)
 set (dismount_VERSION_MAJOR 1)
 set (dismount_VERSION_MINOR 0)
