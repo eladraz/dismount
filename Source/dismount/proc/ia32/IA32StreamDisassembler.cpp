@@ -48,8 +48,7 @@ IA32StreamDisassembler::IA32StreamDisassembler(
     case IA32eInstructionSet::AMD_64:
         if (m_shouldUseAddress)
             CHECK(streamAddress.getAddressType() == ProcessorAddress::PROCESSOR_64);
-        // TODO! Not ready yet.
-        CHECK_FAIL();
+        break;
     default:
         CHECK_FAIL();
     }
@@ -64,6 +63,7 @@ OpcodePtr IA32StreamDisassembler::next()
     m_opcodeData.changeSize(0);
     m_operandSize = IntegerEncoding::INTEGER_NOT_EXIST;
     m_addressSize = IntegerEncoding::INTEGER_NOT_EXIST;
+    m_rex.m_packed = 0;
 
     // Get the position of the stream
     uint streamInstructionPointer = m_stream->getPointer();
@@ -105,11 +105,37 @@ OpcodePtr IA32StreamDisassembler::next()
                 }
         } while (!endPrefix);
 
-        // TODO!
-        // 64bit processor might encode the REX prefix here.
+        // The REX prefix (64 bit mode) follows the legacy prefixes. When
+        // there are several REX prefixes the first one wins, as in ndisasm
+        // (the processors ignore a REX prefix which does not immediately
+        // precede the opcode, which would make the last one win). A legacy prefix
+        // after a REX prefix leaves the REX prefix alone, as an instruction
+        // by its own, which is not an instruction: the processor ignores
+        // it, ndisasm decodes it separately
+        uint rexCount = 0;
+        // The mandatory prefix which is a part of the opcode (64 bit mode)
+        uint removedMandatory = 0;
+        if ((m_type == IA32eInstructionSet::AMD_64) &&
+            ((nextByte & ia32dis::AMD64_REX_PREFIX_MASK) == ia32dis::AMD64_REX_PREFIX))
+        {
+            m_rex.m_packed = nextByte;
+            do
+            {
+                rexCount++;
+                testEOS();
+                m_stream->streamReadUint8(nextByte);
+                appendByte(nextByte);
+            } while ((nextByte & ia32dis::AMD64_REX_PREFIX_MASK) ==
+                     ia32dis::AMD64_REX_PREFIX);
+
+            for (uint i = 0; i < ia32dis::IA32_NUMBER_OF_PREFIXS; i++)
+                if (nextByte == ia32dis::gIa32PrefixTable[i].m_opcode)
+                    CHECK_FAIL();
+        }
 
         // Change the encoding type of the operand-size and the address-size
-        calculateAddressAndOperandSize(operandSizeOverride, addressSizeOverride);
+        calculateAddressAndOperandSize(operandSizeOverride, addressSizeOverride,
+                                       m_rex, ia32dis::MODE64_LEGACY);
 
         // The next character mark which decoding table the disassembler should
         // use. 0x0F marks two-byte opcode table, and 0xD8-0xDF marks an FPU opcode.
@@ -147,40 +173,65 @@ OpcodePtr IA32StreamDisassembler::next()
             opcodeLength = 1;
         }
 
-        // Scan opcode table
-        uint i = 0;
-        const ia32dis::OpcodeEntry* opcode;
+        // Scan opcode table. In 64 bit mode the entries of the AMD64 table
+        // replace the entries of the IA-32 table which have the same encoding
+        const ia32dis::OpcodeEntry* amd64Table = NULL;
+        // The memory operands of the FPU have a fixed size in 64 bit mode:
+        // neither REX.W nor 66 change them
+        const bool isFpu64 = (m_type == IA32eInstructionSet::AMD_64) &&
+                             (table == ia32dis::gIa32FPUOpcodeTable);
+        if (m_type == IA32eInstructionSet::AMD_64)
+        {
+            if (table == ia32dis::gIa32OneByteOpcodeTable)
+                amd64Table = ia32dis::gAmd64OneByteOpcodeTable;
+            else if (table == ia32dis::gIa32TwoBytesOpcodeTable)
+                amd64Table = ia32dis::gAmd64TwoBytesOpcodeTable;
+        }
+        const ia32dis::OpcodeEntry* opcode = NULL;
         // Pre-read of the modrm byte
         IA32OpcodeDatastruct::MODRM modrm;
+        modrm.m_packed = 0;
         bool modrmFound = false;
 
-        // Try to find the opcode inside the table
-        for (; strcmp(table[i].m_opcodeName,
-                      ia32dis::OPCODEEOT) != 0;
-             i++)
+        // Try to find the opcode inside the tables
+        for (uint pass = 0; (pass < 2) && (opcode == NULL); pass++)
         {
-            // 90 is nop, but 66 90 is 'xchg ax, ax'
-            if ((table == ia32dis::gIa32OneByteOpcodeTable) && operandSizeOverride &&
-                (table[i].m_prefix == 0x90) &&
-                (table[i].m_firstOperand == ia32dis::OPND_NO_OPERAND))
+            const ia32dis::OpcodeEntry* current = (pass == 0) ? amd64Table : table;
+            if (current == NULL)
                 continue;
-            // An opcode with a mandatory prefix is valid only with the prefix
-            uint mandatory = prefixsCount;
-            if (table[i].m_mandatoryPrefix != ia32dis::MANDATORY_NONE)
+            for (uint i = 0; strcmp(current[i].m_opcodeName,
+                                    ia32dis::OPCODEEOT) != 0;
+                 i++)
             {
-                for (mandatory = 0; mandatory < prefixsCount; mandatory++)
-                    if (prefixs[mandatory] == table[i].m_mandatoryPrefix)
-                        break;
-                if (mandatory == prefixsCount)
+                // The entries which are invalid in the processor mode
+                if (!isValidInMode(&(current[i])))
                     continue;
-            }
-            if ((table[i].m_prefixMask & nextByte) ==
-                table[i].m_prefix)
-            {
+                // 90 is nop, but 66 90 is 'xchg ax, ax'. In 64 bit mode REX.B
+                // selects r8 ('xchg r8, rax') and REX.W is 'xchg rax, rax'
+                if ((table == ia32dis::gIa32OneByteOpcodeTable) &&
+                    (operandSizeOverride || (m_rex.m_bits.b != 0) ||
+                     (m_rex.m_bits.w != 0)) &&
+                    (current[i].m_prefix == 0x90) &&
+                    (current[i].m_firstOperand == ia32dis::OPND_NO_OPERAND))
+                    continue;
+                // An opcode with a mandatory prefix is valid only with the prefix
+                uint mandatory = prefixsCount;
+                if (current[i].m_mandatoryPrefix != ia32dis::MANDATORY_NONE)
+                {
+                    for (mandatory = 0; mandatory < prefixsCount; mandatory++)
+                        if (prefixs[mandatory] == current[i].m_mandatoryPrefix)
+                            break;
+                    if (mandatory == prefixsCount)
+                        continue;
+                }
+                if ((current[i].m_prefixMask & nextByte) !=
+                    current[i].m_prefix)
+                    continue;
+
                 // Parse opcode
-                opcode = &(table[i]);
+                const ia32dis::OpcodeEntry* candidate = &(current[i]);
                 // Check for modrm
-                if (opcode->m_modrm != ia32dis::MODRM_NO_MODRM)
+                if (candidate->m_modrm != ia32dis::MODRM_NO_MODRM)
                 {
                     if (!modrmFound)
                     {
@@ -190,7 +241,7 @@ OpcodePtr IA32StreamDisassembler::next()
                         modrmFound = true;
                     }
 
-                    if (!filterModRM(modrm, opcode))
+                    if (!filterModRM(modrm, candidate))
                         continue;
                 } else
                 {
@@ -214,95 +265,111 @@ OpcodePtr IA32StreamDisassembler::next()
                     for (uint j = 0; j < prefixsCount; j++)
                         if (prefixs[j] == ia32dis::gIa32PrefixGroup3OperandSize)
                             operandSizeOverride = true;
-                    calculateAddressAndOperandSize(operandSizeOverride,
-                                                   addressSizeOverride);
-                }
-
-                // Try to read displacement and SIB.
-                IA32OpcodeDatastruct::SIB sib;
-                bool sibExist = false;
-                uint displacementLength = 0;
-                IA32OpcodeDatastruct::DisplacementType displacement = 0;
-                if (modrmFound)
+                    calculateAddressAndOperandSize(operandSizeOverride && !isFpu64,
+                                                   addressSizeOverride,
+                                                   m_rex, isFpu64 ? ia32dis::MODE64_NO_REXW : candidate->m_mode64);
+                    if (m_type == IA32eInstructionSet::AMD_64)
+                        removedMandatory = 1;
+                } else if (m_type == IA32eInstructionSet::AMD_64)
                 {
-                    ia32dis::ModRMTranslationType* modrmTable;
-                    // TODO!!!
-                    // Is any prefix changes this tables?
-                    // The address size (67 prefix) selects the table
-                    switch (m_addressSize) {
-                    case IntegerEncoding::INTEGER_16BIT:
-                        modrmTable = &ia32dis::gIa32ModRM16;
-                        break;
-                    case IntegerEncoding::INTEGER_32BIT:
-                        modrmTable = &ia32dis::gIa32ModRM32;
-                        break;
-                    default:
-                        CHECK_FAIL();
-                    }
-
-                    displacementLength =
-                        (*modrmTable)[modrm.m_bits.m_mod][modrm.m_bits.m_rm].
-                            m_displacementLength;
-                    sibExist =
-                        (*modrmTable)[modrm.m_bits.m_mod][modrm.m_bits.m_rm].
-                            m_forceSib;
-
-                    // Read SIB (Scale Index Base) if needed
-                    if (sibExist)
-                    {
-                        testEOS();
-                        m_stream->streamReadUint8(sib.m_packed);
-                        appendByte(sib.m_packed);
-
-                        // Check for MOD 00
-                        if (modrm.m_bits.m_mod == 0)
-                        {
-                            // Check for SIB with extra displacement: Base = 5
-                            if (sib.m_bits.m_base == ia32dis::IA32_GP32_EBP)
-                            {
-                                // [scaled index] + disp32
-                                displacementLength = 4;
-                            }
-                        }
-                    }
-
-                    // Read displacement
-                    displacement =
-                        readDisplacement(*m_stream, displacementLength);
+                    // The operand size of 64 bit mode depends on the opcode
+                    calculateAddressAndOperandSize(operandSizeOverride && !isFpu64,
+                                                   addressSizeOverride,
+                                                   m_rex, isFpu64 ? ia32dis::MODE64_NO_REXW : candidate->m_mode64);
                 }
-
-                // Read immediate, cast all possible operands
-                uint immediateLength = 0;
-                IA32OpcodeDatastruct::ImmediateType immediate = {0,0};
-                bool firstImmediate =
-                    readImmediate(*m_stream, opcode->m_firstOperand,  immediateLength, immediate);
-                // A second immediate (enter imm16, imm8) has its own slot
-                IA32OpcodeDatastruct::ImmediateType secondImmediate = {0,0,0};
-                readImmediate(*m_stream, opcode->m_secondOperand, immediateLength,
-                              firstImmediate ? secondImmediate : immediate);
-                immediate.secondOffset = secondImmediate.offset;
-                readImmediate(*m_stream, opcode->m_thridOperand,  immediateLength, immediate);
-
-                // Generate the IA32Opcode
-                // TODO: Fix the way this handles instructions with ModR\M (LEA etc, DS:\SS: + proper effective address calculations)
-                ret = OpcodePtr(new IA32Opcode(m_type,
-                                        m_shouldUseAddress, m_streamAddress,
-                                        m_opcodeData,
-                                        prefixs, prefixsCount,
-                                        opcode,
-                                        opcodeLength,
-                                        modrm, sibExist, sib,
-                                        displacementLength, displacement,
-                                        immediateLength, immediate,
-                                        m_operandSize, m_addressSize));
-                // Opcode found, terminate try-catch block
+                opcode = candidate;
                 break;
             }
         }
 
         // Test whether the opcode is not found
-        if (strcmp(table[i].m_opcodeName, ia32dis::OPCODEEOT) == 0)
+        if (opcode == NULL)
             CHECK_FAIL();
+
+        // Try to read displacement and SIB.
+        IA32OpcodeDatastruct::SIB sib;
+        sib.m_packed = 0;
+        bool sibExist = false;
+        uint displacementLength = 0;
+        IA32OpcodeDatastruct::DisplacementType displacement = 0;
+        if (modrmFound)
+        {
+            ia32dis::ModRMTranslationType* modrmTable;
+            // TODO!!!
+            // Is any prefix changes this tables?
+            // The address size (67 prefix) selects the table. The 64 bit
+            // addressing has the layout of the 32 bit one (the registers
+            // are the only difference)
+            switch (m_addressSize) {
+            case IntegerEncoding::INTEGER_16BIT:
+                modrmTable = &ia32dis::gIa32ModRM16;
+                break;
+            case IntegerEncoding::INTEGER_32BIT:
+            case IntegerEncoding::INTEGER_64BIT:
+                modrmTable = &ia32dis::gIa32ModRM32;
+                break;
+            default:
+                CHECK_FAIL();
+            }
+
+            displacementLength =
+                (*modrmTable)[modrm.m_bits.m_mod][modrm.m_bits.m_rm].
+                    m_displacementLength;
+            sibExist =
+                (*modrmTable)[modrm.m_bits.m_mod][modrm.m_bits.m_rm].
+                    m_forceSib;
+
+            // Read SIB (Scale Index Base) if needed
+            if (sibExist)
+            {
+                testEOS();
+                m_stream->streamReadUint8(sib.m_packed);
+                appendByte(sib.m_packed);
+
+                // Check for MOD 00
+                if (modrm.m_bits.m_mod == 0)
+                {
+                    // Check for SIB with extra displacement: Base = 5
+                    if (sib.m_bits.m_base == ia32dis::IA32_GP32_EBP)
+                    {
+                        // [scaled index] + disp32
+                        displacementLength = 4;
+                    }
+                }
+            }
+
+            // Read displacement
+            displacement =
+                readDisplacement(*m_stream, displacementLength);
+        }
+
+        // Read immediate, cast all possible operands
+        uint immediateLength = 0;
+        IA32OpcodeDatastruct::ImmediateType immediate = {0,0,0};
+        bool firstImmediate =
+            readImmediate(*m_stream, opcode->m_firstOperand,  immediateLength, immediate);
+        // A second immediate (enter imm16, imm8) has its own slot
+        IA32OpcodeDatastruct::ImmediateType secondImmediate = {0,0,0};
+        readImmediate(*m_stream, opcode->m_secondOperand, immediateLength,
+                      firstImmediate ? secondImmediate : immediate);
+        immediate.secondOffset = secondImmediate.offset;
+        readImmediate(*m_stream, opcode->m_thridOperand,  immediateLength, immediate);
+
+        // Generate the IA32Opcode. The opcode size counts all the bytes
+        // between the legacy prefixes and the last byte of the opcode (the
+        // REX prefixes and the mandatory prefix are among them)
+        // TODO: Fix the way this handles instructions with ModR\M (LEA etc, DS:\SS: + proper effective address calculations)
+        ret = OpcodePtr(new IA32Opcode(m_type,
+                                m_shouldUseAddress, m_streamAddress,
+                                m_opcodeData,
+                                prefixs, prefixsCount,
+                                m_rex,
+                                opcode,
+                                opcodeLength + rexCount + removedMandatory,
+                                modrm, sibExist, sib,
+                                displacementLength, displacement,
+                                immediateLength, immediate,
+                                m_operandSize, m_addressSize));
     }
     XSTL_CATCH(DisassemblerEndOfStreamException&)
     {
@@ -415,7 +482,9 @@ void IA32StreamDisassembler::testEOS()
 
 void IA32StreamDisassembler::calculateAddressAndOperandSize(
                                     bool operandSizeOverride,
-                                    bool addressSizeOverride)
+                                    bool addressSizeOverride,
+                                    const IA32OpcodeDatastruct::REX& rex,
+                                    uint mode64)
 {
     switch (m_type)
     {
@@ -443,8 +512,40 @@ void IA32StreamDisassembler::calculateAddressAndOperandSize(
             m_addressSize = IntegerEncoding::INTEGER_32BIT;
         break;
     case IA32eInstructionSet::AMD_64:
+        // The address size is 64 bits, 32 bits with the 67 prefix
+        if (addressSizeOverride)
+            m_addressSize = IntegerEncoding::INTEGER_32BIT;
+        else
+            m_addressSize = IntegerEncoding::INTEGER_64BIT;
+
+        // The operand size is 32 bits, 64 bits with REX.W (which wins over
+        // the 66 prefix) and 16 bits with the 66 prefix. Some opcodes have
+        // another default
+        switch (mode64)
+        {
+        case ia32dis::MODE64_FORCE_64:
+            m_operandSize = IntegerEncoding::INTEGER_64BIT;
+            break;
+        case ia32dis::MODE64_DEFAULT_64:
+            // REX.W wins over the 66 prefix here too
+            m_operandSize = (operandSizeOverride && (rex.m_bits.w == 0)) ?
+                IntegerEncoding::INTEGER_16BIT : IntegerEncoding::INTEGER_64BIT;
+            break;
+        case ia32dis::MODE64_NO_REXW:
+            m_operandSize = operandSizeOverride ?
+                IntegerEncoding::INTEGER_16BIT : IntegerEncoding::INTEGER_32BIT;
+            break;
+        default:
+            if (rex.m_bits.w != 0)
+                m_operandSize = IntegerEncoding::INTEGER_64BIT;
+            else if (operandSizeOverride)
+                m_operandSize = IntegerEncoding::INTEGER_16BIT;
+            else
+                m_operandSize = IntegerEncoding::INTEGER_32BIT;
+            break;
+        }
+        break;
     default:
-        // TODO! Not ready yet.
         CHECK_FAIL();
     }
 }
@@ -494,8 +595,19 @@ bool IA32StreamDisassembler::filterModRM(
         ok = ok && (modrm.m_bits.m_regOpcode < ia32dis::NUMBER_OF_SEGMENTS_REGISTERS);
     if ((opcode->m_firstOperand == ia32dis::OPND_CTRL_MODRM) ||
         (opcode->m_secondOperand == ia32dis::OPND_CTRL_MODRM))
-        ok = ok && (modrm.m_bits.m_regOpcode != 1) &&
-             (modrm.m_bits.m_regOpcode < ia32dis::NUMBER_OF_CONTROL_REGISTERS);
+    {
+        if (m_type == IA32eInstructionSet::AMD_64)
+        {
+            // cr0, cr2, cr3, cr4 and cr8 (REX.R and the number 0)
+            uint number = modrm.m_bits.m_regOpcode | (m_rex.m_bits.r << 3);
+            ok = ok && ((number == 0) || (number == 2) || (number == 3) ||
+                        (number == 4) || (number == 8));
+        } else
+        {
+            ok = ok && (modrm.m_bits.m_regOpcode != 1) &&
+                 (modrm.m_bits.m_regOpcode < ia32dis::NUMBER_OF_CONTROL_REGISTERS);
+        }
+    }
 
     return ok;
 }
@@ -552,12 +664,16 @@ bool IA32StreamDisassembler::readImmediate(basicInput& data,
         simpleImmediate = IntegerEncoding::INTEGER_16BIT;
         break;
     case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
-        // rel16/rel32, according to the operand size
+    case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+    case ia32dis::OPND_IMMEDIATE_DS:
+        // rel16/rel32, according to the operand size. With a 64 bit operand
+        // size the immediate is 32 bits (sign extended)
         simpleImmediate = m_operandSize;
+        if (simpleImmediate == IntegerEncoding::INTEGER_64BIT)
+            simpleImmediate = IntegerEncoding::INTEGER_32BIT;
         break;
 
-    case ia32dis::OPND_IMMEDIATE_DS:
-    case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+    case ia32dis::OPND_IMMEDIATE_DQ:
         simpleImmediate = m_operandSize;
         break;
 
@@ -590,6 +706,10 @@ bool IA32StreamDisassembler::readImmediate(basicInput& data,
     case IntegerEncoding::INTEGER_32BIT:
         immediateLength = 4;
         immediate.offset = read32bit(data);
+        break;
+    case IntegerEncoding::INTEGER_64BIT:
+        immediateLength = 8;
+        immediate.offset = read64bit(data);
         break;
     default:
         // Not ready yet!
@@ -628,4 +748,21 @@ uint32 IA32StreamDisassembler::read32bit(basicInput& data)
     appendBuffer(buffer, sizeof(buffer));
     // The IA32Disassembler is little-endian engine
     return cLittleEndian::readUint32(buffer);
+}
+
+uint64 IA32StreamDisassembler::read64bit(basicInput& data)
+{
+    uint8 buffer[sizeof(uint64)];
+    if (data.pipeRead(&buffer, sizeof(buffer)) != sizeof(buffer))
+        XSTL_THROW(DisassemblerEndOfStreamException);
+    appendBuffer(buffer, sizeof(buffer));
+    // The IA32Disassembler is little-endian engine
+    return cLittleEndian::readUint64(buffer);
+}
+
+bool IA32StreamDisassembler::isValidInMode(const ia32dis::OpcodeEntry* opcode) const
+{
+    if (m_type == IA32eInstructionSet::AMD_64)
+        return opcode->m_mode64 != ia32dis::MODE64_INVALID;
+    return opcode->m_mode64 != ia32dis::MODE64_ONLY;
 }

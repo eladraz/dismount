@@ -53,6 +53,7 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32Opcode.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32StreamDisassembler.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\opcodeTable.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\opcodeTableAMD64.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticType.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticOperation.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticOperand.cpp" />

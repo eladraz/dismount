@@ -32,6 +32,7 @@ public:
                const cBuffer& opcodeData,
                uint8* prefixs,
                uint prefixsCount,
+               const IA32OpcodeDatastruct::REX& rex,
                const ia32dis::OpcodeEntry* opcode,
                uint8 opcodeSize,
                const IA32OpcodeDatastruct::MODRM& modrm,
@@ -91,6 +92,24 @@ public:
      * current opcode address
      */
     const uint32 getImmediateAddress32() const;
+
+    /*
+     * Return true if the instruction has a REX prefix (64 bit mode only). An
+     * instruction without one has getRex().m_packed == 0
+     */
+    inline bool hasRex() const { return m_rex.m_packed != 0;};
+
+    /*
+     * Return the REX prefix (0 if there is none)
+     */
+    inline const IA32OpcodeDatastruct::REX getRex() const { return m_rex;};
+
+    /*
+     * Return true if a memory operand of the instruction is addressed relative
+     * to the next instruction (64 bit mode, ModR/M mod = 00 and r/m = 101:
+     * [rip + disp32])
+     */
+    bool isRipRelative() const;
 
     /*
      * Returns the ModR\M data
@@ -162,9 +181,10 @@ private:
     // is a simple cache to m_opcodeData[-1]
     uint8 m_lastOpcodeByte;
 
-    // TODO! 64 bit, add REX prefix
+    // The REX prefix, 0 if there is none (64 bit mode only)
+    IA32OpcodeDatastruct::REX m_rex;
 
-    // The prefixs for the opcode
+    // The prefixs for the opcode (without the REX prefix)
     uint8 m_prefixs[ia32dis::MAX_PREFIX];
     uint8 m_prefixsCount;
 
@@ -190,6 +210,8 @@ private:
     uint m_immediateLength;
 
     // Holds the size of the operand-size, register size and immediate size
+    // (INTEGER_64BIT for REX.W and the 64 bit default operand size of 64 bit
+    // mode, see ia32dis::Mode64)
     IntegerEncoding::IntegerEncodingType m_operandSize;
     // Holds the size of the addressing mode, address registered pointers and
     // immediates holding the address content

@@ -57,8 +57,8 @@ public:
      * Here is a simple abstract fllow of the instruction format
      * try {
      *     Start reading the opcode format:
-     *      [ - Decode REX prefixs ] - TODO!
      *        - Decode prefixs
+     *      [ - Decode the REX prefix (64 bit mode) ]
      *        - Decode floating-point extension/two-byte opcode table
      *        - Decode instruction number
      *        - Read modrm if needed
@@ -138,11 +138,22 @@ private:
      *                       found (Group 3, 0x66)
      * addressSizeOverride - Set to true if the address-size override prefix is
      *                       found (Group 4, 0x67)
+     * rex                 - The REX prefix (64 bit mode), 0 if none
+     * mode64              - The ia32dis::Mode64 of the opcode entry (64 bit
+     *                       mode), MODE64_LEGACY before the entry is known
      *
      * Change the m_operandSize and the m_addressSize
      */
     void calculateAddressAndOperandSize(bool operandSizeOverride,
-                                        bool addressSizeOverride);
+                                        bool addressSizeOverride,
+                                        const IA32OpcodeDatastruct::REX& rex,
+                                        uint mode64);
+
+    /*
+     * Return true if the opcode entry is valid in the processor mode (see
+     * ia32dis::MODE64_INVALID and ia32dis::MODE64_ONLY)
+     */
+    bool isValidInMode(const ia32dis::OpcodeEntry* opcode) const;
 
     /*
      * Filter the modrm according to the opcode information
@@ -207,6 +218,7 @@ private:
     uint8 read8bit(basicInput& data);
     uint16 read16bit(basicInput& data);
     uint32 read32bit(basicInput& data);
+    uint64 read64bit(basicInput& data);
 
     // The complete opcode characters
     cBuffer m_opcodeData;
@@ -214,7 +226,8 @@ private:
     IntegerEncoding::IntegerEncodingType m_operandSize;
     // Store whether the address extension prefix was detected [0x67]
     IntegerEncoding::IntegerEncodingType m_addressSize;
-    // TODO! REX cache should be here
+    // The REX prefix of the current instruction (64 bit mode), 0 if none
+    IA32OpcodeDatastruct::REX m_rex;
 };
 
 #endif // __TBA_DISMOUNT_PROC_IA32_IA32STREAMDISASSEMBLER_H

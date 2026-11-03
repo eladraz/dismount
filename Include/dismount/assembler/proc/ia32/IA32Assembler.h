@@ -126,13 +126,22 @@ private:
 
         // The class of a register operand
         enum RegisterClass {
+            // al..bh (0..7); in 64 bit mode also r8b..r15b (8..15)
             REG_8BIT,
+            // ax..di, r8w..r15w
             REG_16BIT,
+            // eax..edi, r8d..r15d
             REG_32BIT,
+            // rax..rdi, r8..r15 (64 bit mode only)
+            REG_64BIT,
+            // spl, bpl, sil, dil (64 bit mode only, the indexes 4..7): an 8
+            // bit register which needs a REX prefix (and can't be used with
+            // ah..bh in the same instruction)
+            REG_8BIT_REX,
             REG_SEGMENT,
             // MMX registers (mm0-mm7)
             REG_MMX,
-            // SSE registers (xmm0-xmm7)
+            // SSE registers (xmm0-xmm7, xmm8-xmm15 in 64 bit mode)
             REG_XMM,
             // x87 stack registers (st0-st7, 'st' is st0)
             REG_FPU,
@@ -159,6 +168,10 @@ private:
          *
          * Supported forms:
          *   eax, al, mm0, xmm1, es, cr0, dr0           registers
+         *   rax, r8, r9d, r10w, r11b, spl, xmm12, cr8  registers of 64 bit mode
+         *   [rip+0x10], [rel $+0x10]                    rip relative memory
+         *                                              (64 bit mode, see
+         *                                              isRipRelative())
          *   0x12, -1, 255, 7bh                         immediates
          *   [eax+ecx*4+0x10], dword [..], byte ptr [..] memory, see below
          *   fs:[eax], [fs:eax], word [gs:bx]           memory with segment
@@ -169,7 +182,9 @@ private:
          * scale 1/2/4/8 and a leading '-' allowed on the displacement. A scale
          * of 1 with no base uses the index as the base, and a scale of 2 with
          * no base is encoded as base=index,scale=1 (nasm does the same). The
-         * 16 bit registers bx, bp, si and di select 16 bit addressing.
+         * 16 bit registers bx, bp, si and di select 16 bit addressing, the
+         * 32 bit registers select 32 bit addressing in 64 bit mode (the 67
+         * prefix), the 64 bit registers the default 64 bit addressing.
          *
          * Offsets (branches) use nasm semantics: '$+N' is N bytes from the
          * start of the instruction (the old meaning was a raw displacement from
@@ -224,8 +239,16 @@ private:
         // Return the scale of the index (1, 2, 4 or 8)
         uint getScale() const;
 
-        // Return the address size of a memory reference (16/32), 0 for default
+        // Return the address size of a memory reference (16/32/64), 0 for
+        // default
         uint getAddressWidth() const;
+        // Return true for a rip relative memory reference: [rip + disp] is
+        // the displacement from the end of the instruction, [rel $+N] the
+        // nasm form of a target N bytes from the start of the instruction
+        // (encoded as [rip + N - length])
+        bool isRipRelative() const;
+        // Return true for [rel $+N] (see isRipRelative())
+        bool isRelativeToInstruction() const;
 
         // Return the displacement of a memory reference
         int64 getDisplacement() const;
@@ -272,6 +295,10 @@ private:
         int m_index;
         uint m_scale;
         uint m_addressWidth;
+        // MEMORY: rip relative, see isRipRelative() and
+        // isRelativeToInstruction()
+        bool m_ripRelative;
+        bool m_relativeToInstruction;
     };
 
     /*
@@ -296,7 +323,8 @@ private:
         uint m_table;
         // The opcode entry
         const ia32dis::OpcodeEntry* m_opcode;
-        // The operand width (8, 16 or 32 bits), 0 if not fixed by the operands
+        // The operand width (8, 16, 32 or 64 bits), 0 if not fixed by the
+        // operands
         uint m_operandWidth;
         // True if the address size of the memory reference is not the default
         bool m_addressSizePrefix;
@@ -315,6 +343,18 @@ private:
         int m_segment;
         // The prefixes of the instruction
         Prefixes m_prefixes;
+        // 64 bit mode: the REX prefix, written when m_needsRex. Its W bit is
+        // set for a 64 bit operand size (unless the entry is MODE64_DEFAULT_64
+        // or MODE64_FORCE_64), R / X / B extend the reg field, the SIB index
+        // and the r/m, SIB base or opcode register field
+        IA32OpcodeDatastruct::REX m_rex;
+        bool m_needsRex;
+        // 64 bit mode: true if an operand is ah, ch, dh or bh, which can't be
+        // encoded with a REX prefix
+        bool m_hasHighByteRegister;
+        // 64 bit mode: true for a rip relative displacement, which is
+        // computed once the instruction length is known
+        bool m_isRipRelative;
         // The total length of the instruction in bytes
         uint m_length;
     };
@@ -445,6 +485,19 @@ private:
     void encodeMemory16(const Operand& compilerOperand, Encoding& enc) const;
 
     /*
+     * Compute the address encodings for a memory reference of 64 bit mode
+     * (64 or 32 bit address size): the REX.X / REX.B bits of r8-r15, the SIB
+     * which rsp / r12 need, the displacement which rbp / r13 need, and rip
+     * relative addressing. Throws if the addressing form is not encodable.
+     */
+    void encodeMemory64(const Operand& compilerOperand, Encoding& enc) const;
+
+    /*
+     * Return true if the processor mode is 64 bit mode
+     */
+    bool is64BitMode() const;
+
+    /*
      * Gives the length of the encoded instruction in bytes.
      *
      * enc                  - The matched encoding
@@ -488,13 +541,14 @@ private:
                         const Operand& compilerOperand,
                         const Encoding& enc);
 
-    // Write 'bytes' bytes (1, 2 or 4) of value in little endian
+    // Write 'bytes' bytes (1, 2, 4 or 8) of value in little endian
     void writeValue(int64 value, uint bytes);
 
-    // Return the default operand size of the processor mode (16 or 32)
+    // Return the default operand size of the processor mode (16 or 32, 32
+    // in 64 bit mode)
     uint getDefaultOperandWidth() const;
 
-    // Return the operand width used by the encoding (16 or 32)
+    // Return the operand width used by the encoding (16, 32 or 64)
     uint getEncodingWidth(const Encoding& enc) const;
 
     // Return the byte opcode of the segment prefix (from the table)

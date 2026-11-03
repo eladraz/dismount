@@ -39,6 +39,14 @@ StreamDisassemblerPtr StreamDisassemblerFactory::disassemble(
                     shouldUseAddress,
                     streamAddress,
                     shouldOpcodeFaultTolerantEnabled));
+    case OpcodeSubsystems::DISASSEMBLER_AMD_64:
+        // Generate 64bit disassembler
+        return StreamDisassemblerPtr(new IA32StreamDisassembler(
+                    IA32eInstructionSet::AMD_64,
+                    data,
+                    shouldUseAddress,
+                    streamAddress,
+                    shouldOpcodeFaultTolerantEnabled));
     default:
         // I don't recognize the disassembler type.
         CHECK_FAIL();

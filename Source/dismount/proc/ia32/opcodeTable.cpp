@@ -396,22 +396,22 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     // First table two-byte opcode, 0x80-0xF7
 
     // Name        PREFIX  MASK   FIRST-OPERAND                   SECONDS-OPERAND       THIRD-OPERAND        MODRM-FILTER      UNSIGNED  ALTERING            EXAMPLE
-    {"jo",         0x80,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW},
-    {"jno",        0x81,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW | Opcode::FLOW_COND_NOT},
-    {"jb",         0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jc",         0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_CARRY},
-    {"jnae",       0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jae",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jnb",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jnc",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_CARRY | Opcode::FLOW_COND_NOT},
-    {"jz",         0x84,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},
-    {"je",         0x84,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},
-    {"jnz",        0x85,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},
-    {"jne",        0x85,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},
-    {"jna",        0x86,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"jbe",        0x86,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"ja",         0x87,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
-    {"jnbe",       0x87,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
+    {"jo",         0x80,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW, 0, MODE64_FORCE_64},
+    {"jno",        0x81,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jb",         0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jc",         0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_CARRY, 0, MODE64_FORCE_64},
+    {"jnae",       0x82,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jae",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jnb",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jnc",        0x83,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_CARRY | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jz",         0x84,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO, 0, MODE64_FORCE_64},
+    {"je",         0x84,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO, 0, MODE64_FORCE_64},
+    {"jnz",        0x85,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jne",        0x85,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jna",        0x86,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jbe",        0x86,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"ja",         0x87,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
+    {"jnbe",       0x87,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
 
     {"seto",       0x90,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"setno",      0x91,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
@@ -430,15 +430,15 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     {"seta",       0x97,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"setnbe",     0x97,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
 
-    {"push",       0xA0,   0xFF,  OPND_FS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},
-    {"pop",        0xA1,   0xFF,  OPND_FS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // pop     fs
+    {"push",       0xA0,   0xFF,  OPND_FS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
+    {"pop",        0xA1,   0xFF,  OPND_FS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64}, // pop     fs
     {"cpuid",      0xA2,   0xFF,  OPND_NO_OPERAND,                OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},
     {"bt",         0xA3,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     // TODO! The following two instruction are not fully understood for me
     {"shld",       0xA4,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"shld",       0xA5,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_CL,             MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
-    {"push",       0xA8,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // push    gs
-    {"pop",        0xA9,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER}, // pop     gs
+    {"push",       0xA8,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64}, // push    gs
+    {"pop",        0xA9,   0xFF,  OPND_GS,                        OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64}, // pop     gs
     {"bts",        0xAB,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // bts     [esp+24h+var_24], eax
     {"shrd",       0xAC,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // shrd    eax, ecx, 0Ch
     {"shrd",       0xAD,   0xFF,  OPND_MODRM_dWORDPTR,            OPND_GP_16_32BIT,     OPND_CL,             MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER}, // shrd    eax, edx, cl
@@ -583,20 +583,20 @@ const OpcodeEntry gIa32TwoBytesOpcodeTable[] = {
     //////////////////////////////////////////////////////////////////////////
     // Second table two-byte opcode, 0x88-0xFF
 
-    {"js",         0x88,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_NEGATIVE},
-    {"jns",        0x89,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_NEGATIVE | Opcode::FLOW_COND_NOT},
-    {"jp",         0x8A,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY},
-    {"jpe",        0x8A,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY},
-    {"jnp",        0x8B,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
-    {"jpo",        0x8B,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
-    {"jl",         0x8C,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jnge",       0x8C,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jnl",        0x8D,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jge",        0x8D,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jng",        0x8E,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"jle",        0x8E,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"jg",         0x8F,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
-    {"jnle",       0x8F,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
+    {"js",         0x88,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_NEGATIVE, 0, MODE64_FORCE_64},
+    {"jns",        0x89,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_NEGATIVE | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jp",         0x8A,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY, 0, MODE64_FORCE_64},
+    {"jpe",        0x8A,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY, 0, MODE64_FORCE_64},
+    {"jnp",        0x8B,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jpo",        0x8B,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jl",         0x8C,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnge",       0x8C,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnl",        0x8D,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jge",        0x8D,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jng",        0x8E,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jle",        0x8E,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jg",         0x8F,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
+    {"jnle",       0x8F,   0xFF,  OPND_IMMEDIATE_OFFSET_LONG_32,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
 
     {"sets",       0x98,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
     {"setns",      0x99,   0xFF,  OPND_MODRM_BYTEPTR,             OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},
@@ -655,8 +655,8 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"add",         0x03,   0xFF,  OPND_GP_16_32BIT,              OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // add   bx,       [bx+si]
     {"add",         0x04,   0xFF,  OPND_AL,                       OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {"add",         0x05,   0xFF,  OPND_eAX,                      OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
-    {"push",        0x06,   0xFF,  OPND_ES,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // push  es
-    {"pop",         0x07,   0xFF,  OPND_ES,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // pop   es
+    {"push",        0x06,   0xFF,  OPND_ES,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // push  es
+    {"pop",         0x07,   0xFF,  OPND_ES,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // pop   es
 
     {"adc",         0x10,   0xFF,  OPND_MODRM_BYTEPTR,            OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // adc   [bx+si],  bl
     {"adc",         0x11,   0xFF,  OPND_MODRM_dWORDPTR,           OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // adc   [bx+si],  bx
@@ -664,8 +664,8 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"adc",         0x13,   0xFF,  OPND_GP_16_32BIT,              OPND_MODRM_dWORDPTR,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // adc   bx,       [bx+si]
     {"adc",         0x14,   0xFF,  OPND_AL,                       OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {"adc",         0x15,   0xFF,  OPND_eAX,                      OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
-    {"push",        0x16,   0xFF,  OPND_SS,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // push  ss
-    {"pop",         0x17,   0xFF,  OPND_SS,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // pop   ss
+    {"push",        0x16,   0xFF,  OPND_SS,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // push  ss
+    {"pop",         0x17,   0xFF,  OPND_SS,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // pop   ss
 
     {"and",         0x20,   0xFF,  OPND_MODRM_BYTEPTR,            OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // and   [bx+si],  bl
     {"and",         0x21,   0xFF,  OPND_MODRM_dWORDPTR,           OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // and   [bx+si],  bx
@@ -674,7 +674,7 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"and",         0x24,   0xFF,  OPND_AL,                       OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {"and",         0x25,   0xFF,  OPND_eAX,                      OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {INVALID,       0x26,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_INVALID},          // INVALID! ES:
-    {"daa",         0x27,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // daa
+    {"daa",         0x27,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // daa
 
     {"xor",         0x30,   0xFF,  OPND_MODRM_BYTEPTR,            OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // xor   [bx+si],  bl
     {"xor",         0x31,   0xFF,  OPND_MODRM_dWORDPTR,           OPND_GP_16_32BIT,     OPND_NO_OPERAND,     MODRM_ALL_FILTER, true,     Opcode::FLOW_NO_ALTER},     // xor   [bx+si],  bx
@@ -683,72 +683,72 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"xor",         0x34,   0xFF,  OPND_AL,                       OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {"xor",         0x35,   0xFF,  OPND_eAX,                      OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     //
     {INVALID,       0x36,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_INVALID},          // INVALID! SS:
-    {"aaa",         0x37,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // aaa
+    {"aaa",         0x37,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // aaa
 
-    {"inc",         0x40,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER},     // inc  eAX
-    {"push",        0x50,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER},     // push eAX
-    {"push",        0x53,   0xFF,  OPND_eBX,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // push    ebx
-    {"push",        0x55,   0xFF,  OPND_eBP,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // push    ebp
-    {"push",        0x57,   0xFF,  OPND_eDI,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER},     // push    edi
+    {"inc",         0x40,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // inc  eAX
+    {"push",        0x50,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},     // push eAX
+    {"push",        0x53,   0xFF,  OPND_eBX,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // push    ebx
+    {"push",        0x55,   0xFF,  OPND_eBP,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // push    ebp
+    {"push",        0x57,   0xFF,  OPND_eDI,                       OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   true,     Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // push    edi
 
-    {"pusha#d",     0x60,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER},     // pusha/d
-    {"popa#d",      0x61,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER},     // popa/d
-    {"bound",       0x62,   0xFF,  OPND_GP_16_32BIT,              OPND_MODRM_MEM,       OPND_NO_OPERAND,     MODRM_ALL_FILTER, false,    Opcode::FLOW_NO_ALTER},     // TODO!
-    {"arpl",        0x63,   0xFF,  OPND_MODRM_WORDPTR,            OPND_GP_16BIT_MODRM,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, false,    Opcode::FLOW_NO_ALTER},     // TODO!
+    {"pusha#d",     0x60,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // pusha/d
+    {"popa#d",      0x61,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // popa/d
+    {"bound",       0x62,   0xFF,  OPND_GP_16_32BIT,              OPND_MODRM_MEM,       OPND_NO_OPERAND,     MODRM_ALL_FILTER, false,    Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // TODO!
+    {"arpl",        0x63,   0xFF,  OPND_MODRM_WORDPTR,            OPND_GP_16BIT_MODRM,  OPND_NO_OPERAND,     MODRM_ALL_FILTER, false,    Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},     // TODO!
 
     {INVALID,       0x64,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     0,                true,     Opcode::FLOW_INVALID},          // INVALID! FS:
     {INVALID,       0x65,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     0,                true,     Opcode::FLOW_INVALID},          // INVALID! GS:
     {INVALID,       0x66,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     0,                true,     Opcode::FLOW_INVALID},          // INVALID! DB 66
     {INVALID,       0x67,   0xFF,  OPND_NO_OPERAND,               OPND_NO_OPERAND,      OPND_NO_OPERAND,     0,                true,     Opcode::FLOW_INVALID},          // INVALID! DB 67
 
-    {"jo",          0x70,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW},             // jo     $+5
-    {"jno",         0x71,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW | Opcode::FLOW_COND_NOT},             // jo     $+5
-    {"jb",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},             // jo     $+5
-    {"jc",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jnae",        0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER},
-    {"jnb",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},             // jo     $+5
-    {"jnc",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jae",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jz",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},             // jo     $+5
-    {"je",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO},
-    {"jnz",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},             // jo     $+5
-    {"jne",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT},
-    {"jbe",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},             // jo     $+5
-    {"jna",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"ja",          0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},             // jo     $+5
-    {"jnbe",        0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER},
+    {"jo",          0x70,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jno",         0x71,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_OVERFLOW | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jb",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jc",          0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnae",        0x72,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnb",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jnc",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jae",         0x73,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jz",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO, 0, MODE64_FORCE_64},             // jo     $+5
+    {"je",          0x74,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO, 0, MODE64_FORCE_64},
+    {"jnz",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jne",         0x75,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_ZERO | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jbe",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jna",         0x76,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"ja",          0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},             // jo     $+5
+    {"jnbe",        0x77,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8,  OPND_NO_OPERAND,      OPND_NO_OPERAND,     MODRM_NO_MODRM,   false,    Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
 
     {"add",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
     {"add",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
-    {"add",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
+    {"add",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"add",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
     {"or",          0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER},
     {"or",          0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER},
-    {"or",          0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER},
+    {"or",          0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"or",          0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER},
     {"adc",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER},
     {"adc",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER},
-    {"adc",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER},
+    {"adc",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"adc",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER},
     {"sbb",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"sbb",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
-    {"sbb",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
+    {"sbb",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"sbb",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
     {"and",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"and",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
-    {"and",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
+    {"and",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"and",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_100, true, Opcode::FLOW_NO_ALTER},
     {"sub",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {"sub",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
-    {"sub",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
+    {"sub",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"sub",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_101, true, Opcode::FLOW_NO_ALTER},
     {"xor",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER},
     {"xor",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER},
-    {"xor",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER},
+    {"xor",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"xor",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_110, true, Opcode::FLOW_NO_ALTER},
     {"cmp",         0x80,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
     {"cmp",         0x81,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
-    {"cmp",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
+    {"cmp",         0x82,   0xFF, OPND_MODRM_BYTEPTR,             OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"cmp",         0x83,   0xFF, OPND_MODRM_dWORDPTR,            OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,     MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
 
     {"test",        0x84,   0xFF, OPND_MODRM_BYTEPTR,             OPND_GP_8BIT_MODRM,   OPND_NO_OPERAND,     MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},           // test al, [bx+si]    TODO! Wrong doc
@@ -793,10 +793,10 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"sar",         0xC0,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
     {"sar",         0xC1,   0xFF, OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
 
-    {"ret",         0xC2,   0xFF, OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION},
-    {"ret",         0xC3,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION},
-    {"les",         0xC4,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-    {"lds",         0xC5,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
+    {"ret",         0xC2,   0xFF, OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION, 0, MODE64_DEFAULT_64},
+    {"ret",         0xC3,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_RET | Opcode::FLOW_ACTION, 0, MODE64_DEFAULT_64},
+    {"les",         0xC4,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
+    {"lds",         0xC5,   0xFF, OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     // All other modes 0f opcodes C6 C7 are invalid (Left empty)
     {"mov",         0xC6,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_000, true, Opcode::FLOW_NO_ALTER},
     {INVALID,       0xC6,   0xFF, OPND_MODRM_BYTEPTR,    OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_INVALID}, // INVALID
@@ -842,21 +842,21 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"sar",         0xD3,   0xFF, OPND_MODRM_dWORDPTR,   OPND_CL,               OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
 
 
-    {"aam",         0xD4,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
-    {"aad",         0xD5,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
+    {"aam",         0xD4,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
+    {"aad",         0xD5,   0xFF, OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {INVALID,       0xD6,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, 0,              false, Opcode::FLOW_INVALID},                   // INVALID! EMPTY
     {"xlatb",       0xD7,   0xFF, OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
 
-    {"loopnz",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
-    {"loopne",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
-    {"loopz",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
-    {"loope",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
-    {"loop",        0xE2,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
-    {"j#ecxz",      0xE3,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER},
+    {"loopnz",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
+    {"loopne",      0xE0,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
+    {"loopz",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
+    {"loope",       0xE1,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
+    {"loop",        0xE2,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
+    {"j#ecxz",      0xE3,   0xFF, OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_NO_ALTER, 0, MODE64_FORCE_64},
     {"in",          0xE4,   0xFF, OPND_AL,                       OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
-    {"in",          0xE5,   0xFF, OPND_eAX,                      OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
+    {"in",          0xE5,   0xFF, OPND_eAX,                      OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
     {"out",         0xE6,   0xFF, OPND_IMMEDIATE_8BIT,           OPND_AL,               OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
-    {"out",         0xE7,   0xFF, OPND_IMMEDIATE_8BIT,           OPND_eAX,              OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
+    {"out",         0xE7,   0xFF, OPND_IMMEDIATE_8BIT,           OPND_eAX,              OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
 
     {INVALID,       0xF0,   0xFF, OPND_NO_OPERAND,      OPND_NO_OPERAND,        OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID}, // INVALID! LOCK prefix
     {INVALID,       0xF1,   0xFF, OPND_NO_OPERAND,      OPND_NO_OPERAND,        OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID}, // INVALID! EMPTY
@@ -890,7 +890,7 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"or",          0x0B,   0xFF,  OPND_GP_16_32BIT,     OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"or",          0x0C,   0xFF,  OPND_AL,              OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {"or",          0x0D,   0xFF,  OPND_eAX,             OPND_IMMEDIATE_DS,     OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
-    {"push",        0x0E,   0xFF,  OPND_CS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},         // push  cs
+    {"push",        0x0E,   0xFF,  OPND_CS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},         // push  cs
     {INVALID,       0x0F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_INVALID},              // INVALID! 2Bytes opcode marker
 
     {"sbb",         0x18,   0xFF,  OPND_MODRM_BYTEPTR,   OPND_GP_8BIT_MODRM,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -899,8 +899,8 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"sbb",         0x1B,   0xFF,  OPND_GP_16_32BIT,     OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"sbb",         0x1C,   0xFF,  OPND_AL,              OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {"sbb",         0x1D,   0xFF,  OPND_eAX,             OPND_IMMEDIATE_DS,     OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
-    {"push",        0x1E,   0xFF,  OPND_DS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},         // push  ds
-    {"pop",         0x1F,   0xFF,  OPND_DS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},         // pop   ds
+    {"push",        0x1E,   0xFF,  OPND_DS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},         // push  ds
+    {"pop",         0x1F,   0xFF,  OPND_DS,              OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},         // pop   ds
 
     {"sub",         0x28,   0xFF,  OPND_MODRM_BYTEPTR,   OPND_GP_8BIT_MODRM,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"sub",         0x29,   0xFF,  OPND_MODRM_dWORDPTR,  OPND_GP_16_32BIT,      OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -909,7 +909,7 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"sub",         0x2C,   0xFF,  OPND_AL,              OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {"sub",         0x2D,   0xFF,  OPND_eAX,             OPND_IMMEDIATE_DS,     OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {INVALID,       0x2E,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_INVALID},              // INVALID! CS:
-    {"das",         0x2F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"das",         0x2F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
 
     {"cmp",         0x38,   0xFF,  OPND_MODRM_BYTEPTR,   OPND_GP_8BIT_MODRM,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"cmp",         0x39,   0xFF,  OPND_MODRM_dWORDPTR,  OPND_GP_16_32BIT,      OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -918,35 +918,35 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"cmp",         0x3C,   0xFF,  OPND_AL,              OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {"cmp",         0x3D,   0xFF,  OPND_eAX,             OPND_IMMEDIATE_DS,     OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
     {INVALID,       0x3E,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_INVALID},              // INVALID! DS:
-    {"aas",         0x3F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"aas",         0x3F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
 
-    {"dec",         0x48,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"dec",         0x48,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
 
-    {"pop",         0x58,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"pop",         0x58,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
 
-    {"push",        0x68,   0xFF,  OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"push",        0x68,   0xFF,  OPND_IMMEDIATE_DS,    OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
     {"imul",        0x69,   0xFF,  OPND_GP_16_32BIT,     OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_DS,   MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-    {"push",        0x6A,   0xFF,  OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"push",        0x6A,   0xFF,  OPND_IMMEDIATE_8BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
     {"imul",        0x6B,   0xFF,  OPND_GP_16_32BIT,     OPND_MODRM_dWORDPTR,   OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"insb",        0x6C,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
-    {"ins##",       0x6D,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"ins##",       0x6D,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
     {"outsb",       0x6E,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
-    {"outs##",      0x6F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER},
+    {"outs##",      0x6F,   0xFF,  OPND_NO_OPERAND,      OPND_NO_OPERAND,       OPND_NO_OPERAND,     MODRM_NO_MODRM,   true, Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
 
-    {"js",          0x78,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE},
-    {"jns",         0x79,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE | Opcode::FLOW_COND_NOT},
-    {"jp",          0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY},
-    {"jpe",         0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY},
-    {"jnp",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
-    {"jpo",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT},
-    {"jl",          0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER},
-    {"jnge",        0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER},
-    {"jnl",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jge",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT},
-    {"jng",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"jle",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT},
-    {"jg",          0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER},
-    {"jnle",        0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER},
+    {"js",          0x78,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE, 0, MODE64_FORCE_64},
+    {"jns",         0x79,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_NEGATIVE | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jp",          0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY, 0, MODE64_FORCE_64},
+    {"jpe",         0x7A,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY, 0, MODE64_FORCE_64},
+    {"jnp",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jpo",         0x7B,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_PARITY | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jl",          0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnge",        0x7C,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER, 0, MODE64_FORCE_64},
+    {"jnl",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jge",         0x7D,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_LOWER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jng",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jle",         0x7E,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER | Opcode::FLOW_COND_NOT, 0, MODE64_FORCE_64},
+    {"jg",          0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
+    {"jnle",        0x7F,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_BIGGER, 0, MODE64_FORCE_64},
 
     {"mov",         0x88,   0xFF,  OPND_MODRM_BYTEPTR,    OPND_GP_8BIT_MODRM,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
     {"mov",         0x89,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_GP_16_32BIT,      OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
@@ -957,14 +957,14 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"lea",         0x8D,   0xFF,  OPND_GP_16_32BIT,      OPND_MODRM_MEM,        OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER}, // lea     eax, ds:40h[edi*8]
 
     {"mov",         0x8E,   0xFF,  OPND_GP_SEGMENT_MODRM, OPND_MODRM_WORDPTR,    OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-    {"pop",         0x8F,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
+    {"pop",         0x8F,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
 
     {"cbw/cwde",    0x98,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cbw for prefix
     {"cwd/cdq",     0x99,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},   // cwd for prefix
-    {"call",        0x9A,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,  OPND_NO_OPERAND,  OPND_NO_OPERAND, MODRM_NO_MODRM, false,Opcode::FLOW_NO_ALTER},
+    {"call",        0x9A,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,  OPND_NO_OPERAND,  OPND_NO_OPERAND, MODRM_NO_MODRM, false,Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"fwait",       0x9B,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-    {"pushf#d",     0x9C,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-    {"popf#d",      0x9D,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"pushf#d",     0x9C,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
+    {"popf#d",      0x9D,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
     {"sahf",        0x9E,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"lahf",        0x9F,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
 
@@ -979,26 +979,26 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
 
     {"mov",         0xB8,   0xF8,  OPND_ONEBYTES_OPCODE_GP_16_32, OPND_IMMEDIATE_DS, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
 
-    {"enter",       0xC8,   0xFF,  OPND_IMMEDIATE_16BIT,  OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-    {"leave",       0xC9,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"enter",       0xC8,   0xFF,  OPND_IMMEDIATE_16BIT,  OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
+    {"leave",       0xC9,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
     {"retf",        0xCA,   0xFF,  OPND_IMMEDIATE_16BIT,  OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RETF},
     {"retf",        0xCB,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RETF},
     {"int3",        0xCC,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"int",         0xCD,   0xFF,  OPND_IMMEDIATE_8BIT,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-    {"into",        0xCE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
+    {"into",        0xCE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER, 0, MODE64_INVALID},
     {"iret",        0xCF,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_RET},
 
     //{INVALID,       0xD8,   0xF8,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_INVALID},              // INVALID! ESC to coprocessor
 
     // TODO: Classify relative jmps
-    {"call",        0xE8,   0xFF,  OPND_IMMEDIATE_OFFSET_DS,      OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_STACK_CHANGE | Opcode::FLOW_COND_ALWAYS},
-    {"jmp",         0xE9,   0xFF,  OPND_IMMEDIATE_OFFSET_DS,      OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS},
-    {"jmp",         0xEA,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,     OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS},
-    {"jmp",         0xEB,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS},
+    {"call",        0xE8,   0xFF,  OPND_IMMEDIATE_OFFSET_DS,      OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_STACK_CHANGE | Opcode::FLOW_COND_ALWAYS, 0, MODE64_FORCE_64},
+    {"jmp",         0xE9,   0xFF,  OPND_IMMEDIATE_OFFSET_DS,      OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS, 0, MODE64_FORCE_64},
+    {"jmp",         0xEA,   0xFF,  OPND_IMMEDIATE_OFFSET_FAR,     OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS, 0, MODE64_INVALID},
+    {"jmp",         0xEB,   0xFF,  OPND_IMMEDIATE_OFFSET_SHORT_8, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, false, Opcode::FLOW_COND_ALWAYS, 0, MODE64_FORCE_64},
     {"in",          0xEC,   0xFF,  OPND_AL,                       OPND_DX,         OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
-    {"in",          0xED,   0xFF,  OPND_eAX,                      OPND_DX,         OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
+    {"in",          0xED,   0xFF,  OPND_eAX,                      OPND_DX,         OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
     {"out",         0xEE,   0xFF,  OPND_DX,                       OPND_AL,         OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
-    {"out",         0xEF,   0xFF,  OPND_DX,                       OPND_eAX,        OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER},
+    {"out",         0xEF,   0xFF,  OPND_DX,                       OPND_eAX,        OPND_NO_OPERAND, MODRM_NO_MODRM, true,  Opcode::FLOW_NO_ALTER, 0, MODE64_NO_REXW},
 
     {"clc",         0xF8,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
     {"stc",         0xF9,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
@@ -1012,15 +1012,15 @@ const OpcodeEntry gIa32OneByteOpcodeTable[] = {
     {"dec",         0xFE,   0xFF,  OPND_MODRM_BYTEPTR,    OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,  Opcode::FLOW_NO_ALTER},
     {"dec",         0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true,  Opcode::FLOW_NO_ALTER},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true,  Opcode::FLOW_INVALID},
-    {"call",        0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, false, Opcode::FLOW_STACK_CHANGE | Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION},
+    {"call",        0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, false, Opcode::FLOW_STACK_CHANGE | Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION, 0, MODE64_DEFAULT_64},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, false, Opcode::FLOW_INVALID},
     {"call",        0xFF,   0xFF,  OPND_MODRM_FAR_OFFSET, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, false, Opcode::FLOW_STACK_CHANGE | Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, false, Opcode::FLOW_INVALID},
-    {"jmp",         0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, false, Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION},
+    {"jmp",         0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_100, false, Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION, 0, MODE64_DEFAULT_64},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, false, Opcode::FLOW_INVALID},
     {"jmp",         0xFF,   0xFF,  OPND_MODRM_FAR_OFFSET, OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_101, false, Opcode::FLOW_COND_ALWAYS | Opcode::FLOW_ACTION},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, false, Opcode::FLOW_INVALID},
-    {"push",        0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, false, Opcode::FLOW_NO_ALTER},
+    {"push",        0xFF,   0xFF,  OPND_MODRM_dWORDPTR,   OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_110, false, Opcode::FLOW_NO_ALTER, 0, MODE64_DEFAULT_64},
     {INVALID,       0xFE,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, false, Opcode::FLOW_INVALID},
     {INVALID,       0xFF,   0xFF,  OPND_NO_OPERAND,       OPND_NO_OPERAND,       OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, false, Opcode::FLOW_INVALID},
 

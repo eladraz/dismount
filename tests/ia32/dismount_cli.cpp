@@ -5,10 +5,10 @@
  * (see TEST_PLAN.md) and the semantics tests (tests/semantics/TEST_PLAN.md).
  * Reads stdin, writes one record per input line to stdout.
  *
- *   dismount_cli asm [--bits 16|32]   each line: one instruction (nasm syntax,
+ *   dismount_cli asm [--bits 16|32|64] each line: one instruction (nasm syntax,
  *                                     ';' comments allowed)
  *                                     -> "OK <hex bytes>" | "ERR <message> [file]"
- *   dismount_cli dis [--bits 16|32]   each line: hex bytes of one instruction
+ *   dismount_cli dis [--bits 16|32|64] each line: hex bytes of one instruction
  *                                     -> "OK <len> <text>" |
  *                                        "INVALID <len> <text>" |
  *                                        "ERR <message>"
@@ -919,7 +919,7 @@ static int runCpuinfo()
 
 static void usage()
 {
-    fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32] < input\n"
+    fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32|64] < input\n"
                     "       dismount_cli cpuinfo\n");
 }
 
@@ -947,6 +947,11 @@ int main(int argc, char* argv[])
             {
                 asmMode = IA32eInstructionSet::INTEL_32;
                 disType = OpcodeSubsystems::DISASSEMBLER_INTEL_32;
+            }
+            else if (strcmp(argv[i], "64") == 0)
+            {
+                asmMode = IA32eInstructionSet::AMD_64;
+                disType = OpcodeSubsystems::DISASSEMBLER_AMD_64;
             }
             else
             {

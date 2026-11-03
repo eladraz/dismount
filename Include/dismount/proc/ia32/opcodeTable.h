@@ -21,7 +21,12 @@ enum {
     // The number of control registers.
     NUMBER_OF_CONTROL_REGISTERS = 5,
     // A register marker for no register...
-    NO_REGISTER = NUMBER_OF_REGISTERS
+    NO_REGISTER = NUMBER_OF_REGISTERS,
+
+    // The number of general purpose, SSE, control and debug registers which
+    // the REX prefix can select in 64 bit mode (r8-r15, xmm8-xmm15, cr8)
+    AMD64_NUMBER_OF_REGISTERS = 16,
+    AMD64_NUMBER_OF_CONTROL_REGISTERS = 9
 };
 
 /*
@@ -43,9 +48,38 @@ extern RegisterDescription gIa32ControlRegisters[NUMBER_OF_CONTROL_REGISTERS];
 extern RegisterDescription gIa32DebugRegisters[NUMBER_OF_REGISTERS];
 
 /*
+ * The register names of 64 bit mode, indexed by the register number with the
+ * REX extension bit (REX.R, REX.X or REX.B) as bit 3. See
+ * opcodeTableAMD64.cpp.
+ */
+// rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8 .. r15
+extern RegisterDescription gAmd64Registers[AMD64_NUMBER_OF_REGISTERS];
+// eax .. edi, r8d .. r15d
+extern RegisterDescription gAmd64Registers32[AMD64_NUMBER_OF_REGISTERS];
+// ax .. di, r8w .. r15w
+extern RegisterDescription gAmd64Registers16[AMD64_NUMBER_OF_REGISTERS];
+// The 8 bit registers of an instruction with a REX prefix: al, cl, dl, bl,
+// spl, bpl, sil, dil, r8b .. r15b. Without a REX prefix the numbers 4..7 are
+// ah, ch, dh, bh (gIa8Registers)
+extern RegisterDescription gAmd64Registers8[AMD64_NUMBER_OF_REGISTERS];
+// xmm0 .. xmm15
+extern RegisterDescription gAmd64SIMDRegisters[AMD64_NUMBER_OF_REGISTERS];
+// cr0 .. cr8 (cr8 is encoded with REX.R and the number 0)
+extern RegisterDescription gAmd64ControlRegisters[AMD64_NUMBER_OF_CONTROL_REGISTERS];
+
+/*
  * The different GP registers values
  */
 enum {
+    // 64 bit registers table (the low 3 bits are the ModRM / SIB / opcode
+    // field, bit 3 is the REX extension bit)
+    AMD64_GP64_RAX =  0,
+    AMD64_GP64_RSP =  4,
+    AMD64_GP64_RBP =  5,
+    AMD64_GP64_R8  =  8,
+    AMD64_GP64_R12 = 12,
+    AMD64_GP64_R13 = 13,
+
     // 32 bit registers table
     IA32_GP32_EAX =  0,
     IA32_GP32_ECX =  1,
@@ -159,31 +193,39 @@ typedef enum {
     // The operand is 16bit immediate
     OPND_IMMEDIATE_16BIT,
     // The operand is 16bit or 32bit immediate according to the state and the
-    // current 66 size prefix.
+    // current 66 size prefix. With a 64 bit operand size (REX.W) the
+    // immediate is 32 bits, sign extended to 64 bits.
     OPND_IMMEDIATE_DS,
+    // The operand is an immediate of the operand size: 16, 32 or 64 bits.
+    // Only 'mov r64, imm64' (REX.W B8+r) has a 64 bit immediate. In 16 and
+    // 32 bit mode it is the same as OPND_IMMEDIATE_DS
+    OPND_IMMEDIATE_DQ,
 
     // The operand is memory reference offest encoded as direct immediate.
     // The length of the immediate is the default address-size (16bit/32bit
-    // according to the 67 prefix...
+    // according to the 67 prefix... In 64 bit mode the offset is 64 bits
+    // (32 bits with the 67 prefix): mov al, [moffs64]
     OPND_MEMREF_OFFSET_DS,
 
     // The operand is offset (used in loops, jmp etc) encoded as immediate
     OPND_IMMEDIATE_OFFSET_SHORT_8,
     // The operand is long offset (used in loops, jmp etc) encoded as immediate
     OPND_IMMEDIATE_OFFSET_LONG_32,
-    // The operans is offset (used in jmp near, call near)
+    // The operans is offset (used in jmp near, call near). In 64 bit mode
+    // the offset is always 32 bits, sign extended to 64 bits (rip + rel32)
     OPND_IMMEDIATE_OFFSET_DS,
     // The operand is a far offset (offset16/32:segment)
     OPND_IMMEDIATE_OFFSET_FAR,
 
     // The operand is GP encoded within the 3 bits of the first-bytes opcode
+    // (of the operand size: 16, 32 or 64 bits; REX.B selects r8-r15)
     OPND_ONEBYTES_OPCODE_GP_16_32,
     // The operand is 8bit GP encoded within the 3 bits of the first-bytes opcode
     OPND_ONEBYTES_OPCODE_GP_8,
 
     // The operand is AL register
     OPND_AL,
-    // The operand is AX or EAX registers
+    // The operand is AX, EAX or RAX registers (the operand size)
     OPND_eAX,
     // The operand is BX or EBX registers
     OPND_eBX,
@@ -221,7 +263,8 @@ typedef enum {
     // The operand is a segment register stored at the modrm reg/opcode
     OPND_GP_SEGMENT_MODRM,
     // The operand is 16 or 32 bit register depending by the default behaviour,
-    // stored at the modrm
+    // stored at the modrm (64 bit with a 64 bit operand size, REX.R selects
+    // r8-r15)
     OPND_GP_16_32BIT,
     // The operand is an SSE register
     OPND_SIMD_MODRM,
@@ -235,6 +278,8 @@ typedef enum {
     // The operand is encode at the modrm bytes and treated as word operation
     OPND_MODRM_WORDPTR,
     // The operand is encode at the modrm bytes and treated as d/word operation
+    // (q/d/word: the operand size, 64 bits with REX.W or a default 64 bit
+    // operand size)
     OPND_MODRM_dWORDPTR,
     // Used in jmpf, callf. TODO! Not implement yet!
     OPND_MODRM_FAR_OFFSET,
@@ -263,7 +308,8 @@ typedef enum {
     // memory reference (movss, addss)
     OPND_SIMD_RM_DWORD,
     // The operand is a 32 bit register stored at modrm reg/opcode (cvttss2si,
-    // pextrw, movmskps), regardless of the operand-size prefix
+    // pextrw, movmskps), regardless of the operand-size prefix. In 64 bit mode
+    // REX.W selects the 64 bit register (cvttss2si rax, xmm0)
     OPND_GP_32BIT_MODRM,
     // The operand is encode at the modrm bytes, a 32 bit register or a word
     // memory reference (pinsrw)
@@ -274,7 +320,26 @@ typedef enum {
     // The operand is ST(i), stored at the modrm r/m
     OPND_FPU_ST_RM,
     // The operand is AX register (fnstsw ax)
-    OPND_AX
+    OPND_AX,
+
+    //////////////////////////////////////////////////////////////////////
+    // 64 bit mode operands. In 16 and 32 bit mode they are not used (the
+    // entries which have them are in the AMD64 tables, see
+    // gAmd64OneByteOpcodeTable)
+
+    // The operand is encode at the modrm bytes and treated as a dword
+    // operation, regardless of the operand size (the source of
+    // 'movsxd r64, r/m32')
+    OPND_MODRM_FIXED_DWORDPTR,
+    // The operand is a general purpose register of the native size (32 bit,
+    // 64 bit in 64 bit mode) stored at the modrm r/m, regardless of the
+    // operand size (the general register of 'mov cr0, eax' / 'mov cr0, rax'
+    // and 'mov dr0, rax')
+    OPND_GP_NATIVE_RM,
+    // The operand is encode at the modrm bytes: a memory reference of the
+    // operand size doubled (m64 for cmpxchg8b, m128 for 'cmpxchg16b' with
+    // REX.W)
+    OPND_MODRM_DOUBLE_MEM
 } OperandType;
 
 /*
@@ -350,6 +415,12 @@ struct OpcodeEntry {
      *   ##  - 32bit substitute 'd', 16bit substitute 'w' (movsw/movsd)
      *   /   - First part of the word os the 16 bit opcode, Seconds part is
      *         the 32 bit opcode                          (cbw/cwde)
+     *         An optional third part is the 64 bit operand size name
+     *                                                    (cbw/cwde/cdqe)
+     *
+     * With a 64 bit operand size: '##' and '#d' substitute 'q' (movsq,
+     * iretq, pushfq), and '#e' substitutes 'r' with a 64 bit address size
+     * (jrcxz).
      */
     const char* m_opcodeName;
 
@@ -385,6 +456,42 @@ struct OpcodeEntry {
     // opcode (not an operand-size or a repeat prefix). The entries with a
     // mandatory prefix come before the entries of the same opcode without it.
     uint8 m_mandatoryPrefix;
+
+    // The behaviour of the opcode in 64 bit mode, see Mode64. 0
+    // (MODE64_LEGACY) for the entries which leave it out
+    uint8 m_mode64;
+};
+
+/*
+ * The behaviour of an opcode entry in 64 bit mode (OpcodeEntry::m_mode64).
+ * In 16 and 32 bit mode the field is ignored, except MODE64_ONLY.
+ *
+ * The operand size of 64 bit mode is 32 bits, 64 bits with REX.W (which wins
+ * over 66), 16 bits with 66. The address size is 64 bits, 32 bits with 67.
+ */
+enum Mode64 {
+    // The operand size follows REX.W and 66 as above
+    MODE64_LEGACY = 0,
+    // The opcode is invalid in 64 bit mode (push es, pusha, aaa, bound, lds,
+    // les, into, jmp far ptr16:32, arpl, salc, 82 /r, the one byte inc / dec
+    // 40-4F which are the REX prefixes...). The decoder skips the entry
+    MODE64_INVALID = 1,
+    // The default operand size is 64 bits: 66 selects 16 bits and there is
+    // no 32 bit form (push, pop, pushf, popf, leave, enter, call / jmp
+    // r/m, push fs, ret...). REX.W is 64 bits as the default, so it wins over
+    // 66 (66 REX.W push rax is push rax)
+    MODE64_DEFAULT_64 = 2,
+    // The operand size is always 64 bits, 66 and REX.W are ignored: the near
+    // relative branches (call rel32, jmp rel8 / rel32, jcc, loop, jrcxz).
+    // 'ret' is MODE64_DEFAULT_64: nasm and ndisasm take 66 C3 as 'retw'
+    MODE64_FORCE_64 = 3,
+    // The entry exists in 64 bit mode only (movsxd, swapgs, cmpxchg16b...).
+    // The decoder skips it in 16 and 32 bit mode
+    MODE64_ONLY = 4,
+    // The operand size is 32 bits, or 16 bits with 66, and REX.W is ignored:
+    // the instructions which have no 64 bit operand (in, out, ins, outs).
+    // Their registers still follow the other REX bits
+    MODE64_NO_REXW = 5
 };
 
 extern const char* INVALID;
@@ -399,6 +506,13 @@ extern const OpcodeEntry gIa32FPUOpcodeTable[];
 // Three-bytes opcode tables, 0F 38 xx and 0F 3A xx
 extern const OpcodeEntry gIa32ThreeBytes38OpcodeTable[];
 extern const OpcodeEntry gIa32ThreeBytes3AOpcodeTable[];
+// The entries of 64 bit mode which replace or add to the IA-32 tables
+// (opcodeTableAMD64.cpp). In 64 bit mode the decoder searches them before the
+// IA-32 table of the same escape; in 16 and 32 bit mode they are not used.
+// For example 63 /r is 'movsxd r64, r/m32' (arpl in the IA-32 table, which is
+// MODE64_INVALID), and REX.W 0F C7 /1 is cmpxchg16b
+extern const OpcodeEntry gAmd64OneByteOpcodeTable[];
+extern const OpcodeEntry gAmd64TwoBytesOpcodeTable[];
 // Two-bytes opcode escape
 extern const uint8 gIa32TwoByteEscapeCharacter;
 // Three-bytes opcode escapes, the byte which follows the two-bytes escape
@@ -431,6 +545,18 @@ extern OpcodePrefixEntry gIa32PrefixTable[IA32_NUMBER_OF_PREFIXS];
 extern uint8 gIa32PrefixGroup3OperandSize;
 // The address-size override prefix opcode value
 extern uint8 gIa32PrefixGroup4AddressSize;
+
+/*
+ * The REX prefix of 64 bit mode: 40..4F (see IA32OpcodeDatastruct::REX). It
+ * must be the last prefix before the opcode (a legacy prefix after it makes
+ * it ignored, as on the processor); the mandatory prefix of SSE comes before
+ * it (66 REX.W 0F 7E is 'movq r/m64, xmm'). In 16 and 32 bit mode 40..4F are
+ * inc / dec
+ */
+enum {
+    AMD64_REX_PREFIX      = 0x40,
+    AMD64_REX_PREFIX_MASK = 0xF0
+};
 
 // Each instruction may handle up to 4 prefixs, 3 bytes of opcode, 8 bytes
 // of immediate information

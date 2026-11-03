@@ -160,6 +160,7 @@
     <ClCompile Include="testFlowMap.cpp" Condition="'$(PELIB_PATH)' != ''" />
     <ClCompile Include="testIA32.cpp" />
     <ClCompile Include="TestIA32AssemblerDisassembler.cpp" />
+    <ClCompile Include="TestAMD64Disassembler.cpp" />
     <ClCompile Include="TestSemantics.cpp" />
     <ClCompile Include="TestSemanticFloat.cpp" />
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp" />

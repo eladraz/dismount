@@ -21,6 +21,7 @@ IA32Opcode::IA32Opcode(IA32eInstructionSet::DisassemblerTypes type,
                        const cBuffer& opcodeData,
                        uint8* prefixs,
                        uint prefixsCount,
+                       const IA32OpcodeDatastruct::REX& rex,
                        const ia32dis::OpcodeEntry* opcode,
                        uint8 opcodeSize,
                        const IA32OpcodeDatastruct::MODRM& modrm,
@@ -36,6 +37,7 @@ IA32Opcode::IA32Opcode(IA32eInstructionSet::DisassemblerTypes type,
     m_shouldUseAddress(shouldUseAddress),
     m_opcodeAddress(opcodeAddress),
     m_opcodeData(opcodeData),
+    m_rex(rex),
     m_prefixsCount(prefixsCount),
     m_opcode(opcode),
     m_modrm(modrm),
@@ -49,7 +51,9 @@ IA32Opcode::IA32Opcode(IA32eInstructionSet::DisassemblerTypes type,
     m_addressSize(addressSize)
 {
     CHECK(opcode != NULL);
-    // Cache the last byte of the opcode (the opcode follows the prefixes)
+    // Cache the last byte of the opcode (the opcode follows the prefixes). In
+    // 64 bit mode the opcode size includes the REX prefix and the mandatory
+    // prefix, which are not in 'prefixs'
     CHECK(m_opcodeData.getSize() > 0);
     m_lastOpcodeByte = m_opcodeData[prefixsCount + opcodeSize - 1];
     // Test the address notation.
@@ -66,8 +70,7 @@ IA32Opcode::IA32Opcode(IA32eInstructionSet::DisassemblerTypes type,
     case IA32eInstructionSet::AMD_64:
         if (m_shouldUseAddress)
             CHECK(opcodeAddress.getAddressType() == ProcessorAddress::PROCESSOR_64);
-        // TODO! Not ready yet.
-        CHECK_FAIL();
+        break;
     default:
         CHECK_FAIL();
     }
@@ -142,4 +145,12 @@ OpcodeSubsystems::DisassemblerType IA32Opcode::getType() const
     }
     // Should never reach here
     CHECK_FAIL();
+}
+
+bool IA32Opcode::isRipRelative() const
+{
+    return (m_type == IA32eInstructionSet::AMD_64) &&
+           (m_opcode->m_modrm != ia32dis::MODRM_NO_MODRM) &&
+           (m_modrm.m_bits.m_mod == 0) &&
+           (m_modrm.m_bits.m_rm == ia32dis::IA32_GP32_EBP);
 }

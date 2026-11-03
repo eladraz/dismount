@@ -87,9 +87,10 @@ public:
     } REX;
 
     /*
-     * The displacement can be either 1,2,4 bytes or non.
-     * TODO! Test 64bit processor so there really aren't any displacement above
-     *       4 bytes;
+     * The displacement can be either 1,2,4 bytes or non. In 64 bit mode the
+     * displacement is still at most 4 bytes, sign extended to 64 bits (the
+     * 64 bit absolute offset of 'mov al, [moffs64]' is an immediate, see
+     * ia32dis::OPND_MEMREF_OFFSET_DS)
      */
     typedef uint32 DisplacementType;
 

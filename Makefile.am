@@ -32,6 +32,7 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/IA32StreamDisassembler.cpp   \
                          Source/dismount/proc/ia32/IA32Opcode.cpp               \
                          Source/dismount/proc/ia32/opcodeTable.cpp              \
+                         Source/dismount/proc/ia32/opcodeTableAMD64.cpp         \
                          Source/dismount/semantics/SemanticType.cpp             \
                          Source/dismount/semantics/SemanticOperation.cpp        \
                          Source/dismount/semantics/SemanticOperand.cpp          \

@@ -27,6 +27,21 @@ static bool isSizeSuffixed(const cString& name)
     return false;
 }
 
+/*
+ * Return true for the string instructions, which address the memory with
+ * rsi / rdi / rbx and have no operands
+ */
+static bool isStringInstruction(const cString& name)
+{
+    static const char* names[] = {"movsb", "movs##", "cmpsb", "cmps##", "stosb",
+                                  "stos##", "lodsb", "lods##", "scasb", "scas##",
+                                  "insb", "ins##", "outsb", "outs##", "xlatb"};
+    for (uint i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+        if (name == names[i])
+            return true;
+    return false;
+}
+
 IA32IntelNotation::IA32IntelNotation(const OpcodePtr& instruction,
                                      OpcodeDataFormatter& dataFormatter) :
     m_dataFormatter(dataFormatter),
@@ -37,9 +52,8 @@ IA32IntelNotation::IA32IntelNotation(const OpcodePtr& instruction,
     {
     case OpcodeSubsystems::DISASSEMBLER_INTEL_16:
     case OpcodeSubsystems::DISASSEMBLER_INTEL_32:
-        break;
     case OpcodeSubsystems::DISASSEMBLER_AMD_64:
-        // TODO!
+        break;
     default:
         // Unsupported instruction
         CHECK_FAIL();
@@ -81,6 +95,12 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
             ret+= segment.left(segment.length() - 1) + " ";
     }
 
+    // The 32 bit address of a string instruction in 64 bit mode has no
+    // register to take the size from: "a32 movsb"
+    if (is64bit() && (m_opcode->m_addressSize == IntegerEncoding::INTEGER_32BIT) &&
+        isStringInstruction(m_opcode->m_opcode->m_opcodeName))
+        ret+= "a32 ";
+
     if (formatStruct != NULL)
         formatStruct->m_opcodeNameStart = ret.length();
 
@@ -88,17 +108,28 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
     cString opcodeName = m_opcode->m_opcode->m_opcodeName;
     // The name conventions follow the operand size ('/', '#d' and '##') and
     // the address size ('#e')
-    bool operand32 = (m_opcode->m_operandSize == IntegerEncoding::INTEGER_32BIT);
-    bool address32 = (m_opcode->m_addressSize == IntegerEncoding::INTEGER_32BIT);
-    // Replace name convenstion
+    const uint operandBits = getOperandBits();
+    const uint addressBits = getAddressBits();
+    // Replace name convenstion. The parts are the names of the 16, 32 and 64
+    // bit operand size (the 64 bit name is optional)
     if (opcodeName.find("/") < opcodeName.length())
     {
-        // TODO! 64bit
-        if (!operand32)
-            opcodeName = opcodeName.left(opcodeName.find("/"));
+        cString first = opcodeName.left(opcodeName.find("/"));
+        cString rest = opcodeName.part(opcodeName.find("/") + 1,
+                                       opcodeName.length());
+        cString second = rest;
+        cString third;
+        if (rest.find("/") < rest.length())
+        {
+            second = rest.left(rest.find("/"));
+            third = rest.part(rest.find("/") + 1, rest.length());
+        }
+        if (operandBits == 16)
+            opcodeName = first;
+        else if ((operandBits == 64) && (third.length() != 0))
+            opcodeName = third;
         else
-            opcodeName = opcodeName.part(opcodeName.find("/") + 1,
-                                         opcodeName.length());
+            opcodeName = second;
     }
 
     uint namePos = opcodeName.find("#");
@@ -107,17 +138,17 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
         {
         case XSTL_CHAR('d'):
             opcodeName = opcodeName.left(namePos) +
-                (operand32 ? "d" : "") +
+                ((operandBits == 64) ? "q" : (operandBits == 32) ? "d" : "") +
                 opcodeName.part(namePos + 2, opcodeName.length());
             break;
         case XSTL_CHAR('e'):
             opcodeName = opcodeName.left(namePos) +
-                (address32 ? "e" : "") +
+                ((addressBits == 64) ? "r" : (addressBits == 32) ? "e" : "") +
                 opcodeName.part(namePos + 2, opcodeName.length());
             break;
         case XSTL_CHAR('#'):
             opcodeName = opcodeName.left(namePos) +
-                (operand32 ? "d" : "w") +
+                ((operandBits == 64) ? "q" : (operandBits == 32) ? "d" : "w") +
                 opcodeName.part(namePos + 2, opcodeName.length());
             break;
         }
@@ -126,11 +157,11 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
 
     // The stack frame and flags instructions with an operand size which is
     // not the default one are written with the size suffix (66 C3 is 'retw').
-    // The '#d' names already end with 'd' for 32 bit.
+    // The '#d' names already end with 'd' or 'q' for 32 and 64 bit.
     cString tableName(m_opcode->m_opcode->m_opcodeName);
-    if ((operand32 != is32bit()) && isSizeSuffixed(tableName) &&
-        (!operand32 || (tableName.find("#d") == tableName.length())))
-        opcodeName+= operand32 ? "d" : "w";
+    if ((operandBits != getDefaultOperandBits()) && isSizeSuffixed(tableName) &&
+        ((operandBits == 16) || (tableName.find("#d") == tableName.length())))
+        opcodeName+= (operandBits == 64) ? "q" : (operandBits == 32) ? "d" : "w";
 
     ret+= m_dataFormatter.reparseOpcode(opcodeName);
 
@@ -158,11 +189,15 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
     {
         ASSERT(m_opcode->m_opcode->m_thridOperand == ia32dis::OPND_NO_OPERAND);
         // loop/loopz/loopnz/jecxz (E0-E3) with an address size which is not the
-        // default one count with cx or ecx
+        // default one count with cx or ecx. In 64 bit mode the jrcxz / jecxz
+        // name has the register
+        const uint defaultAddressBits = is64bit() ? 64 : (is32bit() ? 32 : 16);
         if ((m_opcode->m_opcode->m_firstOperand == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8) &&
-            (m_opcode->m_opcode->m_prefix >= 0xE0) && (m_opcode->m_opcode->m_prefix <= 0xE3) &&
-            (address32 != is32bit()))
-            ret+= m_dataFormatter.getOpcodesSeparator(ret) + (address32 ? "ecx" : "cx");
+            (m_opcode->m_opcode->m_prefix >= 0xE0) &&
+            (m_opcode->m_opcode->m_prefix <= (is64bit() ? 0xE2 : 0xE3)) &&
+            (addressBits != defaultAddressBits))
+            ret+= m_dataFormatter.getOpcodesSeparator(ret) +
+                  getGeneralRegister(ia32dis::IA32_GP32_ECX, addressBits);
         return m_dataFormatter.endInstruction(ret);
     }
 
@@ -185,6 +220,66 @@ cString IA32IntelNotation::string(OpcodeFormatStruct* formatStruct) const
 uint IA32IntelNotation::parseOperandAddress(ProcessorAddress& address)
 {
     address = ProcessorAddress(gNullPointerProcessorAddress);
+
+    if (is64bit())
+    {
+        // The branch targets and the absolute / rip relative addresses are
+        // 64 bit addresses
+        const uint length = m_opcode->m_opcodeData.getSize();
+        switch (m_opcode->m_opcode->m_firstOperand)
+        {
+        case ia32dis::OPND_MODRM_dWORDPTR:
+        {
+            const uint mod = m_opcode->m_modrm.m_bits.m_mod;
+            const uint rm = m_opcode->m_modrm.m_bits.m_rm;
+            if (mod != 0)
+                return ia32dis::OPND_NO_OPERAND;
+            int64 displacement = (int32)m_opcode->m_displacement;
+            if (rm == ia32dis::IA32_GP32_EBP)
+            {
+                // [rip + disp32]
+                if (!m_opcode->m_shouldUseAddress)
+                    return ia32dis::OPND_NO_OPERAND;
+                address = ProcessorAddress(ProcessorAddress::PROCESSOR_64,
+                                           m_opcode->m_opcodeAddress.getAddress() +
+                                           length + displacement);
+            } else if ((rm == ia32dis::IA32_GP32_ESP) &&
+                       (m_opcode->m_sib.m_bits.m_base == ia32dis::IA32_GP32_EBP) &&
+                       (m_opcode->m_sib.m_bits.m_index == ia32dis::IA32_GP32_ESP) &&
+                       (m_opcode->m_rex.m_bits.x == 0))
+            {
+                // [disp32]
+                address = ProcessorAddress(ProcessorAddress::PROCESSOR_64,
+                                           (uint64)displacement);
+            } else
+            {
+                return ia32dis::OPND_NO_OPERAND;
+            }
+            break;
+        }
+        case ia32dis::OPND_MEMREF_OFFSET_DS:
+            address = ProcessorAddress(
+                (m_opcode->m_addressSize == IntegerEncoding::INTEGER_64BIT) ?
+                    ProcessorAddress::PROCESSOR_64 : ProcessorAddress::PROCESSOR_32,
+                m_opcode->m_immediate.offset);
+            break;
+        case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
+        case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
+        case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
+            if (!m_opcode->m_shouldUseAddress)
+                return ia32dis::OPND_NO_OPERAND;
+            address = ProcessorAddress(ProcessorAddress::PROCESSOR_64,
+                (uint64)((m_opcode->m_opcode->m_firstOperand ==
+                          ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8) ?
+                         (int64)(int8)m_opcode->m_immediate.offset :
+                         (int64)(int32)m_opcode->m_immediate.offset) +
+                length + m_opcode->m_opcodeAddress.getAddress());
+            break;
+        default:
+            return ia32dis::OPND_NO_OPERAND;
+        }
+        return m_opcode->m_opcode->m_firstOperand;
+    }
 
     switch (m_opcode->m_opcode->m_firstOperand)
     {
@@ -277,6 +372,79 @@ bool IA32IntelNotation::is32bit() const
     return m_opcode->m_type == IA32eInstructionSet::INTEL_32;
 }
 
+bool IA32IntelNotation::is64bit() const
+{
+    return m_opcode->m_type == IA32eInstructionSet::AMD_64;
+}
+
+uint IA32IntelNotation::getDefaultOperandBits() const
+{
+    if (is64bit())
+    {
+        // The opcodes which default to the 64 bit operand size
+        if ((m_opcode->m_opcode->m_mode64 == ia32dis::MODE64_DEFAULT_64) ||
+            (m_opcode->m_opcode->m_mode64 == ia32dis::MODE64_FORCE_64))
+            return 64;
+        return 32;
+    }
+    return is32bit() ? 32 : 16;
+}
+
+uint IA32IntelNotation::getOperandBits() const
+{
+    switch (m_opcode->m_operandSize)
+    {
+    case IntegerEncoding::INTEGER_16BIT: return 16;
+    case IntegerEncoding::INTEGER_32BIT: return 32;
+    case IntegerEncoding::INTEGER_64BIT: return 64;
+    default:
+        CHECK_FAIL();
+    }
+}
+
+uint IA32IntelNotation::getAddressBits() const
+{
+    switch (m_opcode->m_addressSize)
+    {
+    case IntegerEncoding::INTEGER_16BIT: return 16;
+    case IntegerEncoding::INTEGER_32BIT: return 32;
+    case IntegerEncoding::INTEGER_64BIT: return 64;
+    default:
+        CHECK_FAIL();
+    }
+}
+
+cString IA32IntelNotation::getGeneralRegister(uint number, uint bits) const
+{
+    if (!is64bit())
+    {
+        CHECK(number < ia32dis::NUMBER_OF_REGISTERS);
+        switch (bits)
+        {
+        case 8:  return ia32dis::gIa8Registers[number].m_name;
+        case 16: return ia32dis::gIa16Registers[number].m_name;
+        case 32: return ia32dis::gIa32Registers[number].m_name;
+        default:
+            CHECK_FAIL();
+        }
+    }
+
+    CHECK(number < ia32dis::AMD64_NUMBER_OF_REGISTERS);
+    switch (bits)
+    {
+    case 8:
+        // Without a REX prefix 4..7 are ah, ch, dh, bh
+        if ((number < ia32dis::NUMBER_OF_REGISTERS) && !m_opcode->hasRex())
+            return ia32dis::gIa8Registers[number].m_name;
+        return ia32dis::gAmd64Registers8[number].m_name;
+    case 16: return ia32dis::gAmd64Registers16[number].m_name;
+    case 32: return ia32dis::gAmd64Registers32[number].m_name;
+    case 64: return ia32dis::gAmd64Registers[number].m_name;
+    default:
+        CHECK_FAIL();
+    }
+}
+
 cString IA32IntelNotation::getSegmentSelector() const
 {
     cString ret;
@@ -293,8 +461,153 @@ cString IA32IntelNotation::getSegmentSelector() const
     return ret;
 }
 
+cString IA32IntelNotation::getModrmString64(ia32dis::OperandType type) const
+{
+    const uint mod = m_opcode->m_modrm.m_bits.m_mod;
+    const uint rm = m_opcode->m_modrm.m_bits.m_rm;
+    const uint rmExtended = rm | (m_opcode->m_rex.m_bits.b << 3);
+    const uint operandBits = getOperandBits();
+
+    // Direct register access (11)
+    if (mod == 3)
+    {
+        switch (type)
+        {
+        case ia32dis::OPND_MODRM_dWORDPTR:
+            return getGeneralRegister(rmExtended, operandBits);
+        case ia32dis::OPND_MODRM_FIXED_DWORDPTR:
+            return getGeneralRegister(rmExtended, 32);
+        case ia32dis::OPND_MODRM_WORDPTR:
+            // mov r32, sreg writes the whole register
+            if (m_opcode->m_opcode->m_secondOperand == ia32dis::OPND_GP_SEGMENT_MODRM)
+                return getGeneralRegister(rmExtended, operandBits);
+            return getGeneralRegister(rmExtended, 16);
+        case ia32dis::OPND_MODRM_BYTEPTR:
+            return getGeneralRegister(rmExtended, 8);
+        default:
+            // lea, cmpxchg16b... with a register: not a valid instruction,
+            // written as the register of the operand size (as in 32 bit mode)
+            return getGeneralRegister(rmExtended, operandBits);
+        }
+    }
+
+    // The size of the memory access
+    cString ret;
+    switch (type)
+    {
+    case ia32dis::OPND_MODRM_dWORDPTR:
+        ret+= (operandBits == 64) ? "qword ptr " :
+              (operandBits == 32) ? "dword ptr " : "word ptr ";
+        break;
+    case ia32dis::OPND_MODRM_FIXED_DWORDPTR: ret+= "dword ptr "; break;
+    case ia32dis::OPND_MODRM_WORDPTR:        ret+= "word ptr ";  break;
+    case ia32dis::OPND_MODRM_BYTEPTR:        ret+= "byte ptr ";  break;
+    case ia32dis::OPND_MODRM_QWORDPTR:       ret+= "qword ptr "; break;
+    case ia32dis::OPND_MODRM_TWORDPTR:       ret+= "tword ptr "; break;
+    case ia32dis::OPND_MODRM_DOUBLE_MEM:
+        ret+= (operandBits == 64) ? "oword ptr " : "qword ptr ";
+        break;
+    default:
+        break;
+    }
+
+    ret+= getSegmentSelector();
+    ret+= "[";
+
+    const uint addressBits = getAddressBits();
+    // A 32 bit address is written with the a32 keyword when it has no
+    // register (nasm takes the address size from the registers)
+    const char* addressKeyword = (addressBits == 32) ? "a32 " : "";
+    cString body;
+    // True if the address has a register
+    bool hasRegisters = false;
+    // The displacement is relative to the next instruction (rip)
+    bool ripRelative = false;
+
+    if (rm == ia32dis::IA32_GP32_ESP)
+    {
+        const IA32OpcodeDatastruct::SIB& sib = m_opcode->m_sib;
+        const uint base = sib.m_bits.m_base | (m_opcode->m_rex.m_bits.b << 3);
+        const uint index = sib.m_bits.m_index | (m_opcode->m_rex.m_bits.x << 3);
+        // Mod 0 with the base 5 has no base (a disp32 is used)
+        bool hasBase = (mod != 0) || (sib.m_bits.m_base != ia32dis::IA32_GP32_EBP);
+        // The index 4 (rsp, but not r12) means no index
+        bool hasIndex = (index != ia32dis::AMD64_GP64_RSP);
+        if (hasBase)
+            body+= getGeneralRegister(base, addressBits);
+        if (hasIndex)
+        {
+            if (hasBase)
+                body+= "+";
+            body+= getGeneralRegister(index, addressBits);
+            switch (sib.m_bits.m_scale)
+            {
+            // With an rbp or r13 base the index is written with its scale: an
+            // assembler swaps [rbp+rax] into the shorter [rax+rbp]
+            case 0: if (hasBase && (sib.m_bits.m_base == ia32dis::IA32_GP32_EBP))
+                        body+= "*1";
+                    break;
+            case 1: body+= "*2"; break;
+            case 2: body+= "*4"; break;
+            case 3: body+= "*8"; break;
+            }
+        }
+        hasRegisters = hasBase || hasIndex;
+    } else if ((mod == 0) && (rm == ia32dis::IA32_GP32_EBP))
+    {
+        ripRelative = true;
+    } else
+    {
+        body+= getGeneralRegister(rmExtended, addressBits);
+        hasRegisters = true;
+    }
+
+    // The sign extended displacement
+    int64 displacement = 0;
+    switch (m_opcode->m_displacementLength)
+    {
+    case 0: break;
+    case 1: displacement = (int8)(m_opcode->m_displacement); break;
+    case 4: displacement = (int32)(m_opcode->m_displacement); break;
+    default:
+        CHECK_FAIL();
+    }
+
+    if (ripRelative)
+    {
+        // nasm writes the address relative to the rip with [rel $+N], where
+        // $ is the address of the instruction
+        body = cString("rel ") + m_dataFormatter.translateRelativeAddress(
+                    (ProcessorAddress::intAddress)displacement +
+                        m_opcode->m_opcodeData.getSize(),
+                    m_opcode->m_shouldUseAddress,
+                    m_opcode->m_opcodeAddress);
+        ret+= addressKeyword;
+    } else if (!hasRegisters)
+    {
+        // [disp32]: an absolute address
+        ret+= addressKeyword;
+        if (addressBits == 32)
+            body = m_dataFormatter.translateAbsoluteAddress(
+                        ProcessorAddress(ProcessorAddress::PROCESSOR_32,
+                                         (uint32)displacement));
+        else
+            body = m_dataFormatter.translateAbsoluteAddress(
+                        ProcessorAddress(ProcessorAddress::PROCESSOR_64,
+                                         (uint64)displacement));
+    } else if (m_opcode->m_displacementLength > 0)
+    {
+        body+= m_dataFormatter.translateRelativeDisplacement(displacement);
+    }
+
+    return ret + body + "]";
+}
+
 cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
 {
+    if (is64bit())
+        return getModrmString64(type);
+
     cString ret;
     uint reg = m_opcode->m_modrm.m_bits.m_rm;
     uint mod = m_opcode->m_modrm.m_bits.m_mod;
@@ -314,7 +627,7 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
         modrmTranslator = &ia32dis::gIa32ModRM32;
         break;
     default:
-        // For 64bit and all other unknown value.
+        // The 64 bit mode is getModrmString64
         CHECK_FAIL();
     }
 
@@ -333,7 +646,6 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
         case IntegerEncoding::INTEGER_32BIT:
             registersDescriptor = ia32dis::gIa32Registers;
             break;
-        // TODO! 64 bit table
         default:
             CHECK_FAIL();
         }
@@ -500,45 +812,52 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     // Dummy uint object
     uint tempu;
 
+    // The operand size and the register fields. In 64 bit mode the REX
+    // prefix extends the registers
+    const uint operandBits = getOperandBits();
+    const uint regField = m_opcode->m_modrm.m_bits.m_regOpcode |
+                          (m_opcode->m_rex.m_bits.r << 3);
+    const uint rmField = m_opcode->m_modrm.m_bits.m_rm |
+                         (m_opcode->m_rex.m_bits.b << 3);
+    const uint opcodeField = (m_opcode->m_lastOpcodeByte & 7) |
+                             (m_opcode->m_rex.m_bits.b << 3);
+
     switch (type)
     {
     case ia32dis::OPND_GP_16_32BIT:
-        // TODO! If the processor ever supports different endian types, change
-        // this value
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
-                        m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
-                        m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(regField, operandBits);
     case ia32dis::OPND_GP_8BIT_MODRM:
-        return ia32dis::gIa8Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
-            m_name;
+        return getGeneralRegister(regField, 8);
     case ia32dis::OPND_GP_16BIT_MODRM:
-        return ia32dis::gIa16Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
-            m_name;
+        return getGeneralRegister(regField, 16);
     case ia32dis::OPND_SIMD_MODRM:
-        return ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
-            m_name;
+        return is64bit() ? ia32dis::gAmd64SIMDRegisters[regField].m_name :
+            ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
+                m_name;
     case ia32dis::OPND_CTRL_MODRM:
-        return ia32dis::gIa32ControlRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
-            m_name;
+        return is64bit() ? ia32dis::gAmd64ControlRegisters[regField].m_name :
+            ia32dis::gIa32ControlRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
+                m_name;
     case ia32dis::OPND_DBG_MODRM:
         return ia32dis::gIa32DebugRegisters[m_opcode->m_modrm.m_bits.m_regOpcode].
             m_name;
+    case ia32dis::OPND_GP_NATIVE_RM:
+        return getGeneralRegister(rmField, is64bit() ? 64 : 32);
 
+    case ia32dis::OPND_MODRM_MEM:
+        // The 66 prefix selects the m16&32 pointer of the descriptor tables,
+        // which nasm writes with the word keyword
+        if (is64bit() && (operandBits == 16) &&
+            (m_opcode->m_opcode->m_prefix == 0x01))
+            return cString("word ") + getModrmString(type);
+        return getModrmString(type);
     case ia32dis::OPND_MODRM_dWORDPTR:
+    case ia32dis::OPND_MODRM_FIXED_DWORDPTR:
     case ia32dis::OPND_MODRM_WORDPTR:
     case ia32dis::OPND_MODRM_BYTEPTR:
     case ia32dis::OPND_MODRM_QWORDPTR:
     case ia32dis::OPND_MODRM_TWORDPTR:
-    case ia32dis::OPND_MODRM_MEM:
+    case ia32dis::OPND_MODRM_DOUBLE_MEM:
         return getModrmString(type);
 
     case ia32dis::OPND_MMX_MODRM:
@@ -552,17 +871,19 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     case ia32dis::OPND_SIMD_RM_QWORD:
     case ia32dis::OPND_SIMD_RM_DWORD:
         if (m_opcode->m_modrm.m_bits.m_mod == 3)
-            return ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_rm].m_name;
+            return is64bit() ? ia32dis::gAmd64SIMDRegisters[rmField].m_name :
+                ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_rm].m_name;
         return cString((type == ia32dis::OPND_SIMD_RM) ? "oword ptr " :
                        (type == ia32dis::OPND_SIMD_RM_QWORD) ? "qword ptr " :
                                                                "dword ptr ") +
                getModrmString(ia32dis::OPND_MODRM_MEM);
     case ia32dis::OPND_GP_32BIT_MODRM:
-        return ia32dis::gIa32Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
-            m_name;
+        // 64 bits with REX.W
+        return getGeneralRegister(regField,
+                                  (m_opcode->m_rex.m_bits.w != 0) ? 64 : 32);
     case ia32dis::OPND_MODRM_R32_WORDPTR:
         if (m_opcode->m_modrm.m_bits.m_mod == 3)
-            return ia32dis::gIa32Registers[m_opcode->m_modrm.m_bits.m_rm].m_name;
+            return getGeneralRegister(rmField, 32);
         return cString("word ptr ") + getModrmString(ia32dis::OPND_MODRM_MEM);
 
     case ia32dis::OPND_FPU_ST0:
@@ -580,18 +901,10 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         return ia32dis::gIa32SegmentsRegisters[tempu].m_name;
 
     case ia32dis::OPND_ONEBYTES_OPCODE_GP_16_32:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[m_opcode->m_lastOpcodeByte & 7].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[m_opcode->m_lastOpcodeByte & 7].m_name;
-        default:
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(opcodeField, operandBits);
 
     case ia32dis::OPND_ONEBYTES_OPCODE_GP_8:
-        return ia32dis::gIa8Registers[m_opcode->m_lastOpcodeByte & 7].m_name;
+        return getGeneralRegister(opcodeField, 8);
 
     case ia32dis::OPND_AL:
         return ia32dis::gIa8Registers[ia32dis::IA32_GP8_AL].m_name;
@@ -600,60 +913,15 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     case ia32dis::OPND_CL:
         return ia32dis::gIa8Registers[ia32dis::IA32_GP8_CL].m_name;
     case ia32dis::OPND_eAX:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[ia32dis::IA32_GP16_AX].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[ia32dis::IA32_GP32_EAX].m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(ia32dis::IA32_GP32_EAX, operandBits);
     case ia32dis::OPND_eBX:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[ia32dis::IA32_GP16_BX].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[ia32dis::IA32_GP32_EBX].m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(ia32dis::IA32_GP32_EBX, operandBits);
     case ia32dis::OPND_eBP:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[ia32dis::IA32_GP16_BP].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[ia32dis::IA32_GP32_EBP].m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(ia32dis::IA32_GP32_EBP, operandBits);
     case ia32dis::OPND_eSI:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[ia32dis::IA32_GP16_SI].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[ia32dis::IA32_GP32_ESI].m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(ia32dis::IA32_GP32_ESI, operandBits);
     case ia32dis::OPND_eDI:
-        switch (m_opcode->m_operandSize)
-        {
-        case IntegerEncoding::INTEGER_16BIT:
-            return ia32dis::gIa16Registers[ia32dis::IA32_GP16_DI].m_name;
-        case IntegerEncoding::INTEGER_32BIT:
-            return ia32dis::gIa32Registers[ia32dis::IA32_GP32_EDI].m_name;
-        default:
-            // For 64bit and all other unknown value.
-            CHECK_FAIL();
-        }
+        return getGeneralRegister(ia32dis::IA32_GP32_EDI, operandBits);
     case ia32dis::OPND_DX:
         return ia32dis::gIa16Registers[ia32dis::IA32_GP16_DX].m_name;
     case ia32dis::OPND_FS:
@@ -703,14 +971,40 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         return m_dataFormatter.translateUint16(
                         (uint16)m_opcode->m_immediate.offset);
     case ia32dis::OPND_IMMEDIATE_DS:
-        switch (m_opcode->m_operandSize)
+        switch (operandBits)
         {
-        case IntegerEncoding::INTEGER_16BIT:
-            return m_dataFormatter.translateUint16(
+        case 16:
+            // nasm writes a 16 bit push in 64 bit mode with the word keyword
+            return cString((is64bit() && (m_opcode->m_opcode->m_prefix == 0x68)) ?
+                           "word " : "") +
+                m_dataFormatter.translateUint16(
                         (uint16)m_opcode->m_immediate.offset);
-        case IntegerEncoding::INTEGER_32BIT:
+        case 32:
             return m_dataFormatter.translateUint32(
                         (uint32)m_opcode->m_immediate.offset);
+        case 64:
+            // The immediate is 32 bits, sign extended. A negative one is
+            // written as a negative number, nasm doesn't take the 64 bit
+            // constant 0xFFFFFFFFxxxxxxxx as a sign extended immediate
+            if ((int32)m_opcode->m_immediate.offset < 0)
+                return cString("-") + m_dataFormatter.translateUint32(
+                        (uint32)(0 - (uint32)m_opcode->m_immediate.offset));
+            return m_dataFormatter.translateUint32(
+                        (uint32)m_opcode->m_immediate.offset);
+        default:
+            CHECK_FAIL();
+        }
+    case ia32dis::OPND_IMMEDIATE_DQ:
+        switch (operandBits)
+        {
+        case 16:
+            return m_dataFormatter.translateUint16(
+                        (uint16)m_opcode->m_immediate.offset);
+        case 32:
+            return m_dataFormatter.translateUint32(
+                        (uint32)m_opcode->m_immediate.offset);
+        case 64:
+            return m_dataFormatter.translateUint64(m_opcode->m_immediate.offset);
         default:
             CHECK_FAIL();
         }
@@ -726,8 +1020,16 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
                 + "]";
         case IntegerEncoding::INTEGER_32BIT:
             return getSegmentSelector() + cString("[") +
+                (is64bit() ? "a32 " : "") +
                 m_dataFormatter.translateAbsoluteAddress(
                     ProcessorAddress(ProcessorAddress::PROCESSOR_32,
+                                     m_opcode->m_immediate.offset))
+                + "]";
+        case IntegerEncoding::INTEGER_64BIT:
+            // mov al, [moffs64]: the qword keyword selects the 64 bit offset
+            return getSegmentSelector() + cString("[qword ") +
+                m_dataFormatter.translateAbsoluteAddress(
+                    ProcessorAddress(ProcessorAddress::PROCESSOR_64,
                                      m_opcode->m_immediate.offset))
                 + "]";
         default:
@@ -746,7 +1048,7 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
     case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
     case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
     {
-        // rel16 or rel32 according to the operand size
+        // rel16 or rel32 according to the operand size (rel32 in 64 bit mode)
         ProcessorAddress::intAddress relative =
             (m_opcode->m_operandSize == IntegerEncoding::INTEGER_16BIT) ?
                 (ProcessorAddress::intAddress)((int16)m_opcode->m_immediate.offset) :

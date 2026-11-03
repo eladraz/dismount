@@ -16,6 +16,7 @@
 #include "dismount/semantics/SemanticLifter.h"
 #include "dismount/proc/ia32/IA32Opcode.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
+#include "dismount/proc/ia32/AMD64Architecture.h"
 #include "dismount/proc/ia32/IA32OperandDecoder.h"
 
 namespace ia32dis {
@@ -52,6 +53,8 @@ enum {
     IA32_HELPER_RECIPROCAL_ESTIMATE,
     // rsqrtps / rsqrtss: d = the estimate of 1 / sqrt(s1)
     IA32_HELPER_RECIPROCAL_SQRT_ESTIMATE,
+    // rdtscp: -> edx:eax and ecx (IA32_TSC_AUX)
+    IA32_HELPER_RDTSCP,
     // The number of helpers. Must be last
     IA32_HELPERS_COUNT
 };
@@ -77,7 +80,8 @@ public:
      * block       - The block to add the IR into
      * isFlat      - True for the protected mode flat model: only the fs and
      *               gs bases are added to the addresses. False for real
-     *               mode, where every address adds its segment base
+     *               mode, where every address adds its segment base. 64 bit
+     *               mode is always flat
      */
     IA32LiftContext(const IA32Opcode& instruction,
                     SemanticBlock& block,
@@ -94,12 +98,18 @@ public:
     const IA32DecodedOperand& getOperand(uint index) const;
     // Return the integer type of operand 'index' (its m_bits)
     SemanticType getOperandType(uint index) const;
-    // Return the integer type of the operand size / address size (16 or 32)
+    // Return the integer type of the operand size / address size (16, 32 or
+    // 64)
     SemanticType getOperandSizeType() const;
     SemanticType getAddressSizeType() const;
     // Return the integer type of the stack accesses (32 in protected mode,
-    // 16 in real mode)
+    // 16 in real mode, 64 in 64 bit mode)
     SemanticType getStackAddressType() const;
+    // Return the integer type of the native registers and addresses (32, 64
+    // in 64 bit mode)
+    SemanticType getNativeType() const;
+    // Return true in 64 bit mode
+    bool is64BitMode() const;
 
     /*
      * Return the value of operand 'index': the register, the loaded memory,
@@ -135,9 +145,16 @@ public:
 
     // Return a register operand (its type is the register's size)
     SemanticOperand getRegister(uint registerId) const;
-    // Return the general purpose register 'number' (0 = eax...) of 8, 16 or
-    // 32 bits
+    // Return the general purpose register 'number' (0 = eax..., 8..15 =
+    // r8..r15 in 64 bit mode) of 8, 16, 32 or 64 bits. The 8 bit numbers 4..7
+    // are spl..dil if the instruction has a REX prefix, see
+    // ia32dis::getAmd64GeneralRegister
     SemanticOperand getGeneralRegister(uint number, uint bits) const;
+    // Return the stack pointer / the instruction pointer of the processor
+    // mode (esp / sp / rsp, eip / rip) as a register operand of the stack
+    // address size / the native size
+    SemanticOperand getStackPointer() const;
+    SemanticOperand getInstructionPointer() const;
     // Return an immediate
     SemanticOperand getImmediate(int64 value, const SemanticType& type) const;
     // Return the address of the instruction / of the next instruction
@@ -191,7 +208,8 @@ public:
     void branch(const SemanticOperand& target);
     void branchIf(const SemanticOperand& condition, const SemanticOperand& target);
 
-    // Push / pop a value of the type's size, on ss:esp (ss:sp in real mode)
+    // Push / pop a value of the type's size, on ss:esp (ss:sp in real mode,
+    // rsp in 64 bit mode)
     void push(const SemanticOperand& value);
     SemanticOperand pop(const SemanticType& type);
 
@@ -276,6 +294,12 @@ extern const IA32SemanticEntry gIa32SegmentsSemanticTable[];
 extern const IA32SemanticEntry gIa32X87SemanticTable[];
 // The MMX, SSE and SSE2 instructions (IA32SemanticTableSimd.cpp)
 extern const IA32SemanticEntry gIa32SimdSemanticTable[];
+// The instructions of 64 bit mode which the IA-32 tables don't have, or
+// which differ there (movsxd, cdqe, cqo, cmpxchg16b, swapgs, syscall,
+// sysret, iretq, rdtscp...), see IA32SemanticTableAMD64.cpp. In 64 bit
+// mode IA32SemanticLifter::findEntry() searches it first; in 16 and 32
+// bit mode it is not used
+extern const IA32SemanticEntry gAmd64SemanticTable[];
 
 } // namespace ia32dis
 
@@ -325,12 +349,36 @@ extern const IA32SemanticEntry gIa32SimdSemanticTable[];
  *     register in the scalar instructions. A 128 bit memory operand must be
  *     16 byte aligned (#GP) except for the unaligned moves. The floating
  *     point operations use MXCSR (rounding, FTZ, DAZ, the exception masks).
+ *
+ * 64 bit mode (DISASSEMBLER_AMD_64, with AMD64Architecture) reuses all the
+ * above with the 64 bit details:
+ *   - The registers: REX selects r8-r15, spl..dil, xmm8-xmm15. A write of a
+ *     32 bit register zero extends it into the 64 bit register (the
+ *     architecture does it, see AMD64Architecture); 8 and 16 bit writes
+ *     don't.
+ *   - The operand size is 64 with REX.W, and the default 64 bit operand size
+ *     of the stack, the near branches and the others (ia32dis::Mode64). The
+ *     shifts and rotates of a 64 bit operand mask their count to 6 bits.
+ *   - The addresses are 64 bits (32 with the 67 prefix, zero extended).
+ *     [rip + disp32] is the address of the next instruction + disp32. Only
+ *     the fs and gs bases are added (the segment model is always flat).
+ *   - The stack is rsp; push / pop / call / ret move 8 bytes (2 with 66).
+ *   - The string instructions and loop use rcx, rsi, rdi (ecx, esi, edi with
+ *     67); jrcxz tests rcx.
+ *   - The segment loads keep their checks in protected mode; the far
+ *     branches with a 64 bit offset (REX.W) and iretq / retf to a 64 bit code
+ *     segment are lifted like their 32 bit forms. A load of ds, es or ss
+ *     with a null selector is allowed (no #GP).
+ *   - syscall and sysret are traps (TRAP_SYSTEM_CALL); swapgs exchanges
+ *     the gs base with AMD64_REG_KERNEL_GS_BASE.
+ *   - The instructions which are invalid in 64 bit mode are not decoded
+ *     (ia32dis::MODE64_INVALID), so they never reach the lifter.
  */
 class IA32SemanticLifter : public SemanticLifter {
 public:
     // Which segment bases the memory operands add
     enum SegmentModel {
-        // SEGMENTS_FLAT for INTEL_32, SEGMENTS_FULL for INTEL_16
+        // SEGMENTS_FLAT for INTEL_32 and AMD_64, SEGMENTS_FULL for INTEL_16
         SEGMENTS_DEFAULT,
         // Only fs and gs have a base (the flat model of the 32 bit operating
         // systems, where fs / gs point to the thread data)
@@ -342,9 +390,11 @@ public:
     /*
      * Constructor
      *
-     * type         - DISASSEMBLER_INTEL_16 (real mode) or
-     *                DISASSEMBLER_INTEL_32 (protected mode)
-     * segmentModel - See SegmentModel
+     * type         - DISASSEMBLER_INTEL_16 (real mode),
+     *                DISASSEMBLER_INTEL_32 (protected mode) or
+     *                DISASSEMBLER_AMD_64 (64 bit mode)
+     * segmentModel - See SegmentModel. Ignored in 64 bit mode (always
+     *                SEGMENTS_FLAT)
      */
     IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type,
                        SegmentModel segmentModel = SEGMENTS_DEFAULT);
@@ -371,7 +421,7 @@ private:
     OpcodeSubsystems::DisassemblerType m_type;
     // True for SEGMENTS_FLAT
     bool m_isFlat;
-    // The IA-32 description
+    // The IA-32 description (AMD64Architecture in 64 bit mode)
     ArchitectureDescriptionPtr m_architecture;
 };
 

@@ -56,6 +56,37 @@ private:
     bool is32bit() const;
 
     /*
+     * Return true if the disassembler is 64bit instruction set
+     */
+    bool is64bit() const;
+
+    /*
+     * Return the default operand size of the instruction in bits: 16, 32 or
+     * 64 (the size which the opcode name doesn't need a suffix for)
+     */
+    uint getDefaultOperandBits() const;
+
+    /*
+     * Return the operand size / address size in bits
+     */
+    uint getOperandBits() const;
+    uint getAddressBits() const;
+
+    /*
+     * Return the name of the general purpose register
+     *
+     * number - The register number (0..15 in 64 bit mode, REX bit included)
+     * bits   - 8, 16, 32 or 64
+     */
+    cString getGeneralRegister(uint number, uint bits) const;
+
+    /*
+     * Build up the string of the r/m operand in 64 bit mode, see
+     * getModrmString
+     */
+    cString getModrmString64(ia32dis::OperandType type) const;
+
+    /*
      * Translate the operand into a string
      */
     cString stringOperand(ia32dis::OperandType type) const;

@@ -90,6 +90,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\opcodeTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\opcodeTableAMD64.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32Architecture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

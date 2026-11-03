@@ -13,6 +13,7 @@
 #include "xStl/types.h"
 #include "dismount/proc/ia32/IA32Opcode.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
+#include "dismount/proc/ia32/AMD64Architecture.h"
 
 /*
  * A decoded operand of an IA-32 instruction.
@@ -24,7 +25,8 @@ struct IA32DecodedOperand {
         // A register, see m_register
         KIND_REGISTER,
         // A memory reference: m_segment:[m_base + m_index * m_scale +
-        // m_displacement], computed in m_addressBits
+        // m_displacement], computed in m_addressBits. With m_isRipRelative
+        // the base is the address of the next instruction
         KIND_MEMORY,
         // An immediate, see m_immediate
         KIND_IMMEDIATE,
@@ -37,7 +39,7 @@ struct IA32DecodedOperand {
     };
 
     // The m_base / m_index of a memory reference which has none
-    enum { NO_REGISTER = ia32dis::IA32_REGISTERS_COUNT };
+    enum { NO_REGISTER = ia32dis::AMD64_REGISTERS_COUNT };
 
     // See Kind
     uint m_kind;
@@ -48,7 +50,8 @@ struct IA32DecodedOperand {
     // 'add eax, imm8' is 32 bits)
     uint m_bits;
 
-    // KIND_REGISTER: the ia32dis::IA32_REG_* id (al, ax, eax, xmm1...)
+    // KIND_REGISTER: the ia32dis::IA32_REG_* or AMD64_REG_* id (al, ax, eax,
+    // xmm1, rax, r8d, spl, xmm9...)
     uint m_register;
 
     // KIND_MEMORY: the segment register (ia32dis::IA32_REG_ES..GS), the
@@ -56,16 +59,21 @@ struct IA32DecodedOperand {
     uint m_segment;
     // KIND_MEMORY: true if the segment comes from a prefix
     bool m_isSegmentOverride;
-    // KIND_MEMORY: the base and index registers (32 bit registers, or 16
-    // bit for a 16 bit address size), or NO_REGISTER
+    // KIND_MEMORY: the base and index registers (of the address size: 16,
+    // 32 or 64 bit registers), or NO_REGISTER
     uint m_base;
     uint m_index;
     // KIND_MEMORY: 1, 2, 4 or 8
     uint m_scale;
-    // KIND_MEMORY: the displacement, sign extended
-    int32 m_displacement;
-    // KIND_MEMORY: the address size, 16 or 32
+    // KIND_MEMORY: the displacement, sign extended (the 64 bit absolute
+    // offset of 'mov al, [moffs64]' as is)
+    int64 m_displacement;
+    // KIND_MEMORY: the address size, 16, 32 or 64
     uint m_addressBits;
+    // KIND_MEMORY: true for [rip + disp32] (64 bit mode): m_base is
+    // NO_REGISTER, the address is getNextAddress() + m_displacement (in the
+    // address size, a 32 bit address size truncates it)
+    bool m_isRipRelative;
 
     // KIND_IMMEDIATE: the value, sign extended from its encoded size (see
     // IA32OperandDecoder::decode for the exceptions). KIND_BRANCH_TARGET,
@@ -100,10 +108,13 @@ public:
      */
     static IA32DecodedOperand decode(const IA32Opcode& instruction, uint index);
 
-    // Return the operand size of the instruction, 16 or 32
+    // Return the operand size of the instruction, 16, 32 or 64
     static uint getOperandBits(const IA32Opcode& instruction);
-    // Return the address size of the instruction, 16 or 32
+    // Return the address size of the instruction, 16, 32 or 64
     static uint getAddressBits(const IA32Opcode& instruction);
+
+    // Return true if the instruction is decoded in 64 bit mode
+    static bool is64BitMode(const IA32Opcode& instruction);
 
     /*
      * Return true if the instruction has a prefix. A mandatory prefix of the
