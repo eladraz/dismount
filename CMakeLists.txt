@@ -70,6 +70,9 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/ia32/IA32OperandDecoder.cpp
 	Source/dismount/proc/ia32/IA32Semantics.cpp
 	Source/dismount/proc/ia32/IA32SemanticTable.cpp
+	Source/dismount/proc/ia32/IA32SemanticTableSegments.cpp
+	Source/dismount/proc/ia32/IA32SemanticTableX87.cpp
+	Source/dismount/proc/ia32/IA32SemanticTableSimd.cpp
 )
 
 add_library(dismount_static STATIC ${DISMOUNT_LIB_FILES})

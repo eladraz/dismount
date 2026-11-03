@@ -102,6 +102,15 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSegments.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\semantics\SemanticType.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

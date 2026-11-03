@@ -53,6 +53,38 @@ uint log2Of(uint value)
     return result;
 }
 
+// Return true if the instruction has an mm register operand: it puts the x87
+// unit in the MMX state
+bool isMmxInstruction(const IA32Opcode& instruction)
+{
+    // cvtpi2ps and cvtpi2pd are MMX instructions with a memory operand too
+    const char* name = instruction.getOpcodeEntry()->m_opcodeName;
+    if ((strcmp(name, "cvtpi2ps") == 0) || (strcmp(name, "cvtpi2pd") == 0))
+        return true;
+    const uint count = IA32OperandDecoder::getOperandsCount(instruction);
+    for (uint i = 0; i < count; i++)
+    {
+        const IA32DecodedOperand operand = IA32OperandDecoder::decode(instruction, i);
+        if ((operand.m_kind == IA32DecodedOperand::KIND_REGISTER) &&
+            (operand.m_register >= IA32_REG_MM0) &&
+            (operand.m_register <= IA32_REG_MM7))
+            return true;
+    }
+    return false;
+}
+
+// Return the data type of a vector or floating point entry, see
+// IA32SemanticEntry::m_dataKind
+SemanticType getEntryDataType(const IA32SemanticEntry& entry,
+                              const IA32Opcode& instruction)
+{
+    uint lanes = entry.m_dataLanes;
+    if (lanes == 0)
+        lanes = (isMmxInstruction(instruction) ? 64 : 128) / entry.m_dataBits;
+    return SemanticType((SemanticType::Kind)entry.m_dataKind, entry.m_dataBits,
+                        lanes, (SemanticType::FloatFormat)entry.m_dataFormat);
+}
+
 } // namespace
 
 /////////////////////////////////////////////////////////////////////////////
@@ -109,7 +141,11 @@ SemanticType IA32LiftContext::getAddressSizeType() const
 
 SemanticType IA32LiftContext::getStackAddressType() const
 {
-    return SemanticType::integer(m_isFlat ? 32 : 16);
+    // The stack of protected mode is esp (the B bit of a flat ss), of real
+    // mode sp
+    return SemanticType::integer(
+        (m_instruction.getType() == OpcodeSubsystems::DISASSEMBLER_INTEL_32) ?
+            32 : 16);
 }
 
 SemanticOperand IA32LiftContext::read(uint index, const SemanticType& type)
@@ -390,7 +426,7 @@ void IA32LiftContext::branchIf(const SemanticOperand& condition,
 void IA32LiftContext::push(const SemanticOperand& value)
 {
     const SemanticType stackType = getStackAddressType();
-    const SemanticOperand stackPointer = getRegister(m_isFlat ? IA32_REG_ESP :
+    const SemanticOperand stackPointer = getRegister((getStackAddressType().getTotalBits() == 32) ? IA32_REG_ESP :
                                                                 IA32_REG_SP);
     // push esp stores the value the register had before the push
     SemanticOperand data = value;
@@ -407,7 +443,7 @@ void IA32LiftContext::push(const SemanticOperand& value)
 SemanticOperand IA32LiftContext::pop(const SemanticType& type)
 {
     const SemanticType stackType = getStackAddressType();
-    const SemanticOperand stackPointer = getRegister(m_isFlat ? IA32_REG_ESP :
+    const SemanticOperand stackPointer = getRegister((getStackAddressType().getTotalBits() == 32) ? IA32_REG_ESP :
                                                                 IA32_REG_SP);
     SemanticOperand value = load(getLinearAddress(IA32_REG_SS, stackPointer),
                                  type);
@@ -771,8 +807,12 @@ bool isLockable(const char* name, const IA32LiftContext& context)
 // IA32SemanticLifter
 /////////////////////////////////////////////////////////////////////////////
 
-IA32SemanticLifter::IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type) :
+IA32SemanticLifter::IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type,
+                                       SegmentModel segmentModel) :
     m_type(type),
+    m_isFlat((segmentModel == SEGMENTS_FLAT) ||
+             ((segmentModel == SEGMENTS_DEFAULT) &&
+              (type == OpcodeSubsystems::DISASSEMBLER_INTEL_32))),
     m_architecture(ArchitectureDescriptionFactory::getArchitecture(type))
 {
 }
@@ -782,26 +822,47 @@ ArchitectureDescriptionPtr IA32SemanticLifter::getArchitecture() const
     return m_architecture;
 }
 
+namespace {
+
+// Return true for the forms of mov, pop, jmp and call which are described in
+// the segments table: they load or store a segment register, or are far
+bool isSegmentForm(const OpcodeEntry& opcode)
+{
+    const char* name = opcode.m_opcodeName;
+    if (strcmp(name, "mov") == 0)
+        return (opcode.m_firstOperand == OPND_GP_SEGMENT_MODRM) ||
+               (opcode.m_secondOperand == OPND_GP_SEGMENT_MODRM);
+    if (strcmp(name, "pop") == 0)
+        return (opcode.m_firstOperand == OPND_ES) ||
+               (opcode.m_firstOperand == OPND_SS) ||
+               (opcode.m_firstOperand == OPND_DS) ||
+               (opcode.m_firstOperand == OPND_FS) ||
+               (opcode.m_firstOperand == OPND_GS);
+    if ((strcmp(name, "jmp") == 0) || (strcmp(name, "call") == 0))
+        return (opcode.m_firstOperand == OPND_IMMEDIATE_OFFSET_FAR) ||
+               (opcode.m_firstOperand == OPND_MODRM_FAR_OFFSET);
+    return false;
+}
+
+} // namespace
+
 const IA32SemanticEntry* IA32SemanticLifter::findEntry(const IA32Opcode& instruction)
 {
     const OpcodeEntry* opcode = instruction.getOpcodeEntry();
 
-    // The moves to the segment, control and debug registers change the
-    // processor state (descriptors, paging): they have no semantics here
+    // The moves to the control and debug registers change the processor
+    // state (paging, debugging): they have no semantics here
     if ((strcmp(opcode->m_opcodeName, "mov") == 0) &&
-        ((opcode->m_firstOperand == OPND_GP_SEGMENT_MODRM) ||
-         (opcode->m_firstOperand == OPND_CTRL_MODRM) ||
+        ((opcode->m_firstOperand == OPND_CTRL_MODRM) ||
          (opcode->m_secondOperand == OPND_CTRL_MODRM) ||
          (opcode->m_firstOperand == OPND_DBG_MODRM) ||
          (opcode->m_secondOperand == OPND_DBG_MODRM)))
         return NULL;
-    // So do the loads of the segment registers
-    if ((strcmp(opcode->m_opcodeName, "pop") == 0) &&
-        ((opcode->m_firstOperand == OPND_ES) ||
-         (opcode->m_firstOperand == OPND_SS) ||
-         (opcode->m_firstOperand == OPND_DS) ||
-         (opcode->m_firstOperand == OPND_FS) ||
-         (opcode->m_firstOperand == OPND_GS)))
+    // The segment register numbers 6 and 7 don't exist
+    if ((strcmp(opcode->m_opcodeName, "mov") == 0) &&
+        ((opcode->m_firstOperand == OPND_GP_SEGMENT_MODRM) ||
+         (opcode->m_secondOperand == OPND_GP_SEGMENT_MODRM)) &&
+        (instruction.getModrm().m_bits.m_regOpcode >= NUMBER_OF_SEGMENTS_REGISTERS))
         return NULL;
 
     // An operand which is a memory reference only (lea, bound, les) encoded
@@ -826,15 +887,31 @@ const IA32SemanticEntry* IA32SemanticLifter::findEntry(const IA32Opcode& instruc
         if (IA32OperandDecoder::hasPrefix(instruction, 0xF3))
             return NULL;
 
+    // The tables of the areas, see IA32Semantics.h. The forms of a mnemonic
+    // of the integer table which touch a segment register (mov sreg, pop
+    // sreg, the far jmp and call) are in the segments table only
+    static const IA32SemanticEntry* const tables[] = {
+        gIa32SemanticTable,
+        gIa32SegmentsSemanticTable,
+        gIa32X87SemanticTable,
+        gIa32SimdSemanticTable
+    };
     const uint operandsCount = IA32OperandDecoder::getOperandsCount(instruction);
-    for (const IA32SemanticEntry* entry = gIa32SemanticTable;
-         entry->m_template.m_name != NULL; entry++)
+    const bool isSegments = isSegmentForm(*opcode);
+    const uint firstTable = isSegments ? 1 : 0;
+    const uint lastTable = isSegments ? 2 :
+                           (uint)(sizeof(tables) / sizeof(tables[0]));
+    for (uint i = firstTable; i < lastTable; i++)
     {
-        if ((entry->m_operandsCount != IA32SemanticEntry::ANY_OPERANDS_COUNT) &&
-            (entry->m_operandsCount != operandsCount))
-            continue;
-        if (strcmp(entry->m_template.m_name, opcode->m_opcodeName) == 0)
-            return entry;
+        for (const IA32SemanticEntry* entry = tables[i];
+             entry->m_template.m_name != NULL; entry++)
+        {
+            if ((entry->m_operandsCount != IA32SemanticEntry::ANY_OPERANDS_COUNT) &&
+                (entry->m_operandsCount != operandsCount))
+                continue;
+            if (strcmp(entry->m_template.m_name, opcode->m_opcodeName) == 0)
+                return entry;
+        }
     }
     return NULL;
 }
@@ -862,6 +939,8 @@ OpcodeClassification IA32SemanticLifter::classify(const OpcodePtr& instruction) 
     const bool isImplicitMemory =
         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_STACK) ||
         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_STRING) ||
+        // maskmovq, maskmovdqu: the store to ds:edi
+        (semanticTemplate.m_category == OpcodeClassification::CATEGORY_STORE) ||
         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_CALL) ||
         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_RETURN);
     uint32 units = semanticTemplate.m_units;
@@ -912,13 +991,45 @@ OpcodeClassification IA32SemanticLifter::classify(const OpcodePtr& instruction) 
                                 units, properties);
     result.setFlags(semanticTemplate.m_flagsRead,
                     semanticTemplate.m_flagsWritten, flagsUndefined);
-    // The size of the data: the first operand, or the operand size
-    if (count > 0)
+    result.setFloatStatusUndefined(semanticTemplate.m_floatStatusUndefined);
+    // The size of the data: the first operand, or the operand size. The
+    // vector and the floating point entries give the element
+    if (entry->m_dataKind != SemanticType::KIND_VOID)
+        result.setDataType(getEntryDataType(*entry, ia32));
+    else if (count > 0)
         result.setDataType(SemanticType::integer(
                     IA32OperandDecoder::decode(ia32, 0).m_bits));
     else
         result.setDataType(SemanticType::integer(
                     IA32OperandDecoder::getOperandBits(ia32)));
+
+    // The x87 instructions work on extended precision numbers, except for
+    // the memory operands of the converting loads and stores
+    if ((semanticTemplate.m_category == OpcodeClassification::CATEGORY_FLOAT) &&
+        (semanticTemplate.m_name[0] == 'f'))
+    {
+        SemanticType dataType = SemanticType::floating(
+                                        SemanticType::FLOAT_EXTENDED);
+        if ((count > 0) && (IA32OperandDecoder::decode(ia32, 0).m_kind ==
+                            IA32DecodedOperand::KIND_MEMORY))
+        {
+            uint bits = IA32OperandDecoder::decode(ia32, 0).m_bits;
+            // The "dword" operands have the operand size in the decoder
+            if (bits < 64)
+            {
+                const uint8 opcode = IA32OperandDecoder::getLastOpcodeByte(ia32);
+                bits = ((opcode == 0xDE) || (opcode == 0xDF)) ? 16 : 32;
+            }
+            const char* mnemonic = semanticTemplate.m_name;
+            if ((mnemonic[1] == 'i') && (mnemonic[2] != 'n'))
+                dataType = SemanticType::integer(bits);
+            else if (bits == 32)
+                dataType = SemanticType::floating(SemanticType::FLOAT_SINGLE);
+            else if (bits == 64)
+                dataType = SemanticType::floating(SemanticType::FLOAT_DOUBLE);
+        }
+        result.setDataType(dataType);
+    }
 
     // The change of the stack pointer
     const int bytes = (int)IA32OperandDecoder::getOperandBits(ia32) / 8;
@@ -958,7 +1069,7 @@ bool IA32SemanticLifter::lift(const OpcodePtr& instruction,
     }
 
     const IA32Opcode& ia32 = *(const IA32Opcode*)instruction.getPointer();
-    IA32LiftContext context(ia32, block, m_type == OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+    IA32LiftContext context(ia32, block, m_isFlat);
 
     // The lock prefix of an instruction which can't be locked is an invalid
     // opcode
@@ -975,6 +1086,16 @@ bool IA32SemanticLifter::lift(const OpcodePtr& instruction,
         instantiateLocked(entry->m_template, context);
     else
         instantiate(entry->m_template, context);
+
+    // Every MMX instruction, even if it only reads an mm register, sets the
+    // top of the x87 stack to 0 and marks all the registers valid
+    if (isMmxInstruction(ia32))
+    {
+        context.move(context.getRegister(IA32_REG_FPU_TOP),
+                     context.getImmediate(0, SemanticType::integer(3)));
+        context.move(context.getRegister(IA32_REG_FPU_TAG),
+                     context.getImmediate(0xFF, SemanticType::integer(8)));
+    }
     return true;
 }
 

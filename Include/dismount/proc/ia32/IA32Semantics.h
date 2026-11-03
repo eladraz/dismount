@@ -35,6 +35,23 @@ enum {
     IA32_HELPER_OUT,
     // The BCD adjusts (daa, das, aaa, aas): on al, ah and the flags
     IA32_HELPER_DECIMAL_ADJUST,
+    // The x87 functions which are not exact (the results depend on the
+    // implementation of the processor). A helper does the whole instruction
+    // on the guest state: it checks the stack, computes the result, updates
+    // the registers, the tags and the status word
+    IA32_HELPER_X87_F2XM1,
+    IA32_HELPER_X87_FYL2X,
+    IA32_HELPER_X87_FYL2XP1,
+    IA32_HELPER_X87_FPATAN,
+    IA32_HELPER_X87_FPTAN,
+    IA32_HELPER_X87_FSIN,
+    IA32_HELPER_X87_FCOS,
+    IA32_HELPER_X87_FSINCOS,
+    // rcpps / rcpss: d = the estimate of 1 / s1 (the table of the processor
+    // isn't public, so the interpreter doesn't run it)
+    IA32_HELPER_RECIPROCAL_ESTIMATE,
+    // rsqrtps / rsqrtss: d = the estimate of 1 / sqrt(s1)
+    IA32_HELPER_RECIPROCAL_SQRT_ESTIMATE,
     // The number of helpers. Must be last
     IA32_HELPERS_COUNT
 };
@@ -229,10 +246,36 @@ struct IA32SemanticEntry {
     // The hand written lifter, or NULL
     IA32LiftFunction m_lift;
 
+    // The data of the vector and the floating point instructions, for
+    // OpcodeClassification::getDataType(). The entries which leave these
+    // fields out work on the integer of the size of their first operand.
+    // m_dataKind is a SemanticType::Kind (KIND_VOID: not given)
+    uint8 m_dataKind;
+    // The SemanticType::FloatFormat of a KIND_FLOAT element
+    uint8 m_dataFormat;
+    // The bits of one element
+    uint16 m_dataBits;
+    // The number of elements: 1 for a scalar, 0 for all the elements which
+    // fill the vector register of the instruction (64 bits for mm, 128 bits
+    // for xmm)
+    uint16 m_dataLanes;
+
     enum { ANY_OPERANDS_COUNT = 0xFF };
 };
 
+/*
+ * The tables, one per area, each terminated by an entry whose name is NULL.
+ * IA32SemanticLifter::findEntry() searches them in this order.
+ */
+// The integer instructions (IA32SemanticTable.cpp)
 extern const IA32SemanticEntry gIa32SemanticTable[];
+// The segment registers, far branches and descriptor tables
+// (IA32SemanticTableSegments.cpp)
+extern const IA32SemanticEntry gIa32SegmentsSemanticTable[];
+// The x87 instructions (IA32SemanticTableX87.cpp)
+extern const IA32SemanticEntry gIa32X87SemanticTable[];
+// The MMX, SSE and SSE2 instructions (IA32SemanticTableSimd.cpp)
+extern const IA32SemanticEntry gIa32SimdSemanticTable[];
 
 } // namespace ia32dis
 
@@ -241,8 +284,15 @@ extern const IA32SemanticEntry gIa32SemanticTable[];
  *
  * How the decoded IA-32 details are lifted:
  *   - Memory operands: [base + index * scale + displacement] becomes OP_ADD
- *     and OP_SHIFT_LEFT on the address size, plus the segment base (fs and
- *     gs only in the flat 32 bit model, every segment in 16 bit real mode).
+ *     and OP_SHIFT_LEFT on the address size, plus the segment base: fs and
+ *     gs only with SEGMENTS_FLAT, every segment with SEGMENTS_FULL. The
+ *     segment limits and access rights of the memory accesses are not
+ *     checked (the segment loads check the descriptors).
+ *   - Segment loads: base = selector * 16 in real mode; in protected mode
+ *     the descriptor is read from the GDT / LDT (IA32_REG_GDTR_BASE...) and
+ *     checked, raising #GP (13), #SS (12) or #NP (11). Far branches to a
+ *     code segment of the same privilege are lifted; call gates, task
+ *     switches and privilege changes are not (OP_UNDEFINED).
  *   - The 66 and 67 prefixes select the operand and address sizes.
  *   - lock makes the read-modify-write of a memory operand atomic:
  *     OP_ATOMIC_RMW where the operation has a combine operation, otherwise
@@ -256,18 +306,48 @@ extern const IA32SemanticEntry gIa32SemanticTable[];
  *     the flags for a zero count (a branch over the OP_SET_FLAGS).
  *   - div / idiv raise the divide error (TRAP_FAULT 0) on a zero divisor
  *     or a quotient which doesn't fit, before any register is written.
- *   - x87: ST(i) is the physical register (IA32_REG_FPU_TOP + i) mod 8. The
- *     pushes and pops update IA32_REG_FPU_TOP.
+ *   - x87: ST(i) is the physical register (IA32_REG_FPU_TOP + i) mod 8,
+ *     accessed with OP_READ/WRITE_REGISTER_INDEXED. The pushes and pops
+ *     update IA32_REG_FPU_TOP and IA32_REG_FPU_TAG; a stack overflow or
+ *     underflow is an invalid operation with SF and C1 set (or cleared); the
+ *     masked response is the real indefinite. The arithmetic is
+ *     FLOAT_EXTENDED with ATTRIBUTE_X87 (the precision and rounding control
+ *     come from the control word); the unmasked faults leave the registers
+ *     alone and set ES and B, a waiting instruction after them raises #MF
+ *     (trap 16). See IA32SemanticTableX87.cpp. fxsave and fxrstor are
+ *     there too (the SSE registers are read and written). The
+ *     transcendental functions are OP_HELPER (IA32_HELPER_X87_*).
+ *   - MMX: writing mm(i) writes the physical x87 register i with the
+ *     exponent bits set; every instruction with an mm operand (even if it
+ *     only reads it) sets TOP to 0 and all the tags valid; emms empties the
+ *     tags.
+ *   - SSE: the legacy encodings keep the upper lanes of the destination
+ *     register in the scalar instructions. A 128 bit memory operand must be
+ *     16 byte aligned (#GP) except for the unaligned moves. The floating
+ *     point operations use MXCSR (rounding, FTZ, DAZ, the exception masks).
  */
 class IA32SemanticLifter : public SemanticLifter {
 public:
+    // Which segment bases the memory operands add
+    enum SegmentModel {
+        // SEGMENTS_FLAT for INTEL_32, SEGMENTS_FULL for INTEL_16
+        SEGMENTS_DEFAULT,
+        // Only fs and gs have a base (the flat model of the 32 bit operating
+        // systems, where fs / gs point to the thread data)
+        SEGMENTS_FLAT,
+        // Every segment has a base
+        SEGMENTS_FULL
+    };
+
     /*
      * Constructor
      *
-     * type - DISASSEMBLER_INTEL_16 (real mode) or DISASSEMBLER_INTEL_32
-     *        (protected mode, flat model)
+     * type         - DISASSEMBLER_INTEL_16 (real mode) or
+     *                DISASSEMBLER_INTEL_32 (protected mode)
+     * segmentModel - See SegmentModel
      */
-    IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type);
+    IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type,
+                       SegmentModel segmentModel = SEGMENTS_DEFAULT);
 
     // See SemanticLifter
     virtual ArchitectureDescriptionPtr getArchitecture() const;
@@ -289,6 +369,8 @@ private:
 
     // The processor
     OpcodeSubsystems::DisassemblerType m_type;
+    // True for SEGMENTS_FLAT
+    bool m_isFlat;
     // The IA-32 description
     ArchitectureDescriptionPtr m_architecture;
 };

@@ -46,6 +46,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Semantics.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTable.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSegments.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32IntelNotation.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Opcode.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32StreamDisassembler.cpp" />
