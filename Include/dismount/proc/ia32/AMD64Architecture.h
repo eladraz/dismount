@@ -26,7 +26,8 @@ namespace ia32dis {
  *   - eip is bits 0..31 of rip.
  *   - The segment bases are 64 bits. Only the fs and gs bases are used in 64
  *     bit mode (the es, cs, ss and ds bases are treated as 0).
- *   - xmm0..xmm7, the x87, MMX, control and debug registers are the same.
+ *   - The base of the descriptor tables and cr0..cr4, dr0..dr7 are 64 bits.
+ *   - xmm0..xmm7, the x87 and MMX registers are the same.
  *
  * The order of each group follows the encoding with the REX bit (rax is 0,
  * r8 is 8), so an id is the group base + the register number.

@@ -96,6 +96,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32Architecture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64Architecture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -255,6 +258,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\ia32\IA32Architecture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\ia32\AMD64Architecture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\ia32\IA32OperandDecoder.h">

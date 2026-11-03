@@ -162,6 +162,7 @@
     <ClCompile Include="TestIA32AssemblerDisassembler.cpp" />
     <ClCompile Include="TestAMD64Disassembler.cpp" />
     <ClCompile Include="TestSemantics.cpp" />
+    <ClCompile Include="TestAMD64Semantics.cpp" />
     <ClCompile Include="TestSemanticFloat.cpp" />
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp" />
   </ItemGroup>

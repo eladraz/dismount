@@ -12,12 +12,14 @@
  *                                     -> "OK <len> <text>" |
  *                                        "INVALID <len> <text>" |
  *                                        "ERR <message>"
- *   dismount_cli run [--bits 16|32]   each line: "<hex bytes of one instruction>
+ *   dismount_cli run [--bits 16|32|64] each line: "<hex bytes of one instruction>
  *                                     ; eax=.. ecx=.. edx=.. ebx=.. esp=..
  *                                       ebp=.. esi=.. edi=.. eip=.. eflags=.."
  *                                     (hex numbers; more tokens select the
  *                                     segments, the x87 and SSE state and
- *                                     the memory). Executes the instruction
+ *                                     the memory; in 64 bit mode rax..r15, rip,
+ *                                     fs_base, gs_base, xmm0..xmm15 and 64 bit
+ *                                     addresses). Executes the instruction
  *                                     as the semantic IR of the lifter, see
  *                                     "State v2" in tests/semantics/TEST_PLAN.md
  *                                     -> "OK exit=<exit> undef=<eflags bits>
@@ -54,6 +56,7 @@
 #include "dismount/DefaultOpcodeDataFormatter.h"
 #include "dismount/proc/ia32/IA32eInstructionSet.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
+#include "dismount/proc/ia32/AMD64Architecture.h"
 #include "dismount/proc/ia32/IA32Semantics.h"
 #include "dismount/semantics/Semantics.h"
 #include "dismount/assembler/FirstPassBinary.h"
@@ -297,18 +300,23 @@ static int runDis(OpcodeSubsystems::DisassemblerType type)
 // The memory of the run command: unlimited, every byte that wasn't written is
 // the memory pattern (see tests/semantics/TEST_PLAN.md), the bytes the line
 // gives with mem= replace the pattern, and the bytes of the instruction
-// replace both at its address. The written bytes are kept.
+// replace both at its address. The written bytes are kept. The addresses are
+// 32 bits in 16 and 32 bit mode (an access wraps around 4GB) and 64 bits in 64
+// bit mode.
 class PatternMemory : public SemanticMemory {
 public:
-    PatternMemory(const cBuffer& code, uint32 codeAddress) :
+    PatternMemory(const cBuffer& code, uint64 codeAddress, bool is64) :
         m_code(code),
-        m_codeAddress(codeAddress)
+        m_mask(is64 ? 0xFFFFFFFFFFFFFFFFULL : 0xFFFFFFFFULL),
+        m_codeAddress(codeAddress & m_mask),
+        m_digits(is64 ? 16 : 8)
     {
     }
 
     // Set a byte of the memory before the run (mem=, the GDT)
-    void setInitial(uint32 address, uint8 value)
+    void setInitial(uint64 address, uint8 value)
     {
+        address &= m_mask;
         if (m_initial.hasKey(address))
             m_initial[address] = value;
         else
@@ -318,7 +326,7 @@ public:
     virtual bool read(uint64 address, uint8* buffer, uint size)
     {
         for (uint i = 0; i < size; i++)
-            buffer[i] = getByte((uint32)(address + i));
+            buffer[i] = getByte((address + i) & m_mask);
         return true;
     }
 
@@ -326,7 +334,7 @@ public:
     {
         for (uint i = 0; i < size; i++)
         {
-            uint32 byteAddress = (uint32)(address + i);
+            uint64 byteAddress = (address + i) & m_mask;
             if (m_written.hasKey(byteAddress))
                 m_written[byteAddress] = buffer[i];
             else
@@ -339,10 +347,10 @@ public:
     // "-" if nothing was written
     cString getWrittenRuns() const
     {
-        cList<uint32> keys = m_written.keys();
-        cArray<uint32> addresses(keys.length());
+        cList<uint64> keys = m_written.keys();
+        cArray<uint64> addresses(keys.length());
         uint count = 0;
-        for (cList<uint32>::iterator i = keys.begin(); i != keys.end(); i++)
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
         {
             // Insertion sort
             uint position = count++;
@@ -364,7 +372,7 @@ public:
             {
                 if (i != 0)
                     result += cString(",");
-                result += hexString(addresses[i], 8) + cString(":");
+                result += hexString(addresses[i], m_digits) + cString(":");
             }
             result += hexString(m_written[addresses[i]], 2);
         }
@@ -372,21 +380,22 @@ public:
     }
 
     // Return 'digits' hexadecimal digits of 'value'
-    static cString hexString(uint32 value, int digits)
+    static cString hexString(uint64 value, int digits)
     {
-        char text[16];
-        snprintf(text, sizeof(text), "%0*x", digits, (unsigned int)value);
+        char text[32];
+        snprintf(text, sizeof(text), "%0*llx", digits,
+                 (unsigned long long)value);
         return cString(text);
     }
 
 private:
     // byte(A) = ((A * 2654435761) mod 2^32) >> 24
-    uint8 getByte(uint32 address) const
+    uint8 getByte(uint64 address) const
     {
         if (m_written.hasKey(address))
             return m_written[address];
-        if ((uint32)(address - m_codeAddress) < m_code.getSize())
-            return m_code[address - m_codeAddress];
+        if ((uint64)((address - m_codeAddress) & m_mask) < m_code.getSize())
+            return m_code[(uint)((address - m_codeAddress) & m_mask)];
         if (m_initial.hasKey(address))
             return m_initial[address];
         return (uint8)((uint32)(address * 2654435761u) >> 24);
@@ -394,11 +403,15 @@ private:
 
     // The bytes of the instruction, at m_codeAddress
     cBuffer m_code;
-    uint32 m_codeAddress;
+    // The mask of the addresses
+    uint64 m_mask;
+    uint64 m_codeAddress;
+    // The number of hexadecimal digits of an address
+    int m_digits;
     // The initial bytes
-    cHash<uint32, uint8> m_initial;
+    cHash<uint64, uint8> m_initial;
     // The written bytes
-    cHash<uint32, uint8> m_written;
+    cHash<uint64, uint8> m_written;
 };
 
 // The general purpose registers of the state of the run command, in the order
@@ -414,6 +427,23 @@ static const struct {
 };
 static const uint gStateRegistersCount = sizeof(gStateRegisters) /
                                          sizeof(gStateRegisters[0]);
+
+// The same for the 64 bit mode
+static const struct {
+    const char* m_name;
+    uint m_register;
+} gStateRegisters64[] = {
+    { "rax", ia32dis::AMD64_REG_RAX }, { "rcx", ia32dis::AMD64_REG_RCX },
+    { "rdx", ia32dis::AMD64_REG_RDX }, { "rbx", ia32dis::AMD64_REG_RBX },
+    { "rsp", ia32dis::AMD64_REG_RSP }, { "rbp", ia32dis::AMD64_REG_RBP },
+    { "rsi", ia32dis::AMD64_REG_RSI }, { "rdi", ia32dis::AMD64_REG_RDI },
+    { "r8", ia32dis::AMD64_REG_R8 }, { "r9", ia32dis::AMD64_REG_R9 },
+    { "r10", ia32dis::AMD64_REG_R10 }, { "r11", ia32dis::AMD64_REG_R11 },
+    { "r12", ia32dis::AMD64_REG_R12 }, { "r13", ia32dis::AMD64_REG_R13 },
+    { "r14", ia32dis::AMD64_REG_R14 }, { "r15", ia32dis::AMD64_REG_R15 }
+};
+static const uint gStateRegisters64Count = sizeof(gStateRegisters64) /
+                                           sizeof(gStateRegisters64[0]);
 
 // The flag registers and their bits in EFLAGS
 static const struct {
@@ -513,9 +543,13 @@ static uint32 getEflagsBits(uint32 semanticFlags)
 
 // The state of an input line, see parseState()
 struct RunState {
-    RunState() :
-        m_eip(0),
+    RunState(bool is64) :
+        m_is64(is64),
+        m_ip(0),
         m_eflags(2),
+        m_fsBase(0),
+        m_gsBase(0),
+        m_kernelGsBase(0),
         m_fcw(0x37f),
         m_fsw(0),
         m_ftw(0),
@@ -525,11 +559,18 @@ struct RunState {
         memset(m_segments, 0, sizeof(m_segments));
     }
 
-    uint32 m_registers[8];
-    uint32 m_eip;
+    // 64 bit mode: the registers are rax..r15 and rip, otherwise eax..edi and
+    // eip
+    bool m_is64;
+    uint64 m_registers[16];
+    uint64 m_ip;
     uint32 m_eflags;
     // The selectors: es cs ss ds fs gs
     uint32 m_segments[6];
+    // 64 bit mode: the bases of fs and gs, and the other gs base (swapgs)
+    uint64 m_fsBase;
+    uint64 m_gsBase;
+    uint64 m_kernelGsBase;
     // The x87 control word, status word and abridged tag word
     uint32 m_fcw;
     uint32 m_fsw;
@@ -537,9 +578,9 @@ struct RunState {
     // The physical x87 registers (80 bits) and the SSE state
     SemanticValue m_fpr[8];
     uint32 m_mxcsr;
-    SemanticValue m_xmm[8];
+    SemanticValue m_xmm[16];
     // mem=: the bytes written over the memory pattern before the run
-    cHash<uint32, uint8> m_memory;
+    cHash<uint64, uint8> m_memory;
 };
 
 // Parses the hexadecimal number text[0..end) of up to 'bits' bits
@@ -560,13 +601,24 @@ static bool parseHexWide(const char* text, const char* end, uint bits,
     return true;
 }
 
+// Parses a number of up to 'bits' (at most 64) bits
+static bool parseNumber(const char* text, const char* end, uint bits,
+                        uint64& value)
+{
+    SemanticValue wide;
+    if (!parseHexWide(text, end, bits, wide))
+        return false;
+    value = wide.getWord(0);
+    return true;
+}
+
 // Parses a number of up to 32 bits
 static bool parseWord(const char* text, const char* end, uint32& value)
 {
-    SemanticValue wide;
-    if (!parseHexWide(text, end, 32, wide))
+    uint64 wide;
+    if (!parseNumber(text, end, 32, wide))
         return false;
-    value = (uint32)wide.getWord(0);
+    value = (uint32)wide;
     return true;
 }
 
@@ -575,6 +627,8 @@ static bool parseMemory(const char* text, const char* end, RunState& state)
 {
     if ((end - text == 1) && (*text == '-'))
         return true;
+    const uint maxDigits = state.m_is64 ? 16 : 8;
+    const uint64 mask = state.m_is64 ? 0xFFFFFFFFFFFFFFFFULL : 0xFFFFFFFFULL;
     const char* p = text;
     while (p < end)
     {
@@ -586,14 +640,14 @@ static bool parseMemory(const char* text, const char* end, RunState& state)
             p++;
             digits++;
         }
-        if ((digits == 0) || (digits > 8) || (p >= end) || (*p != ':'))
+        if ((digits == 0) || (digits > maxDigits) || (p >= end) || (*p != ':'))
             return false;
         p++;
 
         uint count = 0;
         while ((p + 1 < end) && (hexValue(p[0]) >= 0) && (hexValue(p[1]) >= 0))
         {
-            const uint32 byteAddress = (uint32)(address + count);
+            const uint64 byteAddress = (address + count) & mask;
             const uint8 byte = (uint8)((hexValue(p[0]) << 4) | hexValue(p[1]));
             if (state.m_memory.hasKey(byteAddress))
                 state.m_memory[byteAddress] = byte;
@@ -616,10 +670,16 @@ static bool parseMemory(const char* text, const char* end, RunState& state)
 
 // Parses "eax=1 ecx=2 ... eip=1000 eflags=202 ds=18 fcw=37f r0=3fff8000...
 // xmm1=... mem=1000:aabb" (hexadecimal numbers, see "State v2" in
-// tests/semantics/TEST_PLAN.md). A token which isn't there has its default
-// (registers 0). Returns false on a malformed token.
+// tests/semantics/TEST_PLAN.md). In 64 bit mode "rax=.. r15=.. rip=.. fs_base=
+// gs_base= kernel_gs_base= xmm0..xmm15=" and 64 bit mem= addresses. A token
+// which isn't there has its default (registers 0). Returns false on a
+// malformed token.
 static bool parseState(const char* text, RunState& state)
 {
+    const uint registersCount = state.m_is64 ? gStateRegisters64Count :
+                                               gStateRegistersCount;
+    const uint registerBits = state.m_is64 ? 64 : 32;
+    const uint xmmCount = state.m_is64 ? 16 : 8;
     const char* p = text;
     while (*p != 0)
     {
@@ -640,10 +700,12 @@ static bool parseState(const char* text, RunState& state)
 
         bool found = false;
         bool ok = true;
-        for (uint i = 0; i < gStateRegistersCount; i++)
-            if (name == gStateRegisters[i].m_name)
+        for (uint i = 0; i < registersCount; i++)
+            if (name == (state.m_is64 ? gStateRegisters64[i].m_name :
+                                        gStateRegisters[i].m_name))
             {
-                ok = parseWord(value, tokenEnd, state.m_registers[i]);
+                ok = parseNumber(value, tokenEnd, registerBits,
+                                 state.m_registers[i]);
                 found = true;
             }
         for (uint i = 0; i < gStateSegmentsCount; i++)
@@ -660,19 +722,34 @@ static bool parseState(const char* text, RunState& state)
                 ok = parseHexWide(value, tokenEnd, 80, state.m_fpr[i]);
                 found = true;
             }
+        }
+        for (uint i = 0; i < xmmCount; i++)
+        {
             if (name == (cString("xmm") + cString((int32)i)))
             {
                 ok = parseHexWide(value, tokenEnd, 128, state.m_xmm[i]);
                 found = true;
             }
         }
-        if (name == "eip")
+        if (name == (state.m_is64 ? "rip" : "eip"))
         {
-            ok = parseWord(value, tokenEnd, state.m_eip);
+            ok = parseNumber(value, tokenEnd, registerBits, state.m_ip);
             found = true;
         } else if (name == "eflags")
         {
             ok = parseWord(value, tokenEnd, state.m_eflags);
+            found = true;
+        } else if (state.m_is64 && (name == "fs_base"))
+        {
+            ok = parseNumber(value, tokenEnd, 64, state.m_fsBase);
+            found = true;
+        } else if (state.m_is64 && (name == "gs_base"))
+        {
+            ok = parseNumber(value, tokenEnd, 64, state.m_gsBase);
+            found = true;
+        } else if (state.m_is64 && (name == "kernel_gs_base"))
+        {
+            ok = parseNumber(value, tokenEnd, 64, state.m_kernelGsBase);
             found = true;
         } else if (name == "fcw")
         {
@@ -712,6 +789,14 @@ static cString wideHexString(const SemanticValue& value, uint bits)
     return result;
 }
 
+// Return the 'digits' hexadecimal digits of the register 'registerId'
+static cString registerHex(const SemanticInterpreter& interpreter,
+                           uint registerId, int digits)
+{
+    return PatternMemory::hexString(interpreter.getRegister(registerId).
+                                    getWord(0), digits);
+}
+
 // Executes one instruction as the IR of the lifter from the state of the line
 // ("<hex bytes> ; <state>"), and returns the result record
 static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
@@ -724,20 +809,29 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
     cBuffer bytes;
     if (!parseHex(line, bytes))
         XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
-    RunState state;
+    const bool is16 = (type == OpcodeSubsystems::DISASSEMBLER_INTEL_16);
+    const bool is64 = (type == OpcodeSubsystems::DISASSEMBLER_AMD_64);
+    // The digits of the addresses and of the registers
+    const int addressDigits = is64 ? 16 : 8;
+    RunState state(is64);
     if (!parseState(separator + 1, state))
         XSTL_THROW(cException, XSTL_STRING("bad state"), 0);
 
-    // The bases of the segments
-    const bool is16 = (type == OpcodeSubsystems::DISASSEMBLER_INTEL_16);
-    uint32 bases[6];
+    // The bases of the segments. In 64 bit mode only fs and gs have a base
+    uint64 bases[6];
     for (uint i = 0; i < gStateSegmentsCount; i++)
-        bases[i] = getSegmentBase(is16, state.m_segments[i]);
+        bases[i] = is64 ? 0 : getSegmentBase(is16, state.m_segments[i]);
+    if (is64)
+    {
+        bases[ia32dis::IA32_REG_FS - ia32dis::IA32_REG_ES] = state.m_fsBase;
+        bases[ia32dis::IA32_REG_GS - ia32dis::IA32_REG_ES] = state.m_gsBase;
+    }
 
-    // Decode the instruction at cs:eip
-    const ProcessorAddress address(is16 ? ProcessorAddress::PROCESSOR_20 :
+    // Decode the instruction at cs:ip
+    const ProcessorAddress address(is64 ? ProcessorAddress::PROCESSOR_64 :
+                                   is16 ? ProcessorAddress::PROCESSOR_20 :
                                           ProcessorAddress::PROCESSOR_32,
-                                   state.m_eip);
+                                   state.m_ip);
     cMemoryStream stream(bytes);
     StreamDisassemblerPtr disassembler = StreamDisassemblerFactory::disassemble(
             type, BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true, address);
@@ -748,24 +842,36 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
     lifter.lift(opcode, block);
     block.setFallThroughAddress(address + opcode->getOpcodeSize());
 
-    // The memory: the code is at cs_base + eip
+    // The memory: the code is at cs_base + ip
     PatternMemory memory(bytes, bases[ia32dis::IA32_REG_CS - ia32dis::IA32_REG_ES] +
-                                state.m_eip);
-    if (!is16)
+                                state.m_ip, is64);
+    if (!is16 && !is64)
         for (uint i = 0; i < sizeof(gGdt); i++)
             memory.setInitial(GDT_ADDRESS + i, gGdt[i]);
     {
-        cList<uint32> keys = state.m_memory.keys();
-        for (cList<uint32>::iterator i = keys.begin(); i != keys.end(); i++)
+        cList<uint64> keys = state.m_memory.keys();
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
             memory.setInitial(*i, state.m_memory[*i]);
     }
 
     // Execute it from the state
     SemanticInterpreter interpreter(lifter.getArchitecture(), memory);
-    for (uint i = 0; i < gStateRegistersCount; i++)
-        interpreter.setRegister(gStateRegisters[i].m_register,
-                                SemanticValue(state.m_registers[i]));
-    interpreter.setRegister(ia32dis::IA32_REG_EIP, SemanticValue(state.m_eip));
+    if (is64)
+    {
+        for (uint i = 0; i < gStateRegisters64Count; i++)
+            interpreter.setRegister(gStateRegisters64[i].m_register,
+                                    SemanticValue(state.m_registers[i]));
+        interpreter.setRegister(ia32dis::AMD64_REG_RIP, SemanticValue(state.m_ip));
+        interpreter.setRegister(ia32dis::AMD64_REG_KERNEL_GS_BASE,
+                                SemanticValue(state.m_kernelGsBase));
+    }
+    else
+    {
+        for (uint i = 0; i < gStateRegistersCount; i++)
+            interpreter.setRegister(gStateRegisters[i].m_register,
+                                    SemanticValue(state.m_registers[i]));
+        interpreter.setRegister(ia32dis::IA32_REG_EIP, SemanticValue(state.m_ip));
+    }
     for (uint i = 0; i < gStateFlagsCount; i++)
         interpreter.setRegister(gStateFlags[i].m_register,
                 SemanticValue((state.m_eflags >> gStateFlags[i].m_bit) & 1));
@@ -787,6 +893,10 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
         interpreter.setRegister(ia32dis::IA32_REG_FPR0 + i, state.m_fpr[i]);
         interpreter.setRegister(ia32dis::IA32_REG_XMM0 + i, state.m_xmm[i]);
     }
+    if (is64)
+        for (uint i = 8; i < 16; i++)
+            interpreter.setRegister(ia32dis::AMD64_REG_XMM8 + (i - 8),
+                                    state.m_xmm[i]);
     const SemanticInterpreter::ExitReason reason = interpreter.run(block);
 
     cString exitText;
@@ -803,7 +913,8 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
         break;
     case SemanticInterpreter::EXIT_MEMORY_FAULT:
         exitText = cString("fault:") +
-                   PatternMemory::hexString((uint32)interpreter.getFaultAddress(), 8);
+                   PatternMemory::hexString(interpreter.getFaultAddress(),
+                                            addressDigits);
         break;
     case SemanticInterpreter::EXIT_HELPER:
         exitText = cString("helper:") + cString((int32)interpreter.getHelperNumber());
@@ -829,39 +940,58 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
                      PatternMemory::hexString(undefined, 8) +
                      cString(" fundef=") +
                      PatternMemory::hexString(getFpuStatusUndefined(classification), 4);
-    for (uint i = 0; i < gStateRegistersCount; i++)
-        result += cString(" ") + cString(gStateRegisters[i].m_name) + cString("=") +
-                  PatternMemory::hexString((uint32)interpreter.getRegister(
-                        gStateRegisters[i].m_register).getWord(0), 8);
-    result += cString(" eip=") + PatternMemory::hexString((uint32)interpreter.
-                    getRegister(ia32dis::IA32_REG_EIP).getWord(0), 8);
+    if (is64)
+    {
+        for (uint i = 0; i < gStateRegisters64Count; i++)
+            result += cString(" ") + cString(gStateRegisters64[i].m_name) +
+                      cString("=") + registerHex(interpreter,
+                            gStateRegisters64[i].m_register, 16);
+        result += cString(" rip=") + registerHex(interpreter,
+                                            ia32dis::AMD64_REG_RIP, 16);
+    }
+    else
+    {
+        for (uint i = 0; i < gStateRegistersCount; i++)
+            result += cString(" ") + cString(gStateRegisters[i].m_name) +
+                      cString("=") + registerHex(interpreter,
+                            gStateRegisters[i].m_register, 8);
+        result += cString(" eip=") + registerHex(interpreter,
+                                            ia32dis::IA32_REG_EIP, 8);
+    }
     result += cString(" eflags=") + PatternMemory::hexString(eflags, 8);
     for (uint i = 0; i < gStateSegmentsCount; i++)
         result += cString(" ") + cString(gStateSegments[i]) + cString("=") +
-                  PatternMemory::hexString((uint32)interpreter.getRegister(
-                        ia32dis::IA32_REG_ES + i).getWord(0), 4);
+                  registerHex(interpreter, ia32dis::IA32_REG_ES + i, 4);
     // The bases of the segments (Unicorn doesn't expose them: the driver
     // checks them against the selectors)
     for (uint i = 0; i < gStateSegmentsCount; i++)
         result += cString(" ") + cString(gStateSegments[i]) + cString("_base=") +
-                  PatternMemory::hexString((uint32)interpreter.getRegister(
-                        ia32dis::IA32_REG_ES_BASE + i).getWord(0), 8);
-    result += cString(" fcw=") + PatternMemory::hexString((uint32)interpreter.
-                    getRegister(ia32dis::IA32_REG_FPU_CONTROL).getWord(0), 4);
-    result += cString(" fsw=") + PatternMemory::hexString((uint32)interpreter.
-                    getRegister(ia32dis::IA32_REG_FPU_STATUS).getWord(0), 4);
-    result += cString(" ftw=") + PatternMemory::hexString((uint32)interpreter.
-                    getRegister(ia32dis::IA32_REG_FPU_TAG).getWord(0), 2);
+                  registerHex(interpreter, ia32dis::IA32_REG_ES_BASE + i,
+                              addressDigits);
+    if (is64)
+        result += cString(" kernel_gs_base=") + registerHex(interpreter,
+                                    ia32dis::AMD64_REG_KERNEL_GS_BASE, 16);
+    result += cString(" fcw=") + registerHex(interpreter,
+                                    ia32dis::IA32_REG_FPU_CONTROL, 4);
+    result += cString(" fsw=") + registerHex(interpreter,
+                                    ia32dis::IA32_REG_FPU_STATUS, 4);
+    result += cString(" ftw=") + registerHex(interpreter,
+                                    ia32dis::IA32_REG_FPU_TAG, 2);
     for (uint i = 0; i < 8; i++)
         result += cString(" r") + cString((int32)i) + cString("=") +
                   wideHexString(interpreter.getRegister(
                         ia32dis::IA32_REG_FPR0 + i), 80);
-    result += cString(" mxcsr=") + PatternMemory::hexString((uint32)interpreter.
-                    getRegister(ia32dis::IA32_REG_MXCSR).getWord(0), 8);
+    result += cString(" mxcsr=") + registerHex(interpreter,
+                                    ia32dis::IA32_REG_MXCSR, 8);
     for (uint i = 0; i < 8; i++)
         result += cString(" xmm") + cString((int32)i) + cString("=") +
                   wideHexString(interpreter.getRegister(
                         ia32dis::IA32_REG_XMM0 + i), 128);
+    if (is64)
+        for (uint i = 8; i < 16; i++)
+            result += cString(" xmm") + cString((int32)i) + cString("=") +
+                      wideHexString(interpreter.getRegister(
+                            ia32dis::AMD64_REG_XMM8 + (i - 8)), 128);
     result += cString(" mem=") + memory.getWrittenRuns();
     return result;
 }

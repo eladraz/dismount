@@ -43,6 +43,7 @@
     <ClCompile Include="Source\dismount\OpcodeSubsystems.cpp" />
     <ClCompile Include="Source\dismount\ProcessorAddress.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Architecture.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Semantics.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTable.cpp" />
@@ -96,6 +97,7 @@
     <ClInclude Include="Include\dismount\OpcodeSubsystems.h" />
     <ClInclude Include="Include\dismount\ProcessorAddress.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32Architecture.h" />
+    <ClInclude Include="Include\dismount\proc\ia32\AMD64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32eInstructionSet.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32IntelNotation.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32OperandDecoder.h" />

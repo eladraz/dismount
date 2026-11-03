@@ -68,6 +68,7 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/semantics/SemanticInterpreter.cpp
 	Source/dismount/semantics/SemanticLifter.cpp
 	Source/dismount/proc/ia32/IA32Architecture.cpp
+	Source/dismount/proc/ia32/AMD64Architecture.cpp
 	Source/dismount/proc/ia32/IA32OperandDecoder.cpp
 	Source/dismount/proc/ia32/IA32Semantics.cpp
 	Source/dismount/proc/ia32/IA32SemanticTable.cpp
@@ -121,6 +122,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestIA32AssemblerDisassembler.cpp
 		tests/TestAMD64Disassembler.cpp
 		tests/TestSemantics.cpp
+		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)
 	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
