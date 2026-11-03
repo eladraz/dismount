@@ -13,8 +13,9 @@ The bytes themselves may differ from the random input (an extra prefix, a
 non-canonical form: the assembler writes the canonical encoding), only the
 decoded text counts.
 
-Random bytes decode to texts which are no instruction (`lea rbx, r11`, `lock
-lock add`, `mov dr1, [rax]`: the decoder is more lenient than the processors).
+Random bytes can still decode to texts which are no instruction (`lock lock
+add`, `rep` in front of an instruction that has no use for it: the decoder keeps
+the prefixes; the invalid ModR/M forms are rejected, see fuzz_validity.py).
 Nasm is the judge of such lines: an `ERR` of the assembler is a bug only if
 nasm assembles the text, and a different text after the round trip is a bug
 only if the bytes of the assembler are not the bytes of nasm for the text

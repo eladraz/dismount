@@ -235,6 +235,10 @@ def table_mnemonics(long_mode=False):
     return names
 
 
+# The features whose instructions are VEX encoded forms of mnemonics which the
+# tables have as an unrelated instruction (not implemented, see UNSUPPORTED)
+VEX_ONLY_FEATURES = {'msr_imm'}
+
 # The instructions which take a size suffix in nasm (see isSizeSuffixed in
 # IA32IntelNotation.cpp)
 SUFFIXED = {'ret', 'retf', 'iret', 'leave', 'enter', 'pushf', 'popf', 'pusha', 'popa'}
@@ -488,6 +492,10 @@ def check_file(info, args, ctx, tmp):
             r['mn'][:-1] in SUFFIXED else ''
         r['supported'] = (not mnemonics) or r['mn'] in mnemonics or \
             (bare != '' and bare in mnemonics)
+        # The VEX encoded forms of mnemonics which the tables have as another
+        # instruction ('rdmsr rbx, imm32' against the plain rdmsr)
+        if r['feature'] in VEX_ONLY_FEATURES:
+            r['supported'] = False
         r['host'] = ctx['host_ok'](r['feature'])
     ref = nasm_assemble(ctx['nasm'], texts, bits, tmp)
     recs = []

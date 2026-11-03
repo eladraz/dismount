@@ -1,0 +1,115 @@
+# Encodings where dismount follows the Intel SDM and not ndisasm (the
+# reference of tests/ia32/tools/fuzz_validity.py), one rule per line:
+#
+#   BITS CATEGORIES REGEX   # the SDM reason
+#
+# BITS is 16, 32, 64 or all. CATEGORIES is a comma list: a (dismount decodes,
+# ndisasm says db), b (ndisasm decodes an instruction of the opcode table,
+# dismount says invalid), cl (length differs), cm (mnemonic differs), x
+# (exception) or *. REGEX is a full match of the 16 byte block of the sweep
+# ("prefix opcode modrm 00 00 ...") in lower case hex. Every rule needs its
+# reason.
+#
+# Prefix sets of the sweep: none, 66, F2, F3 and, in 64 bit mode, REX (40, 41,
+# 44, 48, 4C) alone and combined with 66 / F2 / F3. In the regular expressions:
+#   P66 = (?:66|6648|664c)   P = any prefix set
+
+##############################################################################
+# a: dismount decodes, ndisasm says db
+
+# MOV to / from CRn and DRn (0F 20..23): "the mod field of the ModR/M byte is
+# ignored and treated as 11" (SDM, MOV Control Registers, MOV Debug Registers).
+# nasm and ndisasm have only mod 11. dismount decodes the register form of 3
+# bytes (cr0, cr2, cr3, cr4 and, in 64 bit mode, cr8; dr0..dr7).
+all a (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?0f2[0-3][0-9a-b][0-9a-f].*
+
+# SETcc (0F 90..9F): the SDM gives the opcode without a /digit (SETcc r/m8), the
+# reg field is not used. ndisasm accepts /0 only.
+all a (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?0f9[0-9a-f](?![048c][0-7])[0-9a-f][0-9a-f].*
+
+# 82 /r ib (add, or, adc, sbb, and, sub, xor, cmp r/m8, imm8): the alias of 80 /r
+# ib which the processors of 16 and 32 bit mode execute (SDM Table A-6 lists it
+# as "Group 1 82, invalid in 64 bit mode"). ndisasm: db. In 64 bit mode
+# dismount says invalid, as ndisasm.
+16,32 a (?:66|f2|f3)?82[0-9a-f][0-9a-f].*
+
+##############################################################################
+# b: ndisasm decodes an instruction of the opcode table, dismount says invalid
+
+# MOV CRn (0F 20 / 22) with a reg field of a reserved control register: cr1,
+# cr5, cr6, cr7 (SDM: "if the register is not implemented: #UD"). ndisasm
+# prints them. Also the reserved cr9..cr15 of 64 bit mode (REX.R).
+all b (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?0f2[02](?:[048c][89a-f]|[26ae][89a-f]|[37bf][0-9a-f]).*
+64 b (?:66|f2|f3)?4[4-9a-f]0f2[02][0-9a-f][0-9a-f].*
+
+# MOV Sreg (8C / 8E) with a reg field of 6 or 7: not a segment register (SDM:
+# #UD). ndisasm prints "segr6".
+all b (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?8[ce][37bf][0-9a-f].*
+
+# The reserved-NOP space: 0F 19..1E /r (all) and 0F 18 /4../7 and the register
+# forms of 0F 18 /0../3 (SDM Table A-3: "NOP Ev" reserved for future use, the
+# processors execute them as a NOP with a ModR/M byte). nasm cannot assemble
+# them (its nop is 0F 1F /0 only, implemented) and ndisasm prints a 'nop' with
+# raw operands. dismount reports them invalid.
+all b (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?0f1[89a-e][0-9a-f][0-9a-f].*
+
+# D5 in 64 bit mode is the APX REX2 prefix to nasm 3.02. APX is not supported
+# (the plan excludes it); D5 (aad) is invalid in 64 bit mode.
+64 b (?:66|f2|f3)?(?:4[0-9a-f])?d5[0-9a-f][0-9a-f].*
+
+##############################################################################
+# cm: both decode, with another mnemonic
+
+# These prefixes select a newer instruction which dismount does not implement.
+# dismount shows the instruction without the prefix, with the prefix kept as
+# 'rep' / 'repne' (the 66 prefix is dropped), and REX.W is ignored, which is what the processors that
+# predate the newer instruction execute: the newer encodings are defined as
+# extensions of these (SDM: the F2 / F3 / 66 prefix is "ignored" by the old
+# instruction).
+#   tzcnt, lzcnt (F3 0F BC / BD, bsf / bsr); wbnoinvd (F3 0F 09, wbinvd);
+#   pause (F3 90, nop); movsldup, movshdup, movddup (F3 0F 12 / 16, F2 0F 12:
+#   movlps, movhps, movhlps, movlhps); movntss, movntsd (SSE4a F3 / F2 0F 2B,
+#   movntps); clflushopt (66 0F AE /7, clflush); the prefetch with 66 (66 0F 18
+#   /0..3, ndisasm prints a 'nop' with the 66 prefix as a 16 bit operand);
+#   incsspd / incsspq (F3 0F AE /5 mod 11, lfence), tpause (66 0F AE /6 mod 11),
+#   umonitor (F3 0F AE /6 mod 11), umwait (F2 0F AE /6 mod 11) (all mfence) and
+#   pcommit (66 0F AE /7 mod 11, sfence)
+all cm f3(?:48|4c)?0fb[cd][0-9a-f][0-9a-f].*
+all cm f3(?:48|4c)?0f09[0-9a-f][0-9a-f].*
+all cm f390.*
+all cm (?:f2|f3)(?:48|4c)?0f12[0-9a-f][0-9a-f].*
+all cm f3(?:48|4c)?0f16[0-9a-f][0-9a-f].*
+all cm (?:f2|f3)(?:48|4c)?0f2b[0-9a-f][0-9a-f].*
+all cm 66(?:48|4c)?0fae[37b][89a-f].*
+all cm (?:66|f2|f3)?(?:48|4c)?0f18[0-9a-f][0-9a-f].*
+all cm f3(?:48|4c)?0faee[89a-f].*
+all cm (?:66|f2|f3)(?:48|4c)?0faef[0-9a-f].*
+
+# BSWAP with the 66 prefix (a 16 bit operand): the SDM leaves the result of
+# "BSWAP r16" undefined, and the instruction has the forms r32 and (REX.W) r64
+# only. ndisasm decodes "o16 bswap eax" (the prefix unused); dismount says
+# invalid (MODE64_NO_16BIT). Without 66 in 16 bit mode, ndisasm says db too.
+all b 66(?:4[0-7])?0fc[89a-f][0-9a-f][0-9a-f].*
+
+##############################################################################
+# n: nasm rejects the text which dismount prints
+
+# F2 on a near branch or ret is the MPX BND prefix, which nasm spells 'bnd'
+# (SDM: F2 is BND for call, jmp, ret and jcc). dismount prints the legacy
+# repne prefix.
+all n f2(?:4[0-9a-f])?(?:e8|e9|c2|c3|ff)[0-9a-f][0-9a-f].*
+
+# loop, jecxz / jcxz / jrcxz, jmp short and jcc short with a prefix: the target is measured from the start
+# of the instruction, nasm cannot reach the end of the rel8 range (the
+# instruction is valid, the text has the target $+0x82).
+all n (?:66|f2|f3|67)?(?:4[0-9a-f])?(?:e[0-3]|eb|7[0-9a-f])7[d-f].*
+
+# 66 call / jmp r/m in 64 bit mode: the SDM says the processor ignores 66 for
+# the near indirect branches of Intel (AMD takes it as a 16 bit target). nasm has
+# no 16 bit call / jmp register in 64 bit mode (see the 64 bit section of
+# TEST_PLAN.md).
+64 n 66(?:4[0-7])?ff[0-9a-f][0-9a-f].*
+
+# PEXTRW / PMOVMSKB with REX.W and an MMX or XMM register: the SDM has the r64
+# form (the result is zero extended), nasm has no syntax for it.
+64 n (?:66|f2|f3)?4[89a-f]0f(?:c5|d7)[c-f][0-9a-f].*

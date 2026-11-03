@@ -33,6 +33,9 @@ tests/ia32/
   run_compat.py           the driver: nasm <-> dismount comparison + report
   tools/fuzz_lengths.py   random byte sequences: dismount vs ndisasm lengths and errors
   tools/fuzz_roundtrip.py random byte sequences: dismount decoder -> assembler -> decoder
+  tools/fuzz_validity.py  systematic sweep (opcode x ModR/M x prefix, 16/32/64 bit): which
+                          encodings are valid, dismount vs ndisasm
+  validity_exceptions.txt the encodings where dismount follows the SDM and not ndisasm
   asm_errors.txt          lines the 32-bit assembler must reject
   asm_errors64.txt        lines the 64-bit assembler must reject
 ```
@@ -274,13 +277,64 @@ out/bin/test_dismount                                             # tests/TestAM
 
 `fuzz_roundtrip.py` decodes random bytes with the dismount decoder, assembles the
 text which the decoder printed and decodes the new bytes: the text must be the same.
-Random bytes decode to texts which are not instructions (the decoder is more
-lenient than the processors: `lea rbx, r11`, `mov dr1, [rax]`, `jmp far edx`); nasm
+Random bytes can decode to texts which are not instructions (the decoder is still
+more lenient than the processors for the opcodes it has no entry for); nasm
 judges such lines: a text which nasm rejects is not counted, and a text which was
 assembled to other bytes than nasm's is a bug. `tests/TestAMD64Assembler.cpp` is the
 unit test: a table of text, bytes (from nasm) and the disassembler's text, the text
 which must be rejected in 64-bit mode and the 64-bit instructions which must be
 rejected in 32-bit mode.
+
+## Validity of the encodings (`fuzz_validity.py`)
+
+The decoder must not accept byte sequences which are not instructions (`8D D9` is not
+`lea ebx, ecx`: lea needs a memory operand, `FF EA` is not `jmp far edx`, `8F F0` is not
+`pop eax`) and must not decode an instruction as another one. `tools/fuzz_validity.py`
+decodes, in 16, 32 and 64 bit mode, every one-byte opcode, every `0F xx`, `0F 38 xx`
+and `0F 3A xx`, with every ModR/M byte (all 256) and the prefix sets none, 66, F2, F3
+(and in 64 bit mode REX, REX.B, REX.R, REX.W and their combinations with 66 / F2 / F3):
+about 5 million 16 byte blocks, in chunks, with `dismount_cli dis` and ndisasm (one
+ndisasm run per chunk, `-s` sync points between the blocks). The report groups what
+differs by prefix, opcode, mod (memory / register) and reg field:
+
+| class | meaning |
+|---|---|
+| (a) | dismount decodes, ndisasm says `db`: an invalid encoding is accepted |
+| (b) | ndisasm decodes an instruction whose mnemonic is in the opcode table, dismount says invalid |
+| (c) length / mnemonic | both decode, with another length or another mnemonic |
+| (n) | nasm rejects the text which dismount printed for a valid instruction (the second oracle: where ndisasm is lenient nasm is not, e.g. `fadd word ptr [..]`, `movd mm0, ax`); `--no-nasm-check` skips it |
+
+A lone prefix that ndisasm prints by itself (an unused 66 / F2 / F3, `osp`, `rex.w`) is
+joined to the instruction after it. The Cyrix mnemonics of ndisasm are ignored.
+
+```
+python3 tests/ia32/tools/fuzz_validity.py                       # 16, 32, 64 bit: exit 1 on a finding
+python3 tests/ia32/tools/fuzz_validity.py --bits 64 --only '^(66)?0f0[12]' --show 100
+```
+
+ndisasm is the reference, except where the Intel SDM says otherwise. Those cases are in
+`tests/ia32/validity_exceptions.txt` (a regular expression per line, the mode, the class
+and the SDM reason; the same list is used by `fuzz_lengths.py`, which reports a
+sequence that dismount decodes and ndisasm calls `db` as a bug): `mov cr / dr` ignore
+the mod field (decoded as the register form), `setcc` ignores the reg field, `82 /r`
+in 16 and 32 bit mode, the reserved control registers and segment registers and the
+reserved NOPs of `0F 18..1E` (invalid in dismount), `bswap` with the 66 prefix
+(invalid), APX `D5` and the instructions of a newer extension which a prefix selects
+(`F3 0F BC` tzcnt shows as `rep bsf`, ...).
+
+Rules for the table (`opcodeTable.cpp`): an entry whose SDM form needs a memory operand
+(lea, lds / les / lss / lfs / lgs, bound, movnti, sgdt / sidt / lgdt / lidt, invlpg, the
+far call and jmp (FF /3, /5), the movnt*, movlps / movhps stores, fxsave, ...) has
+`MODRM_MEMORY_ONLY` (or `MODRM_MOD_MEMORY | digit`), an entry that needs a register
+(movmskps, pmovmskb, maskmov*, movhlps, the shift groups) `MODRM_REGISTERS_ONLY`, and a
+group opcode names the /digit it has (8F, C6, C7, FE, FF, 0F 01, 0F 18, 0F BA, 0F C7,
+0F AE); the 0F 01 encodings with mod 11 which are not in the table (vmcall, xgetbv, ...)
+are invalid. mov to / from CRn and DRn read the mod field as 11
+(`filterModRM` in `IA32StreamDisassembler.cpp`), `MODE64_NO_16BIT` marks the opcodes
+without a 16 bit form (bswap) and `MODE64_OPERAND_32_64` the general purpose operand
+which is 32 bits (64 with REX.W) whatever the 66 prefix or the 16 bit mode say (movd,
+cvtsi2ss / cvtsi2sd, movnti). The memory operand of the FPU is always 32 / 64 / 80
+bits of its own: the 66 prefix does not change it.
 
 ## Checks (per line)
 
@@ -295,8 +349,10 @@ bytes from the nasm listing (`-l`). Then it runs these checks on every line:
 | **TEXT** | normalized source vs. normalized dismount disassembly | `SAME` / `DIFF` (informational only) |
 
 A line counts as **fully compatible** when ASM=PASS and DIS=PASS. A line is
-**UNSUPPORTED** when the mnemonic is not in any dismount table at all. That keeps
-"not implemented yet" separate from "implemented but wrong".
+**UNSUPPORTED** when the mnemonic is not in any dismount table at all (or the line is
+of a feature in `VEX_ONLY_FEATURES`: `msr_imm`, `rdmsr rbx, imm32` is a VEX
+encoded form, not the plain `rdmsr`). That keeps "not implemented yet" separate from
+"implemented but wrong".
 
 Text normalization is done only in the driver (`norm_text` in `run_compat.py`),
 not in the library. It is mechanical and nothing else:

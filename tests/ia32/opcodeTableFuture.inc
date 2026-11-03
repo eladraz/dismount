@@ -732,8 +732,6 @@
 //  [sse4_1]  66 0F 3A 0E /r                     PBLENDW xmm, xmm/m128, imm8
 //  [sse4_1]  66 0F 3A 14 /r                     PEXTRB r32, xmm, imm8
 //  [sse4_1]  66 0F 3A 14 /r                     PEXTRB m8, xmm, imm8
-//  [sse4_1]  66 0F 3A 15 /r                     PEXTRW r32, xmm, imm8
-//  [sse4_1]  66 0F 3A 15 /r                     PEXTRW m16, xmm, imm8
 //  [sse4_1]  66 0F 3A 16 /r                     PEXTRD r/m32, xmm, imm8
 //  [sse4_1]  66 0F 3A 17 /r                     EXTRACTPS r/m32, xmm, imm8
 //  [sse4_1]  66 0F 3A 20 /r                     PINSRB xmm, m, imm8

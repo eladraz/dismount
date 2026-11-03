@@ -22,11 +22,18 @@ Every sequence of --count random 1-15 byte strings is decoded twice: by
     must be ndisasm's length minus one. Prefixes are part of the instruction
     in both decoders, so their length is compared as is.
 
+(c) Accepted invalid encodings. ndisasm says `db` (an undefined encoding) and
+    dismount decodes an instruction. The encodings where the Intel SDM
+    disagrees with ndisasm (mov to / from cr and dr ignore the mod field, ...)
+    are listed in tests/ia32/validity_exceptions.txt and are not reported;
+    tests/ia32/tools/fuzz_validity.py is the systematic sweep of the same
+    class.
+
 Information only (not a failure): dismount says INVALID where ndisasm decodes
 a known instruction. That is an unimplemented or undefined encoding, and it is
 counted, not failed.
 
-Exit status: 1 when (a) or (b) is non-empty, else 0.
+Exit status: 1 when (a), (b) or (c) is non-empty, else 0.
 
 Usage:
     python3 tests/ia32/tools/fuzz_lengths.py --count 50000 --seed 1
@@ -50,6 +57,7 @@ sys.path.insert(0, TESTS_DIR)
 # run_compat supplies the dismount CLI driver, the table mnemonics and the
 # prefix-word list, so the two harnesses cannot disagree about them
 import run_compat as rc  # noqa: E402
+from validity_allow import allowed, load_allow  # noqa: E402
 
 MAX_LEN = 15
 ERR_LIMIT = 25  # samples printed per category
@@ -145,6 +153,8 @@ def main():
     ap.add_argument('--cli', default=rc.DEFAULT_CLI, help='dismount_cli binary')
     ap.add_argument('--ndisasm', default='ndisasm')
     ap.add_argument('--jobs', type=int, default=8, help='parallel ndisasm runs')
+    ap.add_argument('--allow', default=None, help='the allowlist file '
+                    '(default tests/ia32/validity_exceptions.txt)')
     ap.add_argument('--show', type=int, default=ERR_LIMIT, help='samples to print per category')
     args = ap.parse_args()
 
@@ -163,6 +173,7 @@ def main():
         seqs.append(bytes(rng.randrange(256) for _ in range(n)))
     hexes = [s.hex() for s in seqs]
     table = rc.table_mnemonics(args.bits == 64)
+    rules = load_allow(args.allow) if args.allow else load_allow()
 
     dis_out = dismount_lengths(cli, args.bits, hexes)
     tmpdir = tempfile.mkdtemp(prefix='fuzz_lengths_')
@@ -188,10 +199,11 @@ def main():
 
     counts = {'compared': 0, 'agree': 0, 'skip_db': 0, 'skip_prefix_only': 0,
               'skip_not_impl': 0, 'skip_vex': 0, 'trunc_ok': 0,
-              'invalid_known': 0, 'fwait_merged': 0,
-              'bug_exception': 0, 'bug_truncated_known': 0, 'bug_length': 0}
+              'invalid_known': 0, 'fwait_merged': 0, 'allowed_invalid': 0,
+              'bug_exception': 0, 'bug_truncated_known': 0, 'bug_length': 0,
+              'bug_accepts_invalid': 0}
     samples = {'bug_exception': [], 'bug_truncated_known': [], 'bug_length': [],
-               'invalid_known': []}
+               'bug_accepts_invalid': [], 'invalid_known': []}
 
     def sample(kind, text):
         if len(samples[kind]) < args.show:
@@ -218,6 +230,14 @@ def main():
             continue
         if nd[1] in ('db', '', 'dd', 'dw'):
             counts['skip_db'] += 1
+            if dm[0] == 'OK':
+                # ndisasm: undefined encoding, dismount decodes it
+                if allowed(rules, args.bits, 'a', (hexs + '00' * MAX_LEN)[:2 * MAX_LEN]):
+                    counts['allowed_invalid'] += 1
+                else:
+                    counts['bug_accepts_invalid'] += 1
+                    sample('bug_accepts_invalid', '%s  dismount len %d "%s"; ndisasm: %s'
+                           % (hexs, dm[1], dm[2], nd_text))
             continue
         if not implemented(nd, table):
             if re.match(r'^(v|k)[a-z]', nd[1]):
@@ -282,12 +302,16 @@ def main():
     print('(a) truncated where ndisasm decodes a complete instruction: %d'
           % counts['bug_truncated_known'])
     print('(b) length disagreements: %d' % counts['bug_length'])
+    print('(c) dismount decodes, ndisasm says db: %d (allowlisted by the SDM: %d)'
+          % (counts['bug_accepts_invalid'], counts['allowed_invalid']))
     for kind, label in (('bug_exception', '(a)'), ('bug_truncated_known', '(a)'),
-                        ('bug_length', '(b)'), ('invalid_known', 'info')):
+                        ('bug_length', '(b)'), ('bug_accepts_invalid', '(c)'),
+                        ('invalid_known', 'info')):
         for line in samples[kind]:
             print('  %s %s' % (label, line))
 
-    failed = counts['bug_exception'] + counts['bug_truncated_known'] + counts['bug_length']
+    failed = (counts['bug_exception'] + counts['bug_truncated_known'] +
+              counts['bug_length'] + counts['bug_accepts_invalid'])
     print('RESULT: %s' % ('FAIL' if failed else 'OK'))
     return 1 if failed else 0
 
