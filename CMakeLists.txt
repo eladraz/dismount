@@ -56,6 +56,19 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/ia32/IA32StreamDisassembler.cpp
 	Source/dismount/proc/ia32/IA32Opcode.cpp
 	Source/dismount/proc/ia32/opcodeTable.cpp
+	Source/dismount/semantics/SemanticType.cpp
+	Source/dismount/semantics/SemanticOperation.cpp
+	Source/dismount/semantics/SemanticOperand.cpp
+	Source/dismount/semantics/SemanticInstruction.cpp
+	Source/dismount/semantics/SemanticBlock.cpp
+	Source/dismount/semantics/OpcodeClassification.cpp
+	Source/dismount/semantics/ArchitectureDescription.cpp
+	Source/dismount/semantics/SemanticInterpreter.cpp
+	Source/dismount/semantics/SemanticLifter.cpp
+	Source/dismount/proc/ia32/IA32Architecture.cpp
+	Source/dismount/proc/ia32/IA32OperandDecoder.cpp
+	Source/dismount/proc/ia32/IA32Semantics.cpp
+	Source/dismount/proc/ia32/IA32SemanticTable.cpp
 )
 
 add_library(dismount_static STATIC ${DISMOUNT_LIB_FILES})
@@ -101,6 +114,7 @@ if(DISMOUNT_BUILD_TESTS)
 
 	add_executable(test_dismount
 		tests/TestIA32AssemblerDisassembler.cpp
+		tests/TestSemantics.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)
 	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
 endif()

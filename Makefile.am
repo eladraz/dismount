@@ -31,7 +31,20 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/IA32IntelNotation.cpp        \
                          Source/dismount/proc/ia32/IA32StreamDisassembler.cpp   \
                          Source/dismount/proc/ia32/IA32Opcode.cpp               \
-                         Source/dismount/proc/ia32/opcodeTable.cpp
+                         Source/dismount/proc/ia32/opcodeTable.cpp              \
+                         Source/dismount/semantics/SemanticType.cpp             \
+                         Source/dismount/semantics/SemanticOperation.cpp        \
+                         Source/dismount/semantics/SemanticOperand.cpp          \
+                         Source/dismount/semantics/SemanticInstruction.cpp      \
+                         Source/dismount/semantics/SemanticBlock.cpp            \
+                         Source/dismount/semantics/OpcodeClassification.cpp     \
+                         Source/dismount/semantics/ArchitectureDescription.cpp  \
+                         Source/dismount/semantics/SemanticInterpreter.cpp      \
+                         Source/dismount/semantics/SemanticLifter.cpp           \
+                         Source/dismount/proc/ia32/IA32Architecture.cpp         \
+                         Source/dismount/proc/ia32/IA32OperandDecoder.cpp       \
+                         Source/dismount/proc/ia32/IA32Semantics.cpp            \
+                         Source/dismount/proc/ia32/IA32SemanticTable.cpp
 
 
 

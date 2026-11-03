@@ -143,9 +143,10 @@ public:
     virtual OpcodeSubsystems::DisassemblerType getType() const;
 
 private:
-    // The OpcodeFormatter is the only class for now which can get access to
-    // opcode's data.
+    // The OpcodeFormatter and the operand decoder of the semantics are the
+    // only classes which can get access to opcode's data.
     friend class IA32IntelNotation;
+    friend class IA32OperandDecoder;
 
     // The assembler type
     IA32eInstructionSet::DisassemblerTypes m_type;
