@@ -82,7 +82,7 @@ const OpcodeEntry gAmd64TwoBytesOpcodeTable[] = {
     {"movd/movd/movq", 0x7E, 0xFF, OPND_MODRM_dWORDPTR,     OPND_MMX_MODRM,               OPND_NO_OPERAND, MODRM_ALL_FILTER,                   true,     Opcode::FLOW_NO_ALTER,   0,              MODE64_ONLY},
 
     // The moves of the control and the debug registers always use the 64 bit
-    // register, the mod field is ignored by the processor (only 11 is decoded)
+    // register, the mod field is ignored by the processor (the decoder takes it as 11)
     {"mov",         0x20,   0xFF,  OPND_GP_NATIVE_RM,       OPND_CTRL_MODRM,              OPND_NO_OPERAND, MODRM_REGISTERS_ONLY,               true,     Opcode::FLOW_NO_ALTER,   0,              MODE64_ONLY},
     {"mov",         0x21,   0xFF,  OPND_GP_NATIVE_RM,       OPND_DBG_MODRM,               OPND_NO_OPERAND, MODRM_REGISTERS_ONLY,               true,     Opcode::FLOW_NO_ALTER,   0,              MODE64_ONLY},
     {"mov",         0x22,   0xFF,  OPND_CTRL_MODRM,         OPND_GP_NATIVE_RM,            OPND_NO_OPERAND, MODRM_REGISTERS_ONLY,               true,     Opcode::FLOW_NO_ALTER,   0,              MODE64_ONLY},

@@ -22,6 +22,16 @@
 #include "dismount/proc/ia32/IA32OpcodeDatastruct.h"
 #include "dismount/proc/ia32/IA32IntelNotation.h"
 
+// mov to / from a control or a debug register: the processor ignores the mod
+// field of the ModR/M byte and takes it as 11 (Intel SDM, MOV CR / MOV DR)
+static bool isControlOrDebugMove(const ia32dis::OpcodeEntry* opcode)
+{
+    return (opcode->m_firstOperand == ia32dis::OPND_CTRL_MODRM) ||
+           (opcode->m_secondOperand == ia32dis::OPND_CTRL_MODRM) ||
+           (opcode->m_firstOperand == ia32dis::OPND_DBG_MODRM) ||
+           (opcode->m_secondOperand == ia32dis::OPND_DBG_MODRM);
+}
+
 IA32StreamDisassembler::IA32StreamDisassembler(
     IA32eInstructionSet::DisassemblerTypes type,
     const BasicInputPtr& disassemblerStream,
@@ -270,7 +280,8 @@ OpcodePtr IA32StreamDisassembler::next()
                                                    m_rex, isFpu64 ? ia32dis::MODE64_NO_REXW : candidate->m_mode64);
                     if (m_type == IA32eInstructionSet::AMD_64)
                         removedMandatory = 1;
-                } else if (m_type == IA32eInstructionSet::AMD_64)
+                } else if ((m_type == IA32eInstructionSet::AMD_64) ||
+                           (candidate->m_mode64 == ia32dis::MODE64_OPERAND_32_64))
                 {
                     // The operand size of 64 bit mode depends on the opcode
                     calculateAddressAndOperandSize(operandSizeOverride && !isFpu64,
@@ -285,6 +296,18 @@ OpcodePtr IA32StreamDisassembler::next()
         // Test whether the opcode is not found
         if (opcode == NULL)
             CHECK_FAIL();
+
+        // The m32 memory operand of the FPU (fadd, fld, fiadd, fistp...) is
+        // 32 bits whatever the 66 prefix or the 16 bit mode say. The operand
+        // size still selects the layout of the environment (fldenv, fnsave)
+        if ((table == ia32dis::gIa32FPUOpcodeTable) &&
+            (opcode->m_firstOperand == ia32dis::OPND_MODRM_dWORDPTR))
+            m_operandSize = IntegerEncoding::INTEGER_32BIT;
+
+        // The mod field of mov cr / dr is ignored: the register form, which
+        // has neither SIB nor displacement
+        if (modrmFound && isControlOrDebugMove(opcode))
+            modrm.m_bits.m_mod = 3;
 
         // Try to read displacement and SIB.
         IA32OpcodeDatastruct::SIB sib;
@@ -489,7 +512,7 @@ void IA32StreamDisassembler::calculateAddressAndOperandSize(
     switch (m_type)
     {
     case IA32eInstructionSet::INTEL_16:
-        if (operandSizeOverride)
+        if (operandSizeOverride || (mode64 == ia32dis::MODE64_OPERAND_32_64))
             m_operandSize = IntegerEncoding::INTEGER_32BIT;
         else
             m_operandSize = IntegerEncoding::INTEGER_16BIT;
@@ -501,7 +524,7 @@ void IA32StreamDisassembler::calculateAddressAndOperandSize(
 
         break;
     case IA32eInstructionSet::INTEL_32:
-        if (operandSizeOverride)
+        if (operandSizeOverride && (mode64 != ia32dis::MODE64_OPERAND_32_64))
             m_operandSize = IntegerEncoding::INTEGER_16BIT;
         else
             m_operandSize = IntegerEncoding::INTEGER_32BIT;
@@ -535,6 +558,11 @@ void IA32StreamDisassembler::calculateAddressAndOperandSize(
             m_operandSize = operandSizeOverride ?
                 IntegerEncoding::INTEGER_16BIT : IntegerEncoding::INTEGER_32BIT;
             break;
+        case ia32dis::MODE64_OPERAND_32_64:
+            // 66 does not matter
+            m_operandSize = (rex.m_bits.w != 0) ?
+                IntegerEncoding::INTEGER_64BIT : IntegerEncoding::INTEGER_32BIT;
+            break;
         default:
             if (rex.m_bits.w != 0)
                 m_operandSize = IntegerEncoding::INTEGER_64BIT;
@@ -558,7 +586,7 @@ bool IA32StreamDisassembler::filterModRM(
         return modrm.m_packed == ((opcode->m_modrm >> 16) & 0xFF);
 
     bool ok = true;
-    switch (modrm.m_bits.m_mod)
+    switch (isControlOrDebugMove(opcode) ? 3 : modrm.m_bits.m_mod)
     {
     case 0:
     case 1:
@@ -762,6 +790,10 @@ uint64 IA32StreamDisassembler::read64bit(basicInput& data)
 
 bool IA32StreamDisassembler::isValidInMode(const ia32dis::OpcodeEntry* opcode) const
 {
+    // The 16 bit operand size is not an instruction of some opcodes (bswap)
+    if ((opcode->m_mode64 == ia32dis::MODE64_NO_16BIT) &&
+        (m_operandSize == IntegerEncoding::INTEGER_16BIT))
+        return false;
     if (m_type == IA32eInstructionSet::AMD_64)
         return opcode->m_mode64 != ia32dis::MODE64_INVALID;
     return opcode->m_mode64 != ia32dis::MODE64_ONLY;

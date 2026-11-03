@@ -118,12 +118,44 @@ public:
     void testInvalid(const byte* opcode, uint size)
     {
         OpcodePtr instruction = decode(opcode, size);
-        // An invalid opcode byte, or an entry of the table which is flagged
-        // invalid (d6)
-        AMD64_ASSERT((instruction->getType() ==
-                      OpcodeSubsystems::DISASSEMBLER_INVALID_OPCODE) ||
+        // An invalid opcode byte (a single byte), or an entry of the table
+        // which is flagged invalid (d6, C6 /1: the instruction length is the
+        // one of the entry)
+        const bool isByte = (instruction->getType() ==
+                             OpcodeSubsystems::DISASSEMBLER_INVALID_OPCODE);
+        if (!isByte && ((instruction->getAlterProperty() & Opcode::FLOW_INVALID) == 0))
+        {
+            // Say which bytes are valid
+            cout << "AMD64 invalid test:";
+            for (uint i = 0; i < size; i++)
+                cout << ' ' << HEXBYTE(opcode[i]);
+            cout << endl;
+        }
+        AMD64_ASSERT(isByte ||
                      ((instruction->getAlterProperty() & Opcode::FLOW_INVALID) != 0));
-        AMD64_ASSERT_EQUAL(instruction->getOpcodeSize(), 1);
+        if (isByte)
+            AMD64_ASSERT_EQUAL(instruction->getOpcodeSize(), 1);
+    }
+
+    // The text of the instruction, or "(invalid)" when the bytes decode to an
+    // invalid opcode, in the 16, 32 or 64 bit mode. The length of the
+    // instruction is returned in size
+    cString formatInMode(OpcodeSubsystems::DisassemblerType type,
+                         const byte* opcode, uint& size)
+    {
+        cBuffer data(opcode, size);
+        cMemoryStream stream(data);
+        StreamDisassemblerPtr disassembler =
+            StreamDisassemblerFactory::disassemble(
+                        type, BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE));
+        DefaultOpcodeDataFormatter formatter(1);
+        OpcodePtr instruction = disassembler->next();
+        size = instruction->getOpcodeSize();
+        if (instruction->getType() == OpcodeSubsystems::DISASSEMBLER_INVALID_OPCODE)
+            return cString("(invalid)");
+        OpcodeFormatterPtr fr = disassembler->getOpcodeFormat(instruction,
+                                                              formatter);
+        return fr->string();
     }
 
     // Test the structure of one operand
@@ -289,6 +321,26 @@ public:
             {{0x44, 0x0F, 0x20, 0xC0}, 4, "mov rax, cr8"},
             {{0x45, 0x0F, 0x22, 0xC7}, 4, "mov cr8, r15"},
             {{0x0F, 0x23, 0xF8}, 3, "mov dr7, rax"},
+            // The mod field of mov cr / dr is ignored (the register form, the
+            // SIB and the displacement are not read)
+            {{0x0F, 0x20, 0x00}, 3, "mov rax, cr0"},
+            {{0x0F, 0x22, 0x58, 0x00}, 3, "mov cr3, rax"},
+            {{0x0F, 0x21, 0x8B}, 3, "mov rbx, dr1"},
+            {{0x66, 0x0F, 0x20, 0xC0}, 4, "mov rax, cr0"},
+            {{0x44, 0x0F, 0x22, 0x07}, 4, "mov cr8, rdi"},
+            // pextrw: the SSE4.1 form with the memory destination and the
+            // register form of 66 0F 3A 15
+            {{0x66, 0x0F, 0x3A, 0x15, 0x00, 0x05}, 6, "pextrw word ptr [rax], xmm0, 05h"},
+            {{0x66, 0x0F, 0x3A, 0x15, 0xC0, 0x05}, 6, "pextrw eax, xmm0, 05h"},
+            // bswap with 66 REX.W is the 64 bit form
+            {{0x66, 0x48, 0x0F, 0xC8}, 4, "bswap rax"},
+            // The memory operand forms
+            {{0x8D, 0x00}, 2, "lea eax, [rax]"},
+            {{0x8F, 0x00}, 2, "pop qword ptr [rax]"},
+            {{0x8F, 0xC0}, 2, "pop rax"},
+            {{0x0F, 0x01, 0x38}, 3, "invlpg byte ptr [rax]"},
+            {{0xFF, 0x18}, 2, "call far dword ptr [rax]"},
+            {{0x0F, 0xB2, 0x00}, 3, "lss eax, dword ptr [rax]"},
             {{0x0F, 0x01, 0x10}, 3, "lgdt [rax]"},
             {{0x48, 0x0F, 0xAE, 0x00}, 4, "fxsave64 [rax]"},
             {{0x0F, 0xAE, 0x00}, 3, "fxsave [rax]"},
@@ -346,7 +398,7 @@ public:
     // The opcodes which are not valid in 64 bit mode are invalid
     void testInvalidOpcodes()
     {
-        static const byte gInvalid[][4] = {
+        static const byte gInvalid[][8] = {
             // push / pop of es, ss, ds, cs
             {0x06}, {0x07}, {0x0E}, {0x16}, {0x17}, {0x1E}, {0x1F},
             // daa, das, aaa, aas
@@ -358,7 +410,32 @@ public:
             // les, lds (the VEX prefixes), into, aam, aad
             {0xC4, 0xC0}, {0xC5, 0xC0}, {0xCE}, {0xD4, 0x0A}, {0xD5, 0x0A},
             // salc
-            {0xD6}
+            {0xD6},
+            // The forms with a register of the opcodes which need memory:
+            // lea, lss / lfs / lgs, movnti, the far call and jmp, invlpg,
+            // sgdt / sidt / lgdt / lidt
+            {0x8D, 0xC0}, {0x0F, 0xB2, 0xC0}, {0x0F, 0xB4, 0xC0}, {0x0F, 0xB5, 0xC0},
+            {0x0F, 0xC3, 0xC0}, {0xFF, 0xD8}, {0xFF, 0xE8}, {0x0F, 0x01, 0xF9},
+            {0x0F, 0x01, 0xC2}, {0x0F, 0x01, 0xCA}, {0x0F, 0x01, 0xD2}, {0x0F, 0x01, 0xDA},
+            // cmpxchg8b / cmpxchg16b, clflush, fxsave, ldmxcsr with a register
+            {0x0F, 0xC7, 0xC8}, {0x0F, 0xAE, 0xC0}, {0x0F, 0xAE, 0xD0}, {0x0F, 0xAE, 0xF9},
+            // 8F and C6 / C7 are valid for /0 only
+            {0x8F, 0xF0}, {0x8F, 0x30}, {0x8F, 0xC8}, {0xC6, 0xC8, 0x00}, {0xC7, 0xF8, 0x00, 0x00, 0x00},
+            // FE /2.. and FF /7
+            {0xFE, 0xD0}, {0xFF, 0xF8}, {0xFF, 0x38},
+            // movntps, movntdq and the movlps forms with a register, movhlps
+            // with memory, the shift groups with memory, pmovmskb with memory
+            {0x0F, 0x2B, 0xC0}, {0x66, 0x0F, 0xE7, 0xC0}, {0x0F, 0xE7, 0xC0},
+            {0x0F, 0x13, 0xC0}, {0x0F, 0x50, 0x00}, {0x0F, 0xD7, 0x00},
+            {0x66, 0x0F, 0x71, 0x00, 0x00}, {0x0F, 0x72, 0x00, 0x00},
+            // The reserved control registers (cr1, cr5), the segment registers
+            {0x0F, 0x20, 0xC8}, {0x0F, 0x22, 0xE8}, {0x8C, 0xF0}, {0x8E, 0xF0},
+            // bswap with a 16 bit operand
+            {0x66, 0x0F, 0xC8},
+            // The reserved NOPs
+            {0x0F, 0x19, 0x00}, {0x0F, 0x18, 0x20}, {0x0F, 0x18, 0xC0},
+            // The VEX prefix (vzeroupper)
+            {0xC5, 0xF8, 0x77}
         };
         for (uint i = 0; i < sizeof(gInvalid) / sizeof(gInvalid[0]); i++)
             testInvalid(gInvalid[i], sizeof(gInvalid[i]));
@@ -379,6 +456,112 @@ public:
         OpcodePtr instruction = disassembler->next();
         AMD64_ASSERT_EQUAL(instruction->getType(),
                            OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+    }
+
+    // The bytes of a validity test of the 16 and 32 bit modes: the text, or
+    // "(invalid)", and the length
+    struct ModeTest {
+        const byte opcode[MAX_AMD64_OPCODE];
+        uint  opcodeSize;
+        const char* text16;
+        const char* text32;
+        uint  length;
+    };
+
+    // The memory and register forms, the undefined /digit and the ignored mod
+    // field of mov cr / dr, in the 16 and 32 bit modes
+    void testValidityInModes()
+    {
+        static const ModeTest gTests[] = {
+            // lea and the far pointers need a memory operand
+            {{0x8D, 0xD9}, 2, "(invalid)", "(invalid)", 1},
+            {{0x8D, 0x07}, 2, "lea ax, [bx]", "lea eax, [edi]", 2},
+            {{0xC5, 0xC0}, 2, "(invalid)", "(invalid)", 1},
+            {{0xC4, 0xC0}, 2, "(invalid)", "(invalid)", 1},
+            {{0x62, 0xC0}, 2, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0xB2, 0xC0}, 3, "(invalid)", "(invalid)", 1},
+            {{0xFF, 0xEA}, 2, "(invalid)", "(invalid)", 1},
+            {{0xFF, 0xDA}, 2, "(invalid)", "(invalid)", 1},
+            // The descriptor tables: memory only; the other mod 11 encodings
+            // of 0F 01 are not instructions of the table
+            {{0x0F, 0x01, 0xC2}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x01, 0xD0}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x01, 0xF8}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x01, 0x10}, 3, "lgdt word ptr [bx+si]", "lgdt dword ptr [eax]", 3},
+            // pop r/m is 8F /0
+            {{0x8F, 0xF0}, 2, "(invalid)", "(invalid)", 1},
+            {{0x8F, 0x30}, 2, "(invalid)", "(invalid)", 1},
+            {{0x8F, 0xC0}, 2, "pop ax", "pop eax", 2},
+            // The ModR/M mod field of mov cr / dr is ignored, the register
+            // is the 32 bit register
+            {{0x0F, 0x20, 0x00}, 3, "mov eax, cr0", "mov eax, cr0", 3},
+            {{0x0F, 0x20, 0xC0}, 3, "mov eax, cr0", "mov eax, cr0", 3},
+            {{0x0F, 0x22, 0x58, 0x7F}, 3, "mov cr3, eax", "mov cr3, eax", 3},
+            {{0x0F, 0x21, 0x8B, 0x01, 0x02, 0x03, 0x04}, 7, "mov ebx, dr1", "mov ebx, dr1", 3},
+            {{0x66, 0x0F, 0x20, 0xC0}, 4, "mov eax, cr0", "mov eax, cr0", 4},
+            {{0x0F, 0x20, 0xC8}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x22, 0xE8}, 3, "(invalid)", "(invalid)", 1},
+            // bswap has no 16 bit form
+            {{0x0F, 0xC8}, 2, "(invalid)", "bswap eax", 2},
+            {{0x66, 0x0F, 0xC8}, 3, "bswap eax", "(invalid)", 3},
+            // Segment registers
+            {{0x8C, 0xF0}, 2, "(invalid)", "(invalid)", 1},
+            {{0x8E, 0xE8}, 2, "mov gs, ax", "mov gs, ax", 2},
+            // The memory-only SSE and the register-only SSE forms
+            {{0x0F, 0x2B, 0xC0}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x50, 0x00}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x12, 0xC1}, 3, "movhlps xmm0, xmm1", "movhlps xmm0, xmm1", 3},
+            {{0x0F, 0x12, 0x01}, 3, "movlps xmm0, qword ptr [bx+di]", "movlps xmm0, qword ptr [ecx]", 3},
+            // The reserved NOPs
+            {{0x0F, 0x19, 0x00}, 3, "(invalid)", "(invalid)", 1},
+            {{0x0F, 0x1F, 0x00}, 3, "nop word ptr [bx+si]", "nop dword ptr [eax]", 3},
+            // The memory operand of the FPU and the general purpose operand of
+            // movd / cvtsi2sd / movnti have their own size: neither the 66
+            // prefix nor the 16 bit mode change it
+            {{0xD8, 0x00}, 2, "fadd dword ptr [bx+si]", "fadd dword ptr [eax]", 2},
+            {{0x66, 0xD9, 0x00}, 3, "fld dword ptr [bx+si]", "fld dword ptr [eax]", 3},
+            {{0xDA, 0x00}, 2, "fiadd dword ptr [bx+si]", "fiadd dword ptr [eax]", 2},
+            {{0x0F, 0xAE, 0x1F}, 3, "stmxcsr dword ptr [bx]", "stmxcsr dword ptr [edi]", 3},
+            {{0x0F, 0x6E, 0xC0}, 3, "movd mm0, eax", "movd mm0, eax", 3},
+            {{0x66, 0x0F, 0x6E, 0xC0}, 4, "movd xmm0, eax", "movd xmm0, eax", 4},
+            {{0x66, 0x0F, 0x7E, 0xC0}, 4, "movd eax, xmm0", "movd eax, xmm0", 4},
+            {{0xF2, 0x0F, 0x2A, 0xC0}, 4, "cvtsi2sd xmm0, eax", "cvtsi2sd xmm0, eax", 4},
+            {{0xF3, 0x0F, 0x2A, 0x00}, 4, "cvtsi2ss xmm0, dword ptr [bx+si]",
+             "cvtsi2ss xmm0, dword ptr [eax]", 4},
+            {{0x0F, 0xC3, 0x00}, 3, "movnti dword ptr [bx+si], eax",
+             "movnti dword ptr [eax], eax", 3},
+            {{0x0F, 0x02, 0x00}, 3, "lar ax, word ptr [bx+si]", "lar eax, word ptr [eax]", 3},
+            // pextrw
+            {{0x66, 0x0F, 0x3A, 0x15, 0x00, 0x05}, 6, "pextrw word ptr [bx+si], xmm0, 05h",
+             "pextrw word ptr [eax], xmm0, 05h", 6},
+            {{0, 0}, 0, NULL, NULL, 0}
+        };
+
+        const OpcodeSubsystems::DisassemblerType types[2] = {
+            OpcodeSubsystems::DISASSEMBLER_INTEL_16,
+            OpcodeSubsystems::DISASSEMBLER_INTEL_32 };
+        for (const ModeTest* test = gTests; test->text16 != NULL; test++)
+        {
+            for (uint mode = 0; mode < 2; mode++)
+            {
+                uint size = test->opcodeSize;
+                cString text = formatInMode(types[mode], test->opcode, size);
+                const char* expected = (mode == 0) ? test->text16 : test->text32;
+                if (text != cString(expected))
+                {
+                    cout << "Validity test (" << (mode == 0 ? 16 : 32) << " bit):";
+                    for (uint i = 0; i < test->opcodeSize; i++)
+                        cout << ' ' << HEXBYTE(test->opcode[i]);
+                    cout << endl << "  expected: " << expected << " (" << test->length
+                         << ")" << endl << "  actual:   " << text << " (" << size
+                         << ")" << endl;
+                }
+                AMD64_ASSERT_EQUAL(text, cString(expected));
+                // The length of an invalid opcode is the one of the entry
+                if (cString(expected) != cString("(invalid)"))
+                    AMD64_ASSERT_EQUAL(size, test->length);
+            }
+        }
     }
 
     // The structured operands
@@ -497,6 +680,7 @@ public:
         m_current = 0;
         testText();
         testInvalidOpcodes();
+        testValidityInModes();
         testOperands();
         testInstructionProperties();
     }

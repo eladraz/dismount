@@ -955,6 +955,10 @@ bool IA32AssemblerStream::isWidthAllowed(uint width, const Encoding& enc) const
 {
     if ((width != 16) && (width != 32) && (width != 64))
         return false;
+    // The general purpose operand of movd and cvtsi2sd is 32 bits (64 with
+    // REX.W), in 16 bit mode too
+    if (enc.m_opcode->m_mode64 == ia32dis::MODE64_OPERAND_32_64)
+        return (width == 32) || ((width == 64) && is64BitMode());
     if (!is64BitMode())
         return (width != 64);
 
@@ -1252,8 +1256,10 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
             setRmRegister(compilerOperand, enc);
             return true;
         case ia32dis::OPND_GP_NATIVE_RM:
-            // The 64 bit register (mov cr0, rax)
-            if (!is64) return false;
+            // The native register: rax in 64 bit mode (mov cr0, rax), eax in
+            // 16 and 32 bit mode, whatever the operand size is
+            if ((m_processorMode == IA32eInstructionSet::AMD_64) ? !is64 : !is32)
+                return false;
             setRmRegister(compilerOperand, enc);
             return true;
 
@@ -1981,6 +1987,9 @@ bool IA32AssemblerStream::needsOperandSizePrefix(const Encoding& enc) const
 {
     // A mandatory 66 prefix is the operand size prefix too (movd xmm, eax)
     if (enc.m_opcode->m_mandatoryPrefix == ia32dis::MANDATORY_66)
+        return false;
+    // The 32 bit operand of movd and cvtsi2sd is the default in every mode
+    if (enc.m_opcode->m_mode64 == ia32dis::MODE64_OPERAND_32_64)
         return false;
     // 64 bit mode: 66 is 16 bits, 32 or 64 bits are the default of the entry
     // or REX.W

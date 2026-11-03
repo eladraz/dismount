@@ -669,6 +669,9 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
                 CHECK_FAIL();
             }
             break;
+        case ia32dis::OPND_MODRM_FIXED_DWORDPTR:
+            registersDescriptor = ia32dis::gIa32Registers;
+            break;
         case ia32dis::OPND_MODRM_WORDPTR:
             registersDescriptor = ia32dis::gIa16Registers;
             break;
@@ -693,6 +696,8 @@ cString IA32IntelNotation::getModrmString(ia32dis::OperandType type) const
             default: break;
             }
             break;
+        case ia32dis::OPND_MODRM_FIXED_DWORDPTR:
+            ret+= "dword ptr "; break;
         case ia32dis::OPND_MODRM_WORDPTR:
             ret+= "word ptr "; break;
         case ia32dis::OPND_MODRM_BYTEPTR:

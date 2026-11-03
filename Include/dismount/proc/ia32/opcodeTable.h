@@ -464,7 +464,8 @@ struct OpcodeEntry {
 
 /*
  * The behaviour of an opcode entry in 64 bit mode (OpcodeEntry::m_mode64).
- * In 16 and 32 bit mode the field is ignored, except MODE64_ONLY.
+ * In 16 and 32 bit mode the field is ignored, except MODE64_ONLY,
+ * MODE64_NO_16BIT and MODE64_OPERAND_32_64.
  *
  * The operand size of 64 bit mode is 32 bits, 64 bits with REX.W (which wins
  * over 66), 16 bits with 66. The address size is 64 bits, 32 bits with 67.
@@ -491,7 +492,17 @@ enum Mode64 {
     // The operand size is 32 bits, or 16 bits with 66, and REX.W is ignored:
     // the instructions which have no 64 bit operand (in, out, ins, outs).
     // Their registers still follow the other REX bits
-    MODE64_NO_REXW = 5
+    MODE64_NO_REXW = 5,
+    // The opcode is invalid with a 16 bit operand size, in all modes: the
+    // 16 bit form is not an instruction (bswap: the SDM leaves the result of
+    // 'bswap r16' undefined, with 66 and in 16 bit mode without it). The operand
+    // size is as MODE64_LEGACY
+    MODE64_NO_16BIT = 6,
+    // The general purpose operand is 32 bits, or 64 bits with REX.W, whatever
+    // the 66 prefix or the 16 bit default operand size say, in all modes:
+    // the r/m32 of movd, cvtsi2ss / cvtsi2sd and movnti (nasm has no
+    // 'movd xmm0, ax')
+    MODE64_OPERAND_32_64 = 7
 };
 
 extern const char* INVALID;

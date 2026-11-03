@@ -418,6 +418,15 @@ public:
             // REG: 101
             {"or word ptr [ebp + " DISP8PREFIX "], bp", {0x66, 0x09, 0x6D, DISP8BYTE}, 4,
              "or word ptr [ebp + " DISP8SUFFIX "], bp"},
+            // ----------------------------------------------------------------
+            // mov to / from the control and the debug registers: the register
+            // form with the native size, pextrw with a memory destination
+            // ----------------------------------------------------------------
+            {"mov eax, cr0", {0x0F, 0x20, 0xC0}, 3, "mov eax, cr0"},
+            {"mov cr3, ebx", {0x0F, 0x22, 0xDB}, 3, "mov cr3, ebx"},
+            {"mov dr3, ebx", {0x0F, 0x23, 0xDB}, 3, "mov dr3, ebx"},
+            {"pextrw word [eax], xmm1, 5", {0x66, 0x0F, 0x3A, 0x15, 0x08, 0x05}, 6,
+             "pextrw word ptr [eax], xmm1, 05h"},
            /* {"", {0x}, , ""},
             // Mod: 10
             // R/M:
