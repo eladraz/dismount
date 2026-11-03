@@ -1,0 +1,34 @@
+# Where the x87 unit of the host differs from the Intel SDM (the --host-x87 oracle: a real x86
+# processor, or Rosetta 2 on an Apple silicon Mac, which these entries were collected on) and
+# dismount follows the SDM. Same format as oracle_bugs.txt: whole lines (`regex  # reason`) and the
+# `@fsw-mask=` / `@eflags-mask=` lines for single status bits. The states where Rosetta 2 behaves
+# differently from the SDM for a stack fault are skipped by x87host.known_quirk().
+
+# The loads leave C1 as it was (SDM FLD, FILD, FBLD, FBSTP: "C1: set to 1 if stack overflow occurred;
+# otherwise, set to 0"). Evidence: fild word, ST(1) = 0x7ffe ffff..., fsw = 0x5e00 (C1 set): Rosetta
+# gives fsw = 0x5600... with C1 kept, the flags of the same instruction when the stack overflows
+# (fsw = 0x3a41) do set C1, so it is only the clearing which is missing.
+@fsw-mask=0200 ^(fld|fild|fbld|fbstp)\b  # Rosetta 2 does not clear C1 in the loads
+
+# A denormal float from memory as the operand of an arithmetic or compare instruction raises the denormal
+# operand exception (SDM FADD "#D Source operand is a denormal value"). Evidence: fadd dword [0x12345678]
+# with the dword 0x007fffff: fsw = 0x6002 in dismount, 0x6000 in Rosetta 2 (an extended denormal
+# register operand does raise it there: pseudo-denormal + pseudo-denormal gives fsw = 0x0002).
+@fsw-mask=0002 ^f[a-z]+ (dword|qword) \[  # Rosetta 2 does not raise DE for a denormal m32fp / m64fp operand
+
+# FLDENV, FRSTOR and FXRSTOR derive ES and B from the exception flags and masks that they load (SDM
+# 8.5: ES is set if an unmasked exception flag is set), Rosetta 2 clears both.
+@fsw-mask=8080 ^(fldenv|frstor|fxrstor)\b  # Rosetta 2 clears ES and B when it loads a status word
+
+# Unmasked exceptions. Rosetta 2 keeps the masked response and never sets ES and B (fcomi with ST(1) empty and
+# IM clear: ZF = PF = CF = 1 and fsw = 0x2841, SDM: the flags are not changed and ES, B are set: 0xa8c1), and it
+# never raises #MF for an earlier unmasked exception (fwait with fsw = 0x81 executes). dismount follows the SDM,
+# the unit test of the unmasked cases is tests/semantics/tools/check_x87_unmasked.py.
+;; .*tag=(\S*unmasked|pending)$  # Rosetta 2 does not implement unmasked x87 exceptions
+
+# FLDCW: ES and B follow the flags and the masks (SDM 8.5, as for FLDENV), Rosetta 2 leaves them clear
+# (fldcw 0x0040 with the flags 0x3f set: dismount fsw = 0x80bf, Rosetta 2: 0x003f).
+@fsw-mask=8080 ^fldcw\b  # Rosetta 2 does not set ES and B when fldcw unmasks a pending exception
+
+# FXRSTOR with a reserved MXCSR bit is #GP (SDM). Rosetta 2 loads it.
+^fxrstor .*tag=env-reserved  # Rosetta 2 does not #GP a reserved MXCSR bit

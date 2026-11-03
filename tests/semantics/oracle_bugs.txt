@@ -15,3 +15,172 @@
 # lock on a string instruction is #UD (SDM Vol. 2 "LOCK"), QEMU executes it
 ^lock rep(e|ne)? (movs|cmps|scas|lods|stos|ins|outs)  # QEMU executes lock with a string instruction (SDM: #UD)
 ^lock (movs|cmps|scas|lods|stos|ins|outs)  # QEMU executes lock with a string instruction (SDM: #UD)
+
+# retf imm16: the same sign extension as ret imm16. retf 0xfff8 in protected mode leaves
+# esp at the value it had before the instruction (it should add 8 + 0xfff8: esp
+# 0x0c9a1101 -> 0x0c9b1101, Unicorn gives 0x0c9a1101)
+^(o16 |o32 )?retf 0x(8|9|a|b|c|d|e|f)[0-9a-f]{3}$  # QEMU sign-extends retf imm16 >= 0x8000 (SDM: zero-extended)
+
+# Not a line pattern but a correction made by oracle.py (is_far_transfer): QEMU's
+# ljmp / lcall / lret protected mode leave the accessed bit of the code segment
+# descriptor clear, e.g. jmp 0x08:0x1234 leaves the GDT byte at 0xf000d as 0x9a
+# (iret and the loads of the data segment registers set it). The SDM sets it
+# whenever a selector is loaded into a segment register, so oracle.py reports the
+# write (0x9b) after a successful far jmp / call / retf.
+
+# --- x87 -------------------------------------------------------------------
+# The "@fsw-mask=<bits> <regex>" lines do not make a line an ORACLE_BUG: the status word bits are
+# left out of the comparison for the matching lines, everything else is still compared.
+
+# C1. Unicorn (QEMU 5.0) never writes C1: not the 0 of the instructions which "set C1 to 0" (fabs, fchs,
+# fcom, fxch, fld...), not the rounded-up indication of the arithmetic (SDM Vol. 2 FADD: "C1: set if
+# result was rounded up, cleared otherwise"), not the overflow bit of a stack fault. Evidence: `fabs`
+# with fsw=0xe00 (C1 set) gives fsw=0xe00 in Unicorn, 0xc00 in dismount. The rounded-up indication is
+# checked against the host x87 (run_semantics.py --host-x87), where C1 is not masked.
+@fsw-mask=0200 ^(?!fxam|fldenv|frstor|fninit|fnclex|fxrstor)f[a-z0-9]+\b  # QEMU never writes C1 (SDM: 0 or the rounded up indication)
+
+# The exception flags (IE DE ZE OE UE PE, fsw bits 0-5). QEMU 5.0 does not copy the exception flags of
+# its soft float library into the status word: fadd of 1.0 and 3.0e-5 (inexact) leaves fsw = 0 (SDM:
+# PE), fadd of a signaling NaN and 1.0 leaves fsw = 0 (IE), and fsqrt of -1.0 sets C2 (0x400) and no
+# IE. Only fdiv sets ZE, whenever the divisor is zero (fdiv 1.0 / 0.0 gives fsw = 4, correct, but
+# 0.0 / 0.0 gives ZE and no IE). The flags of dismount come from SemanticFloat, which has its own
+# vectors (tests/semantics/float_vectors.inc), and the results (the masked responses) are compared.
+@fsw-mask=003f ^(?!fxam|fldenv|frstor|fninit|fnclex|fxrstor|fnstsw|fwait)f[a-z0-9]+\b  # QEMU 5.0 does not record the x87 exception flags
+
+# fcomi, fcomip, fucomi, fucomip: SDM "set the OF, SF, and AF flags to zero". QEMU's helper only replaces
+# ZF, PF and CF, so OF, SF and AF keep the value they had (fcomi st0, st1 with ST(0) > ST(1) and eflags
+# 0x602 leaves OF, SF and AF set in the eflags 0xe92).
+@eflags-mask=0890 ^f(u)?comi  # QEMU does not clear OF, SF and AF (SDM: cleared)
+
+# --- x87, the directed cases of corpus/x87_edge.asm (the `;; ... tag=` part of the text is the state) ---
+# Each entry below is a whole group of the edge corpus on which Unicorn (QEMU 5.0) is wrong. The values
+# quoted as evidence were taken from Unicorn 2.1.4 and, where noted, from the x87 unit of the host
+# (Rosetta 2, tests/semantics/tools/x87_host.c, run with run_semantics.py --host-x87), which follows
+# the SDM on all of them but the stack faults of a NaN operand and the unmasked exceptions.
+
+# Stack faults. QEMU keeps no "empty" check in the arithmetic: it reads an empty register as a number
+# and pushes onto a full stack. Evidence: fadd st0, st1 with ST(1) empty (stack=1) adds the stale register
+# and leaves fsw = 0 (SDM: IE, SF, ST(0) = the real indefinite); fld1 with 8 valid registers pushes
+# 1.0 and fsw = 0 (SDM: IE, SF, C1 = 1, ST(0) = the indefinite); fcom with an empty register sets no
+# SF.
+;; .*tag=stackfault(-unmasked)?$  # Unicorn has no x87 stack overflow / underflow
+
+# Unmasked exceptions and pending exceptions. QEMU stores the result of an operation whose exception is
+# unmasked (fadd of a signaling NaN with IM clear: ST(0) = the quiet NaN, SDM: ST(0) unchanged), does not
+# set ES and B for it, and only fwait raises #MF for an earlier one (fadd st0, st1 with fsw = 0x81 executes).
+;; .*tag=(unmasked|pending)$  # Unicorn does not model unmasked x87 exceptions
+
+# The constants rounded by the rounding control (SDM 8.3.7). QEMU loads the same significand in every
+# rounding mode: fldl2t gives ...8afe with RC = up (SDM and the host: ...8aff), fldpi gives ...c235 with
+# RC = down / zero (SDM and the host: ...c234).
+;; .*tag=constant-rc$  # QEMU does not round fld<constant> by the rounding control
+
+# fisttp with a value out of range: QEMU saturates (0x7fffffff, 0x7fff, 2^63-1), SDM: the integer indefinite
+# (0x80000000, 0x8000, 0x8000000000000000). Evidence: fisttp dword with ST(0) = 2^31 stores ffffff7f, the
+# host stores 00000080.
+^fisttp .*tag=convert-truncate$  # QEMU fisttp saturates instead of storing the integer indefinite
+
+# fbstp. QEMU stores the decimals of any value (a NaN, an infinity, 1e19 give garbage), the SDM stores the
+# packed BCD indefinite ffff c000 0000 0000 0000 for them and for a value of 19 figures or more. QEMU also
+# takes the sign from the rounded integer (-0.3 gives +0), SDM: the sign of the number.
+^fbstp .*tag=(bcd|special)  # QEMU fbstp: no packed BCD indefinite, the sign of the integer
+
+# fxtract of a NaN, an infinity, a zero, a denormal and an unsupported encoding: QEMU computes with the
+# fields of the number as if it were normal. fxtract of an infinity gives ST(0) = 3fff 8000.. (QEMU), SDM:
+# the exponent +infinity and the significand infinity; of the denormal 0x4000.. (exponent 0): QEMU keeps
+# the significand 4000.. (not normalized), SDM: 8000.. and the exponent -16384 (the host agrees).
+^fxtract .*tag=special  # QEMU fxtract only handles normal numbers
+
+# fxam of an unsupported encoding (unnormal, pseudo-infinity, pseudo-NaN): SDM class "unsupported"
+# (C3 C2 C0 = 000), QEMU classifies the exponent and the significand fields (pseudo-NaN: NaN, unnormal:
+# normal).
+^fxam .*(unnormal|pseudo-inf|pseudo-nan)  # QEMU fxam does not know the unsupported encodings
+
+# A signaling NaN converted by fld m32 / m64 or stored by fst / fstp m32 / m64: SDM: invalid operation,
+# the quiet NaN is loaded / stored. QEMU keeps the quiet bit clear (fld dword 0x7fa00000 gives
+# 7fff a000.., SDM and the host: 7fff e000..).
+^f(ld|st|stp) (dword|qword) .*snan  # QEMU does not quiet a signaling NaN it converts
+
+# A pseudo-denormal (exponent 0, integer bit 1) is a valid operand (value = significand * 2^-16445), QEMU
+# computes with it as with a denormal whose integer bit is part of the significand and loses carries and
+# borrows: pseudo-denormal - 2^-16382 gives 8001 ffff.. (SDM and the host: 0000 0000 0000 0000 0001).
+^f(sub|subr|add|mul|div|divr) st0, st1 ;; .*pseudo-denormal  # QEMU mis-computes with pseudo-denormals
+
+# fldcw, fldenv, frstor and fxrstor keep the control word as it is, the processor keeps the defined bits
+# (bit 6 always reads 1, bit 7 and bits 13-15 read 0): fldcw 0x0000 then fnstcw gives 0x0040, fldcw 0xffff gives
+# 0x1f7f (the host agrees); and they set ES / B from the flags and the new masks. QEMU's fxrstor does not #GP
+# a reserved MXCSR bit.
+;; .*tag=env-reserved$  # QEMU does not clear the reserved bits of the control word, or check MXCSR
+
+# fcmovcc moves into an empty ST(0): the register becomes valid (SDM, the host: the tag changes from empty to
+# valid). QEMU's fcmov copies the value and keeps the tag (fcmovb with tags=2, CF=1: ftw 2, SDM 3).
+;; .*tag=cmov-empty$  # QEMU fcmovcc does not mark ST(0) valid
+
+# fprem, fprem1. QEMU's partial remainder differs from the SDM and from the host in every part: fprem1 of 3.0 and
+# 4.0 gives 3.0 (the quotient is rounded toward zero, SDM: Q = 1, R = -1.0, the host gives -1.0 and C1 = 1); a
+# zero result takes the sign + (-7.0 mod 7.0 is -0.0 in the SDM and the host); an invalid operation, a NaN and
+# a stack-free divisor (3.0 mod infinity) leave C0-C3 as they were (the SDM and the host clear them); fprem of
+# 100.0 and 0.1 sets the quotient bits C3 C0 (fsw 0x4300) in dismount and the host, 0 in QEMU; the NaN rules
+# are not applied (a NaN operand gives the default NaN, SDM: the NaN operand, quieted).
+^fprem1?\b  # QEMU fprem / fprem1: quotient bits, the sign of zero, NaNs, condition codes
+
+# fscale is not rounded by the precision control (the SDM lists fadd, fsub, fmul, fdiv and fsqrt; the host
+# agrees): a tiny result of fscale with PC = 24 bits is 0x...0001 in dismount and the host, 0x...010000000000
+# in QEMU.
+^fscale ;; .*fcw=(87f|a7f)\b  # QEMU rounds the result of fscale by the precision control
+
+# fscale with a signaling NaN: QEMU returns the NaN operand as it is, SDM: invalid operation, the quiet NaN
+# (dismount and the host: 7fff c32a.. for the operand 7fff 832a..). The random states keep the NaNs quiet.
+
+# fxsave / fxrstor in real mode (corpus/x87_16.asm): Unicorn's 16 bit mode has CR4.OSFXSR clear and QEMU's fxsave
+# and fxrstor skip MXCSR and the XMM registers then (fxrstor of mxcsr 0xff80 leaves 0x1f80, fxsave stores
+# the old bytes at 0x18-0x1f and 0xa0-0x11f). The x87 part of the image is compared in the 32 bit lines.
+^fx(save|rstor) \[0x2010\]$  # Unicorn real mode: fxsave / fxrstor do not touch MXCSR and the XMM registers
+# --- MMX / SSE / SSE2 (QEMU 5.0.1 inside Unicorn 2.1.4)
+
+# cmpps / cmppd / cmpss / cmpsd with an immediate above 7: the SDM says of the legacy
+# SSE encodings "Bits 7:3 of the immediate is ignored" (the predicate is imm8[2:0]);
+# QEMU raises #UD (target/i386/translate.c: `if (val >= 8) goto unknown_op`).
+# cmpps xmm1, xmm2, 0x12 gives trap:6 in Unicorn; dismount does the predicate 2
+^cmp(ps|pd|ss|sd) xmm[0-7], [^,]+, (0x(0[89a-f]|[1-9a-f][0-9a-f])|[89]|[1-9][0-9]+|-[0-9]+)$  # QEMU #UD for cmpps/cmppd/cmpss/cmpsd imm8 >= 8 (SDM: bits 7:3 of the legacy immediate are ignored)
+
+# add / sub / mul / div with a NaN in both operands of a lane (the lines of sse_edge.asm on xmm3,
+# xmm4): the SDM (Vol. 1, table 4-7, "Rules for handling NaNs") gives the first source operand
+# for the SSE instructions (a signaling NaN converted to a quiet one); QEMU's softfloat picks
+# the NaN with the larger significand like the x87. addps xmm3, xmm4 with xmm3 lane 0 = 7fc00000
+# and xmm4 lane 0 = 7fc00002: dismount 7fc00000, Unicorn 7fc00002. The random states of the
+# register forms never have two NaNs in a lane (states_v2.avoid_two_nans)
+^(add|sub|mul|div)(ps|ss|pd|sd) xmm3, xmm4$  # QEMU picks the NaN of the larger significand (SDM: the first source operand)
+
+# Rosetta 2 (run_semantics.py --rosetta, the host x86 FPU as the oracle): cmpordps / cmpunordpd
+# and the others set the denormal operand flag (DE) when one operand is a NaN and the other
+# a denormal (cmpordss with xmm1 = 00000001, xmm2 = 7fc00000 gives MXCSR 0x1f82), unlike its own
+# cmpeq / cmplt / cmpneq and the arithmetic instructions, which raise nothing for a NaN operand.
+# dismount follows the NaN rule of the SDM (a NaN operand is handled before the denormals)
+^cmp(un)?ord(ps|pd|ss|sd) xmm[0-7], .*  # Rosetta 2 raises DE for a NaN and a denormal in the ordered / unordered compares only
+
+# --- MMX / SSE / SSE2 corrections made by oracle.py (not line patterns), all QEMU 5.0.1 in
+# Unicorn 2.1.4. Each is checked by running the instruction in Unicorn:
+#
+# * An MMX write doesn't set the exponent and sign of the x87 register to ones (SDM Vol. 1
+#   9.5.1: "the processor sets the exponent bits (bits 64..78) and the sign (79) to ones").
+#   paddb mm0, mm1 with fpr0 = 1 << 70 leaves fpr0 bits 64..79 = 0x40 (mmx_written_register).
+# * A misaligned 128 bit memory operand of the SSE / SSE2 instructions is #GP(0) in the SDM
+#   (Vol. 2, the "Protected Mode Exceptions" of movaps, addps, paddb...); Unicorn executes
+#   `movaps xmm1, [esi]` with esi = 0x2001 and loads the 16 bytes (needs_alignment). The
+#   unaligned moves (movups, movupd, movdqu) and the 32 / 64 bit operands have no such rule.
+# * ldmxcsr with a reserved bit (bits 16..31) is #GP(0) in the SDM; Unicorn loads 0xc92b8def
+#   into MXCSR (simd_fault).
+# * Unicorn never writes the exception flags (bits 0..5) of MXCSR: `addps xmm1, xmm2` with
+#   0x3eaaaaab + 0x3f800001 (inexact) leaves MXCSR = 0x1f80, also when read by a stmxcsr that
+#   follows. The comparison ignores them (run_semantics.py MXCSR_FLAGS); --rosetta compares them.
+# * MXCSR.FZ is ignored: mulss with 0x3b000000 * 0x04000000 (2^-134, exact denormal) and
+#   mxcsr = 0x9f80 gives 0x00200000, the SDM (Vol. 1 10.2.3.3) a signed zero. With the
+#   rounding mode up the tiny 0x19fcd59f squared gives 0x00000001, SDM 0
+#   (flush_to_zero_lanes flushes the denormal results of add, sub, mul, div, sqrt, cvtpd2ps,
+#   cvtsd2ss). A tiny result that rounds up to the smallest normal number can't be told
+#   apart from a normal result, so sse_edge.asm has no such operands.
+# * minps / maxps (pd, ss, sd) with DAZ return the original bits of a denormal operand; the
+#   SDM (Vol. 1 10.2.3.4) converts a denormal source operand "to a zero with the sign of the
+#   original operand before performing any computations", Bochs' float32_min does the same and
+#   Rosetta returns the zero (flush_to_zero_lanes).

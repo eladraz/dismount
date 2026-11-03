@@ -1703,6 +1703,208 @@ public:
         check("cpuid exit", liftAndRun(cpuid, 2, interpreter, lifter, opcode),
               SemanticInterpreter::EXIT_HELPER);
         check("cpuid helper", interpreter.getHelperNumber(), IA32_HELPER_CPUID);
+
+        // mov ds, ax loads the descriptor from the GDT (at 0x1800, 3 entries):
+        // a data segment at 0x100000, DPL 0, present, not yet accessed
+        const uint8 data[] = { 0xFF, 0xFF, 0x00, 0x00, 0x10, 0x92, 0xCF, 0x00 };
+        for (uint i = 0; i < 8; i++)
+            memory.write(0x1810 + i, &data[i], 1);
+        interpreter.setRegister(IA32_REG_GDTR_BASE, SemanticValue(0x1800));
+        interpreter.setRegister(IA32_REG_GDTR_LIMIT, SemanticValue(0x17));
+        const uint8 moveDs[] = { 0x8E, 0xD8 };
+        interpreter.setRegister(IA32_REG_EAX, SemanticValue(0x10));
+        check("mov ds exit", liftAndRun(moveDs, 2, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("mov ds selector", interpreter.getRegister(IA32_REG_DS).getWord(0), 0x10);
+        check("mov ds base", interpreter.getRegister(IA32_REG_DS_BASE).getWord(0), 0x100000);
+        check("mov ds accessed", memory.getByte(0x1815), 0x93);
+
+        // A selector beyond the limit is #GP and doesn't change ds; a null
+        // selector loads with base 0
+        interpreter.setRegister(IA32_REG_EAX, SemanticValue(0x18));
+        check("mov ds limit exit", liftAndRun(moveDs, 2, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_TRAP);
+        check("mov ds limit trap", interpreter.getTrapNumber(), 13);
+        check("mov ds limit selector", interpreter.getRegister(IA32_REG_DS).getWord(0), 0x10);
+        interpreter.setRegister(IA32_REG_EAX, SemanticValue(0));
+        check("mov ds null exit", liftAndRun(moveDs, 2, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("mov ds null base", interpreter.getRegister(IA32_REG_DS_BASE).getWord(0), 0);
+
+        // mov cs, ax is an invalid opcode; mov ax, ds reads the selector
+        const uint8 moveCs[] = { 0x8E, 0xC8 };
+        check("mov cs exit", liftAndRun(moveCs, 2, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_TRAP);
+        check("mov cs trap", interpreter.getTrapNumber(), 6);
+    }
+
+
+    // MMX, SSE and SSE2 through the lifter, see IA32SemanticTableSimd.cpp
+    void testSimdLifter()
+    {
+        ArchitectureDescriptionPtr architecture =
+            ArchitectureDescriptionFactory::getArchitecture(
+                OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+        SemanticLifterPtr lifter = SemanticLifterFactory::getLifter(
+                OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+        TestSemanticMemory memory;
+        SemanticInterpreter interpreter(architecture, memory);
+        OpcodePtr opcode;
+        SemanticValue value;
+
+        // paddb xmm1, xmm2: every byte wraps on its own
+        const uint8 paddb[] = { 0x66, 0x0F, 0xFC, 0xCA };
+        value.setWord(0, 0x80FF7F0180FF7F01ULL);
+        value.setWord(1, 0x0000000100000001ULL);
+        interpreter.setRegister(IA32_REG_XMM1, value);
+        value.setWord(0, 0x0101010101010101ULL);
+        value.setWord(1, 0xFFFFFFFFFFFFFFFFULL);
+        interpreter.setRegister(IA32_REG_XMM2, value);
+        check("paddb exit", liftAndRun(paddb, 4, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("paddb low", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x8100800281008002ULL);
+        check("paddb high", interpreter.getRegister(IA32_REG_XMM1).getWord(1),
+              0xFFFFFF00FFFFFF00ULL);
+        OpcodeClassification paddbClass = lifter->classify(opcode);
+        check("paddb category", paddbClass.getCategory(),
+              OpcodeClassification::CATEGORY_VECTOR_INTEGER);
+        TESTS_ASSERT(paddbClass.getDataType() ==
+                     SemanticType(SemanticType::KIND_INTEGER, 8, 16));
+
+        // movaps xmm1, [esi]: a memory operand must be aligned to 16 bytes
+        const uint8 movaps[] = { 0x0F, 0x28, 0x0E };
+        for (uint i = 0; i < 16; i++)
+        {
+            const uint8 byte = (uint8)(0x10 + i);
+            memory.write(0x1100 + i, &byte, 1);
+        }
+        interpreter.setRegister(IA32_REG_ESI, SemanticValue(0x1101));
+        check("movaps misaligned exit", liftAndRun(movaps, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_TRAP);
+        check("movaps misaligned trap", interpreter.getTrapNumber(), 13);
+        check("movaps misaligned xmm1", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x8100800281008002ULL);
+        interpreter.setRegister(IA32_REG_ESI, SemanticValue(0x1100));
+        check("movaps exit", liftAndRun(movaps, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("movaps xmm1", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x1716151413121110ULL);
+        // movups xmm1, [esi] has no such rule
+        const uint8 movups[] = { 0x0F, 0x10, 0x0E };
+        interpreter.setRegister(IA32_REG_ESI, SemanticValue(0x1101));
+        check("movups exit", liftAndRun(movups, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("movups xmm1", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x1817161514131211ULL);
+
+        // paddb mm1, mm2: the x87 stack is in the MMX state (TOP = 0, all
+        // the registers valid), and the register is written with the
+        // exponent bits set. Reading mm2 is part of it
+        const uint8 paddbMmx[] = { 0x0F, 0xFC, 0xCA };
+        interpreter.setRegister(IA32_REG_FPU_STATUS, SemanticValue(0x2800 | 0x0100));
+        interpreter.setRegister(IA32_REG_FPU_TAG, SemanticValue(0x24));
+        interpreter.setRegister(IA32_REG_FPR1, SemanticValue(0x0102030405060708ULL));
+        interpreter.setRegister(IA32_REG_FPR2, SemanticValue(0x0101010101010101ULL));
+        check("paddb mm exit", liftAndRun(paddbMmx, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("paddb mm result", interpreter.getRegister(IA32_REG_MM1).getWord(0),
+              0x0203040506070809ULL);
+        check("paddb mm exponent", interpreter.getRegister(IA32_REG_FPR1).getWord(1),
+              0xFFFF);
+        check("paddb mm status", interpreter.getRegister(IA32_REG_FPU_STATUS).getWord(0),
+              0x0100);
+        check("paddb mm tags", interpreter.getRegister(IA32_REG_FPU_TAG).getWord(0), 0xFF);
+        // emms empties the registers
+        const uint8 emms[] = { 0x0F, 0x77 };
+        check("emms exit", liftAndRun(emms, 2, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("emms tags", interpreter.getRegister(IA32_REG_FPU_TAG).getWord(0), 0);
+
+        // addss xmm1, xmm2: the low lane, the others are kept. 1.0 + 2^-25
+        // is inexact (PE), the default rounding gives 1.0
+        const uint8 addss[] = { 0xF3, 0x0F, 0x58, 0xCA };
+        value = SemanticValue();
+        value.setWord(0, 0x1111111100000000ULL | 0x3F800000);
+        value.setWord(1, 0x2222222233333333ULL);
+        interpreter.setRegister(IA32_REG_XMM1, value);
+        value = SemanticValue();
+        value.setWord(0, 0x33000000);
+        interpreter.setRegister(IA32_REG_XMM2, value);
+        interpreter.setRegister(IA32_REG_MXCSR, SemanticValue(0x1F80));
+        check("addss exit", liftAndRun(addss, 4, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("addss low", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x111111113F800000ULL);
+        check("addss high", interpreter.getRegister(IA32_REG_XMM1).getWord(1),
+              0x2222222233333333ULL);
+        check("addss mxcsr", interpreter.getRegister(IA32_REG_MXCSR).getWord(0), 0x1FA0);
+        check("addss category", lifter->classify(opcode).getCategory(),
+              OpcodeClassification::CATEGORY_FLOAT);
+        TESTS_ASSERT(lifter->classify(opcode).getDataType() ==
+                     SemanticType::floating(SemanticType::FLOAT_SINGLE));
+        // An unmasked overflow is #XM (19), before the register is written
+        value = SemanticValue();
+        value.setWord(0, 0x7F7FFFFF);
+        interpreter.setRegister(IA32_REG_XMM1, value);
+        interpreter.setRegister(IA32_REG_XMM2, value);
+        interpreter.setRegister(IA32_REG_MXCSR, SemanticValue(0x1F80 & ~0x400));
+        check("addss overflow exit", liftAndRun(addss, 4, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_TRAP);
+        check("addss overflow trap", interpreter.getTrapNumber(), 19);
+        check("addss overflow xmm1", interpreter.getRegister(IA32_REG_XMM1).getWord(0),
+              0x7F7FFFFF);
+
+        // cvttss2si eax, xmm2: a NaN is the integer indefinite and invalid
+        const uint8 cvttss2si[] = { 0xF3, 0x0F, 0x2C, 0xC2 };
+        value = SemanticValue();
+        value.setWord(0, 0x7FC00000);
+        interpreter.setRegister(IA32_REG_XMM2, value);
+        interpreter.setRegister(IA32_REG_MXCSR, SemanticValue(0x1F80));
+        check("cvttss2si exit", liftAndRun(cvttss2si, 4, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("cvttss2si eax", interpreter.getRegister(IA32_REG_EAX).getWord(0),
+              0x80000000);
+        check("cvttss2si mxcsr", interpreter.getRegister(IA32_REG_MXCSR).getWord(0), 0x1F81);
+
+        // comiss xmm1, xmm2: less sets only the carry flag
+        const uint8 comiss[] = { 0x0F, 0x2F, 0xCA };
+        value = SemanticValue();
+        value.setWord(0, 0x3F800000);
+        interpreter.setRegister(IA32_REG_XMM1, value);
+        value.setWord(0, 0x40000000);
+        interpreter.setRegister(IA32_REG_XMM2, value);
+        interpreter.setRegister(IA32_REG_ZF, SemanticValue(1));
+        interpreter.setRegister(IA32_REG_OF, SemanticValue(1));
+        check("comiss exit", liftAndRun(comiss, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("comiss carry", interpreter.getRegister(IA32_REG_CF).getWord(0), 1);
+        check("comiss zero", interpreter.getRegister(IA32_REG_ZF).getWord(0), 0);
+        check("comiss overflow", interpreter.getRegister(IA32_REG_OF).getWord(0), 0);
+
+        // rcpps is a helper: the table of the estimate isn't public
+        const uint8 rcpps[] = { 0x0F, 0x53, 0xCA };
+        check("rcpps exit", liftAndRun(rcpps, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_HELPER);
+        check("rcpps helper", interpreter.getHelperNumber(),
+              IA32_HELPER_RECIPROCAL_ESTIMATE);
+
+        // ldmxcsr [esi]: a reserved bit is #GP
+        const uint8 ldmxcsr[] = { 0x0F, 0xAE, 0x16 };
+        interpreter.setRegister(IA32_REG_ESI, SemanticValue(0x1200));
+        const uint8 good[] = { 0xC0, 0x9F, 0x00, 0x00 };
+        for (uint i = 0; i < 4; i++)
+            memory.write(0x1200 + i, &good[i], 1);
+        check("ldmxcsr exit", liftAndRun(ldmxcsr, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("ldmxcsr value", interpreter.getRegister(IA32_REG_MXCSR).getWord(0), 0x9FC0);
+        const uint8 bad = 0x01;
+        memory.write(0x1202, &bad, 1);
+        check("ldmxcsr reserved exit", liftAndRun(ldmxcsr, 3, interpreter, lifter, opcode),
+              SemanticInterpreter::EXIT_TRAP);
+        check("ldmxcsr reserved trap", interpreter.getTrapNumber(), 13);
+        check("ldmxcsr reserved value", interpreter.getRegister(IA32_REG_MXCSR).getWord(0),
+              0x9FC0);
     }
 
     virtual void test()
@@ -1722,6 +1924,7 @@ public:
         testRunMemory();
         testRunMisc();
         testLifter();
+        testSimdLifter();
         cout << "Semantics tests passed" << endl;
     }
 

@@ -4,17 +4,7 @@
 # instructions that depend on state the test cannot give both engines (segment
 # descriptors, privilege levels, I/O, the host), not for failures.
 
-# --- segment registers: Unicorn runs with flat, null-selector segments; a load needs a descriptor table
-^(lock |rep |repe |repne )?mov (es|cs|ss|ds|fs|gs),  # loads a segment register: needs a GDT/IVT entry, Unicorn and the IR don't model descriptors
-^(lock |rep |repe |repne )?pop (es|ss|ds|fs|gs)\b  # loads a segment register
-\b(lds|les|lss|lfs|lgs)\b  # loads a segment register and a pointer
-
-# --- far control transfers (load cs)
-\b(jmp|call) (far\b|(0x)?[0-9a-f]+:)  # far branch: loads cs from a descriptor
-\b(jmp|call) (dword|word|tword) far\b  # far branch through memory
-\b(jmp|call) far\b  # far branch
-\b(retf|retfw|retfd|retfq|lret|iret|iretw|iretd|iretq)\b  # far return / interrupt return: loads cs, eflags and ss from the stack in a mode-dependent way
-\bret far\b  # far return
+# --- system calls
 \b(sysenter|sysexit|syscall|sysret)\b  # needs MSRs
 
 # --- privileged / system instructions
