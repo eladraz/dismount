@@ -39,6 +39,8 @@ import run_compat as rc                                    # noqa: E402  (nasm, 
 try:
     import oracle                                          # noqa: E402
     import states_v2                                       # noqa: E402
+    import states64                                        # noqa: E402
+    import oracle64                                        # noqa: E402
     import x87host                                         # noqa: E402
     import x87states                                       # noqa: E402
 except ImportError as e:
@@ -53,6 +55,7 @@ SKIP_FILE = os.path.join(TESTS_DIR, 'skip.txt')
 ORACLE_BUGS_FILE = os.path.join(TESTS_DIR, 'oracle_bugs.txt')
 SEM_CORPUS = os.path.join(TESTS_DIR, 'corpus')
 IA32_CORPUS = os.path.join(IA32_DIR, 'corpus')
+AMD64_CORPUS = os.path.join(IA32_DIR, 'corpus64')
 DEFAULT_IA32_FILES = ['00_addressing32', '01_addressing16', '02_prefixes', '03_immediates',
                       '04_branches', '05_bits16', 'i386', 'i486', 'pentium', 'p6', 'x87',
                       'mmx', 'sse', 'sse2']
@@ -70,7 +73,9 @@ REP_WORDS = {'rep', 'repe', 'repne', 'repz', 'repnz'}
 
 def load_skips(path):
     """Lines: `<regex>  # <reason>`; '#' lines are comments. The regex is
-    searched in the instruction text."""
+    searched in the instruction text. A line that starts with `[64] ` (or `[16] `,
+    `[32] `, `[32,64] `...) is for those modes only. Returns [(regex, reason, modes)],
+    modes is None for every mode."""
     skips = []
     if not os.path.exists(path):
         return skips
@@ -83,7 +88,12 @@ def load_skips(path):
             if not sep or not reason.strip() or not rx.strip():
                 sys.stderr.write('%s:%d: skip line needs "<regex>  # <reason>"\n' % (path, no))
                 sys.exit(2)
-            skips.append((re.compile(rx.strip()), reason.strip()))
+            modes = None
+            m = re.match(r'^\[(\d+(?:,\d+)*)\] (.*)$', rx.strip())
+            if m:
+                modes = {int(x) for x in m.group(1).split(',')}
+                rx = m.group(2)
+            skips.append((re.compile(rx.strip()), reason.strip(), modes))
     return skips
 
 
@@ -154,6 +164,8 @@ def make_states(bits, text, count, overrides):
 def apply_fixed(state, spec):
     """A copy of `state` with the tokens of a corpus `@state:` comment applied
     (hex numbers, the names of the `dismount_cli run` protocol)."""
+    if 'rax' in state:
+        return states64.apply_fixed(state, spec)
     st = dict(state)
     for key in ('xmm', 'fpr', 'seg', 'mem'):
         if key in st:
@@ -192,7 +204,7 @@ def parse_overrides(text):
     out = {}
     for part in filter(None, text.split(',')):
         k, _, v = part.partition('=')
-        if k not in REGS + ['eip', 'eflags']:
+        if k not in REGS + oracle64.REGS64 + ['eip', 'rip', 'eflags', 'fs_base', 'gs_base', 'kernel_gs_base']:
             sys.stderr.write('--set: unknown register %r\n' % k)
             sys.exit(2)
         out[k] = int(v, 16)
@@ -247,6 +259,13 @@ def mem_value(side, addr, code, state, bits):
     byte (the code at cs_base + eip, mem=, the GDT, the memory pattern)."""
     if addr in side:
         return side[addr]
+    if bits == 64:
+        off = (addr - state['rip']) & oracle64.M64
+        if off < len(code):
+            return code[off]
+        if addr in state.get('mem', {}):
+            return state['mem'][addr]
+        return oracle.pattern_byte(addr)
     code_at = (oracle.segment_base(bits, state.get('seg', {}).get('cs', 0)) + state['eip']) & oracle.M32
     off = (addr - code_at) & oracle.M32
     if off < len(code):
@@ -260,6 +279,8 @@ def mem_value(side, addr, code, state, bits):
 
 def compare(code, state, d, o, bits=32, fsw_ignore=0, eflags_ignore=0):
     """d: parsed dismount line, o: oracle result. Returns the list of diffs."""
+    if bits == 64:
+        return compare64(code, state, d, o, fsw_ignore, eflags_ignore)
     diffs = []
     ed, eo = d['exit'], o['exit']
     if exit_class(ed) != exit_class(eo):
@@ -281,6 +302,57 @@ def compare(code, state, d, o, bits=32, fsw_ignore=0, eflags_ignore=0):
         vo = mem_value(o['mem'], a, code, state, bits)
         if vd != vo:
             diffs.append('mem[%08x]: dismount=%02x oracle=%02x' % (a, vd, vo))
+            if len(diffs) > 24:
+                diffs.append('...')
+                break
+    return diffs
+
+
+def compare64(code, state, d, o, fsw_ignore=0, eflags_ignore=0):
+    """compare() for the 64 bit mode (the results of oracle64)."""
+    diffs = []
+    ed, eo = d['exit'], o['exit']
+    if exit_class(ed) != exit_class(eo):
+        diffs.append('exit: dismount=%s oracle=%s' % (ed, eo))
+        return diffs
+    both_trap = ed.startswith('trap:')
+    for n in oracle64.REGS64:
+        if d['regs'][n] != o['regs'][n]:
+            diffs.append('%s: dismount=%016x oracle=%016x' % (n, d['regs'][n], o['regs'][n]))
+    if not both_trap and d['rip'] != o['rip']:
+        diffs.append('rip: dismount=%016x oracle=%016x' % (d['rip'], o['rip']))
+    mask = oracle.EFLAGS_MASK & ~d['undef'] & ~eflags_ignore
+    if (d['eflags'] ^ o['eflags']) & mask:
+        diffs.append('eflags: dismount=%08x oracle=%08x differ=%08x (undef=%08x)' % (
+            d['eflags'], o['eflags'], (d['eflags'] ^ o['eflags']) & mask, d['undef']))
+    for n in oracle.SEGS:
+        if d['seg'][n] != o['seg'][n]:
+            diffs.append('%s: dismount=%04x oracle=%04x' % (n, d['seg'][n], o['seg'][n]))
+        # only fs and gs have a base in 64 bit mode, Unicorn gives them
+        want = o.get(n + '_base', 0)
+        if d['base'][n] != want:
+            diffs.append('%s_base: dismount=%016x oracle=%016x' % (n, d['base'][n], want))
+    if d['kernel_gs_base'] != o['kernel_gs_base']:
+        diffs.append('kernel_gs_base: dismount=%016x oracle=%016x' % (d['kernel_gs_base'], o['kernel_gs_base']))
+    if d['fcw'] != o['fcw']:
+        diffs.append('fcw: dismount=%04x oracle=%04x' % (d['fcw'], o['fcw']))
+    if (d['fsw'] ^ o['fsw']) & ~d['fundef'] & ~fsw_ignore & 0xffff:
+        diffs.append('fsw: dismount=%04x oracle=%04x (fundef=%04x)' % (d['fsw'], o['fsw'], d['fundef']))
+    if d['ftw'] != o['ftw']:
+        diffs.append('ftw: dismount=%02x oracle=%02x' % (d['ftw'], o['ftw']))
+    for i in range(8):
+        if (o['ftw'] >> i) & 1 and (d['ftw'] >> i) & 1 and d['fpr'][i] != o['fpr'][i]:
+            diffs.append('r%d: dismount=%020x oracle=%020x' % (i, d['fpr'][i], o['fpr'][i]))
+    if (d['mxcsr'] ^ o['mxcsr']) & ~MXCSR_FLAGS & 0xffffffff:
+        diffs.append('mxcsr: dismount=%08x oracle=%08x' % (d['mxcsr'], o['mxcsr']))
+    for i in range(oracle64.XMM_COUNT):
+        if d['xmm'][i] != o['xmm'][i]:
+            diffs.append('xmm%d: dismount=%032x oracle=%032x' % (i, d['xmm'][i], o['xmm'][i]))
+    for a in sorted(set(d['mem']) | set(o['mem'])):
+        vd = mem_value(d['mem'], a, code, state, 64)
+        vo = mem_value(o['mem'], a, code, state, 64)
+        if vd != vo:
+            diffs.append('mem[%016x]: dismount=%02x oracle=%02x' % (a, vd, vo))
             if len(diffs) > 24:
                 diffs.append('...')
                 break
@@ -336,6 +408,7 @@ def corpus_paths(wanted):
         p = os.path.join(IA32_CORPUS, name + '.asm')
         if os.path.exists(p):
             paths.append(p)
+    paths += sorted(glob.glob(os.path.join(AMD64_CORPUS, '*.asm')))
     paths += sorted(glob.glob(os.path.join(SEM_CORPUS, '*.asm')))
     if wanted:
         paths = [p for p in paths if os.path.basename(p) in wanted]
@@ -386,8 +459,8 @@ def collect(args, skips, tmp):
             elif not hexb:
                 rec['status'], rec['message'] = 'ASM_ERR', 'nasm produced no bytes'
             else:
-                for rx, reason in skips:
-                    if rx.search(r['text']):
+                for rx, reason, modes in skips:
+                    if (modes is None or info['bits'] in modes) and rx.search(r['text']):
                         rec['status'], rec['message'] = 'SKIP', reason
                         break
             recs.append(rec)
@@ -395,10 +468,31 @@ def collect(args, skips, tmp):
 
 
 def check_cli_has_run(cli, bits):
+    if bits == 64:
+        out = rc.run_cli(cli, 'run', bits, [oracle.format_state(
+            b'\x90', dict({n: 0 for n in oracle64.REGS64}, rsp=0x8000, rip=0x1000, eflags=0x202))])
+        return bool(out) and out[0].startswith('OK ')
     out = rc.run_cli(cli, 'run', bits, [oracle.format_state(
         b'\x90', {'eax': 0, 'ecx': 0, 'edx': 0, 'ebx': 0, 'esp': 0x8000, 'ebp': 0,
                   'esi': 0, 'edi': 0, 'eip': 0x1000, 'eflags': 0x202})])
     return bool(out) and out[0].startswith('OK ')
+
+
+def make_states64(r, args, ctx):
+    """The states of a line of the 64 bit mode (states64.py)."""
+    if r['annotation'] is not None:
+        # a directed state: the x87 part is given, only the integer registers are random
+        r['states'] = states64.make_states(r['source'], r['code'], min(args.states, 4), ctx['overrides'])
+        for st in r['states']:
+            x87states.apply(st, r['annotation'], r['source'])
+        return
+    r['states'] = states64.make_states(r['source'], r['code'], args.states, ctx['overrides'])
+    states64.add_fp(r['source'], r['code'], r['states'])
+    for n, spec in enumerate(r['fixed']):
+        r['states'].append(apply_fixed(r['states'][n % len(r['states'])], spec))
+    align_rng = random.Random(stable_seed(64, 'align:' + r['source']))
+    for st in r['states']:
+        oracle64.align_memory_operand(r['code'], st, align_rng)
 
 
 def process_mode(bits, recs, args, ctx):
@@ -408,6 +502,9 @@ def process_mode(bits, recs, args, ctx):
         return
     for r in active:
         r['code'] = bytes.fromhex(r['hex'])
+        if bits == 64:
+            make_states64(r, args, ctx)
+            continue
         if r['annotation'] is not None:
             # a directed state: the x87 part is given, only the integer registers are random
             r['states'] = make_states(bits, r['source'], min(args.states, 4), ctx['overrides'])
@@ -488,8 +585,8 @@ def process_mode(bits, recs, args, ctx):
         elif r['diffs']:
             r['status'] = 'FAIL'
             r['message'] = '%d/%d states differ: %s' % (len(r['diffs']), good, r['diffs'][0]['diff'][0])
-            for rx, reason in (ctx['host_bugs'] if use_host else ctx['oracle_bugs']):
-                if rx.search(r['match']):
+            for rx, reason, modes in (ctx['host_bugs'] if use_host else ctx['oracle_bugs']):
+                if (modes is None or bits in modes) and rx.search(r['match']):
                     r['status'], r['message'] = 'ORACLE_BUG', reason + ' (' + r['message'] + ')'
                     break
         else:
@@ -572,7 +669,7 @@ def main():
     ap.add_argument('--file', action='append', default=[],
                     help='corpus file (name or path, repeatable or comma-separated)')
     ap.add_argument('--grep', default='', help='regex on the instruction text')
-    ap.add_argument('--bits', type=int, choices=(16, 32), default=0, help='only lines of this mode')
+    ap.add_argument('--bits', type=int, choices=(16, 32, 64), default=0, help='only lines of this mode')
     ap.add_argument('--states', type=int, default=16, help='random states per line (16)')
     ap.add_argument('--strict', action='store_true', help='exit 1 on any FAIL or DIS_ERR')
     ap.add_argument('--baseline', default='', help='OLD report.json: exit 1 if a PASS line regressed')
@@ -626,13 +723,13 @@ def main():
         return 1
 
     if not args.oracle_only:
-        for bits in (16, 32):
+        for bits in (16, 32, 64):
             if any(r['bits'] == bits and r['status'] is None for r in recs) and \
                     not check_cli_has_run(ctx['cli'], bits):
                 sys.stderr.write('%s does not support `run --bits %d` (the probe did not answer OK)\n'
                                  % (ctx['cli'], bits))
                 return 1
-    for bits in (16, 32):
+    for bits in (16, 32, 64):
         process_mode(bits, [r for r in recs if r['bits'] == bits], args, ctx)
 
     if args.oracle_only:

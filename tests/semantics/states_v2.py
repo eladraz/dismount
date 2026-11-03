@@ -262,9 +262,16 @@ def qemu_workarounds(rng, text, st, mnemonic):
         st['fpr'] = [clear_unsupported(v) for v in st['fpr']]
 
 
-def x87_adjust(rng, text, st, host=False):
+def x87_adjust(rng, text, st, host=False, ea=None, mask=M32, align=None):
     """Make the x87 part of a state fit the line: a well formed stack, edge values in the
-    memory operand, a 16 byte aligned fxsave area."""
+    memory operand, a 16 byte aligned fxsave area.
+
+    ea    - the function (text, state) -> the address of the memory operand, or None (default:
+            effective_address, the 32 bit mode); mask is the mask of the addresses
+    align - the function (state, address) which moves a register of the address so that the
+            fxsave area is aligned (default: ebx)"""
+    if ea is None:
+        ea = effective_address
     mnemonic = text.split()[0]
     lo, hi = x87_needs(text)
     n = rng.randint(lo, hi)
@@ -280,37 +287,40 @@ def x87_adjust(rng, text, st, host=False):
         # QEMU takes the control word and the status word of the image as they are, the processor
         # clears the reserved bits of the control word and derives ES and B from the flags: the
         # image has a plain control word and a status word without exception flags
-        addr = effective_address(text, st)
+        addr = ea(text, st)
         if addr is not None:
             fsw_offset = 2 if mnemonic == 'fxrstor' else 4
             fsw = (rng.randrange(8) << 11) | (rng.getrandbits(1) << 8) | (rng.getrandbits(1) << 9) | \
                 (rng.getrandbits(1) << 10) | (rng.getrandbits(1) << 14)
             for offset, value in ((0, sane_control_word(rng)), (fsw_offset, fsw)):
                 for i in range(2):
-                    mem[(addr + offset + i) & M32] = (value >> (8 * i)) & 0xff
+                    mem[(addr + offset + i) & mask] = (value >> (8 * i)) & 0xff
     if mnemonic in ('fxsave', 'fxrstor'):
         # The area must be 16 byte aligned (#GP otherwise, in QEMU too). The register form is
         # aligned through ebx, the absolute form of the corpus stays unaligned (a #GP test)
-        addr = effective_address(text, st)
-        if addr is not None and 'ebx' in text:
-            st['ebx'] = (st['ebx'] + ((-addr) & 0xf)) & M32
-            addr = effective_address(text, st)
+        addr = ea(text, st)
+        if addr is not None and align is not None:
+            align(st, addr)
+            addr = ea(text, st)
+        elif addr is not None and 'ebx' in text:
+            st['ebx'] = (st['ebx'] + ((-addr) & 0xf)) & mask
+            addr = ea(text, st)
         if addr is not None and mnemonic == 'fxrstor' and not host:
             # see fldenv: a plain control word and a status word without exception flags
             fsw = (rng.randrange(8) << 11) | (rng.getrandbits(1) << 8) | (rng.getrandbits(1) << 9) | \
                 (rng.getrandbits(1) << 10) | (rng.getrandbits(1) << 14)
             for offset, value in ((0, sane_control_word(rng)), (2, fsw)):
                 for i in range(2):
-                    mem[(addr + offset + i) & M32] = (value >> (8 * i)) & 0xff
+                    mem[(addr + offset + i) & mask] = (value >> (8 * i)) & 0xff
         if addr is not None and mnemonic == 'fxrstor':
             # a valid MXCSR (QEMU does not #GP a reserved bit, the SDM does)
             mxcsr = 0x1f80 | (rng.randrange(4) << 13) | (rng.getrandbits(1) << 15) | (rng.getrandbits(1) << 6)
             for i in range(4):
-                mem[(addr + 24 + i) & M32] = (mxcsr >> (8 * i)) & 0xff
+                mem[(addr + 24 + i) & mask] = (mxcsr >> (8 * i)) & 0xff
         return
     if '[' not in text or (rng.random() < 0.25 and not (mnemonic == 'fldcw' and not host)):
         return
-    addr = effective_address(text, st)
+    addr = ea(text, st)
     if addr is None:
         return
     size = None
@@ -342,7 +352,7 @@ def x87_adjust(rng, text, st, host=False):
             value |= 1 << (fraction_bits - 1)
     if size:
         for i in range(size):
-            mem[(addr + i) & M32] = (value >> (8 * i)) & 0xff
+            mem[(addr + i) & mask] = (value >> (8 * i)) & 0xff
 
 
 # --- segments ---------------------------------------------------------------

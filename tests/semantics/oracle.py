@@ -332,7 +332,7 @@ def align_memory_operand(bits, code, state, rng):
     state[base] = (state[base] + (-address & 15)) & M32
 
 
-def flush_to_zero_lanes(code, mxcsr, xmm):
+def flush_to_zero_lanes(code, mxcsr, xmm, rex=0):
     """Two corrections of the floating point results of QEMU 5 (oracle_bugs.txt):
       * It ignores MXCSR.FZ: a denormal result of an arithmetic or narrowing
         conversion instruction is kept. With FZ the SDM returns a zero with the
@@ -341,12 +341,13 @@ def flush_to_zero_lanes(code, mxcsr, xmm):
         denormal operand under DAZ. The SDM converts a denormal source operand
         to a zero of its sign before the computation, so the result is that
         zero.
-    Returns (register, new value) of the destination xmm register, or None."""
+    Returns (register, new value) of the destination xmm register, or None.
+    `rex` is the REX prefix of a 64 bit mode instruction (`code` has no REX)."""
     d = _decode_simd(code)
     if d is None or d[1] != '0f' or d[3] >= len(code):
         return None
     pre, _, op, at = d
-    reg = (code[at] >> 3) & 7
+    reg = ((code[at] >> 3) & 7) | ((rex & 4) << 1)
     p66, f2, f3 = 0x66 in pre, 0xF2 in pre, 0xF3 in pre
     if op in (0x51, 0x58, 0x59, 0x5C, 0x5E) and mxcsr & 0x8000:
         pass
@@ -677,6 +678,11 @@ def use_rosetta(path):
 
 
 def get_oracle(bits):
+    if bits == 64:
+        if 64 not in _oracles:
+            import oracle64
+            _oracles[64] = oracle64.Oracle64()
+        return _oracles[64]
     if bits == 32 and _backend['rosetta']:
         if 'rosetta' not in _oracles:
             _oracles['rosetta'] = RosettaOracle(_backend['rosetta'])
@@ -692,7 +698,10 @@ def get_oracle(bits):
 
 def format_state(code, state):
     """One input line of `dismount_cli run`. The v2 tokens are written only
-    when they differ from their defaults."""
+    when they differ from their defaults. A state with 'rax' is a 64 bit one."""
+    if 'rax' in state:
+        import oracle64
+        return oracle64.format_state(code, state)
     out = '%s ; %s eip=%x eflags=%x' % (
         code.hex(), ' '.join('%s=%x' % (n, state[n] & M32) for n in REGS),
         state['eip'] & M32, state['eflags'] & M32)
@@ -719,6 +728,9 @@ def format_state(code, state):
 
 
 def parse_state(line):
+    if ' rax=' in line:
+        import oracle64
+        return oracle64.parse_state(line)
     hexs, _, rest = line.partition(';')
     st = {}
     for tok in rest.split():
@@ -762,6 +774,9 @@ def parse_mem(text):
 
 
 def format_result(res, undef=0, fundef=0):
+    if 'rip' in res:
+        import oracle64
+        return oracle64.format_result(res, undef, fundef)
     s = 'OK exit=%s undef=%08x fundef=%04x %s eip=%08x eflags=%08x' % (
         res['exit'], undef, fundef, ' '.join('%s=%08x' % (n, res['regs'][n]) for n in REGS),
         res['eip'], res['eflags'])
@@ -777,6 +792,9 @@ def parse_result(line):
     """Parses an `OK ...` / `ERR ...` output line. Returns a dict with the key
     'err' (the message) on ERR, otherwise the oracle shape plus 'undef',
     'fundef' and the segment bases 'base' (dismount only)."""
+    if ' rax=' in line:
+        import oracle64
+        return oracle64.parse_result(line)
     if not line.startswith('OK '):
         return {'err': line[4:].strip() if line.startswith('ERR ') else line.strip()}
     kv = {}
