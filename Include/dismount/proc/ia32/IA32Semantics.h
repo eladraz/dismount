@@ -365,11 +365,19 @@ extern const IA32SemanticEntry gAmd64SemanticTable[];
  *   - The stack is rsp; push / pop / call / ret move 8 bytes (2 with 66).
  *   - The string instructions and loop use rcx, rsi, rdi (ecx, esi, edi with
  *     67); jrcxz tests rcx.
- *   - The segment register loads (mov, pop, lds..lgs), the far branches and
- *     the far returns (jmp / call far, retf, iret, iretq) are not lifted
- *     (OP_UNDEFINED): the descriptors of 64 bit mode (long mode code segments,
- *     the base of fs and gs from the MSRs) are not modeled. Reading a
- *     selector (mov r, sreg, push sreg) is lifted.
+ *   - The segment loads (mov, pop fs / gs, lfs, lgs, lss) read the descriptor
+ *     from the GDT / LDT with the checks of protected mode. The bases of
+ *     es, cs, ss and ds are ignored; loading fs or gs sets its base register
+ *     to the 32 bit base of the descriptor (0 for a null selector); the limit
+ *     is not checked. A null ds, es, fs, gs is allowed, a null ss only at
+ *     CPL 0 to 2. lfs, lgs, lss read m16:16, m16:32 and m16:64 (REX.W).
+ *   - jmp / call far (m16:16/32/64), retf (retfq) and iretq / iretd go to a
+ *     code segment of the same privilege: a 64 bit one (L = 1, no limit
+ *     check, L and D together are #GP) or a 32 bit compatibility mode one
+ *     (L = 0, D = 1, the offset is checked against the limit); the block ends
+ *     there. iret pops rip, cs, rflags, rsp and ss in any case. Call gates,
+ *     task switches, 16 bit code segments, a return to an outer privilege
+ *     level and the 16 bit forms of retf / iret are OP_UNDEFINED.
  *   - syscall and sysret are traps (TRAP_SYSTEM_CALL); swapgs exchanges
  *     the gs base with AMD64_REG_KERNEL_GS_BASE.
  *   - The instructions which are invalid in 64 bit mode are not decoded

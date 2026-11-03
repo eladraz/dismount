@@ -58,6 +58,7 @@ const uint32 DESCRIPTOR_CONFORMING = 1 << 10;
 const uint32 DESCRIPTOR_CODE       = 1 << 11;
 const uint32 DESCRIPTOR_NOT_SYSTEM = 1 << 12;
 const uint32 DESCRIPTOR_PRESENT    = 1 << 15;
+const uint32 DESCRIPTOR_LONG       = 1 << 21;   // code segments, 64 bit mode
 const uint32 DESCRIPTOR_DEFAULT_32 = 1 << 22;
 const uint32 DESCRIPTOR_GRANULAR   = 1 << 23;
 
@@ -71,10 +72,10 @@ SemanticOperand immediate(Context& c, int64 value, uint bits)
     return c.getImmediate(value, integerType(bits));
 }
 
-// Return true for the protected mode (the 32 bit processor)
+// Return true for the protected mode (the 32 bit processor, and 64 bit mode)
 bool isProtected(Context& c)
 {
-    return c.getInstruction().getType() == OpcodeSubsystems::DISASSEMBLER_INTEL_32;
+    return c.getInstruction().getType() != OpcodeSubsystems::DISASSEMBLER_INTEL_16;
 }
 
 uint operandBitsOf(Context& c)
@@ -82,11 +83,11 @@ uint operandBitsOf(Context& c)
     return IA32OperandDecoder::getOperandBits(c.getInstruction());
 }
 
-// Return the stack pointer register: esp in protected mode, sp in real mode
+// Return the stack pointer register: rsp in 64 bit mode, esp in protected
+// mode, sp in real mode
 SemanticOperand stackPointerOf(Context& c)
 {
-    return c.getRegister(c.getStackAddressType().getTotalBits() == 32 ?
-                         IA32_REG_ESP : IA32_REG_SP);
+    return c.getStackPointer();
 }
 
 // Return the integer 'value' in 'bits' bits: truncated or zero extended
@@ -182,14 +183,16 @@ struct Descriptor {
 };
 
 // Read the descriptor of 'selector' (32 bit). A selector beyond the limit of
-// its table is #GP
+// its table is #GP. The tables are addressed in the native size
 Descriptor fetchDescriptor(Context& c, const SemanticOperand& selector)
 {
     const SemanticType type = integerType(32);
+    const SemanticType native = c.getNativeType();
+    const uint nativeBits = native.getTotalBits();
     SemanticOperand index = c.emit(Op::OP_AND, type, selector,
                                    immediate(c, 0xFFF8, 32));
     SemanticOperand isLocal = isSet(c, selector, 4);
-    SemanticOperand tableBase = c.emit(Op::OP_SELECT, type, isLocal,
+    SemanticOperand tableBase = c.emit(Op::OP_SELECT, native, isLocal,
                     c.getRegister(IA32_REG_LDTR_BASE),
                     c.getRegister(IA32_REG_GDTR_BASE));
     SemanticOperand limit = c.emit(Op::OP_SELECT, type, isLocal,
@@ -200,10 +203,11 @@ Descriptor fetchDescriptor(Context& c, const SemanticOperand& selector)
                       limit), VECTOR_GENERAL_PROTECTION);
 
     Descriptor result;
-    result.m_address = c.emit(Op::OP_ADD, type, tableBase, index);
+    result.m_address = c.emit(Op::OP_ADD, native, tableBase,
+                              resize(c, index, nativeBits));
     result.m_low = c.load(result.m_address, type);
-    result.m_high = c.load(c.emit(Op::OP_ADD, type, result.m_address,
-                                  immediate(c, 4, 32)), type);
+    result.m_high = c.load(c.emit(Op::OP_ADD, native, result.m_address,
+                                  immediate(c, 4, nativeBits)), type);
     return result;
 }
 
@@ -249,9 +253,11 @@ SemanticOperand getDescriptorDpl(Context& c, const Descriptor& descriptor)
 void setAccessed(Context& c, const Descriptor& descriptor)
 {
     const SemanticType type = integerType(32);
+    const SemanticType native = descriptor.m_address.getType();
     SemanticOperand done = c.newLabel();
     c.branchIf(isSet(c, descriptor.m_high, DESCRIPTOR_ACCESSED), done);
-    c.store(c.emit(Op::OP_ADD, type, descriptor.m_address, immediate(c, 4, 32)),
+    c.store(c.emit(Op::OP_ADD, native, descriptor.m_address,
+                   immediate(c, 4, native.getTotalBits())),
             c.emit(Op::OP_OR, type, descriptor.m_high,
                    immediate(c, DESCRIPTOR_ACCESSED, 32)));
     c.placeLabel(done);
@@ -262,11 +268,16 @@ void setAccessed(Context& c, const Descriptor& descriptor)
 /////////////////////////////////////////////////////////////////////////////
 
 // Load segment register 'segment' (IA32_REG_ES..GS, not cs) from the 16 bit
-// selector
+// selector. In 64 bit mode the bases of es, ss and ds are ignored (0), fs and
+// gs get the 32 bit base of the descriptor (a null selector: 0), and a null
+// ss is allowed at CPL 0 to 2
 void loadSegmentRegister(Context& c, uint segment, const SemanticOperand& selector16)
 {
     const SemanticType type = integerType(32);
+    const bool is64 = c.is64BitMode();
     const uint baseRegister = baseRegisterOf(segment);
+    const bool hasBase = !is64 || (segment == IA32_REG_FS) || (segment == IA32_REG_GS);
+    const uint baseBits = c.getRegister(baseRegister).getType().getTotalBits();
     SemanticOperand selector = snapshot(c, selector16);
 
     if (!isProtected(c))
@@ -286,10 +297,22 @@ void loadSegmentRegister(Context& c, uint segment, const SemanticOperand& select
             immediate(c, 0, 32));
     SemanticOperand nullLabel = c.newLabel();
     SemanticOperand doneLabel = c.newLabel();
-    if (isStack)
+    if (isStack && is64)
+    {
+        SemanticOperand notNull = c.newLabel();
+        c.branchIf(notOf(c, isNull), notNull);
+        trapIf(c, compare(c, Op::COND_EQUAL, getCpl(c), immediate(c, 3, 32)),
+               VECTOR_GENERAL_PROTECTION);
+        c.move(c.getRegister(segment), selector);
+        c.branch(doneLabel);
+        c.placeLabel(notNull);
+    } else if (isStack)
+    {
         trapIf(c, isNull, VECTOR_GENERAL_PROTECTION);
-    else
+    } else
+    {
         c.branchIf(isNull, nullLabel);
+    }
 
     Descriptor descriptor = fetchDescriptor(c, selector32);
     SemanticOperand rpl = c.emit(Op::OP_AND, type, selector32, immediate(c, 3, 32));
@@ -331,15 +354,22 @@ void loadSegmentRegister(Context& c, uint segment, const SemanticOperand& select
            isStack ? VECTOR_STACK_FAULT : VECTOR_NOT_PRESENT);
 
     setAccessed(c, descriptor);
-    c.move(c.getRegister(baseRegister), getDescriptorBase(c, descriptor));
+    if (hasBase)
+        c.move(c.getRegister(baseRegister),
+               resize(c, getDescriptorBase(c, descriptor), baseBits));
     c.move(c.getRegister(segment), selector);
     if (isStack)
+    {
+        if (is64)
+            c.placeLabel(doneLabel);
         return;
+    }
     c.branch(doneLabel);
 
     // A null selector: loaded, the accesses through it would fault
     c.placeLabel(nullLabel);
-    c.move(c.getRegister(baseRegister), immediate(c, 0, 32));
+    if (hasBase)
+        c.move(c.getRegister(baseRegister), immediate(c, 0, baseBits));
     c.move(c.getRegister(segment), selector);
     c.placeLabel(doneLabel);
 }
@@ -360,10 +390,11 @@ struct FarTarget {
 };
 
 FarTarget checkFarTarget(Context& c, const SemanticOperand& selector32,
-                         const SemanticOperand& offset32, bool isReturn,
+                         const SemanticOperand& offset, bool isReturn,
                          bool checkLimit, const SemanticOperand& notLifted)
 {
     const SemanticType type = integerType(32);
+    const bool is64 = c.is64BitMode();
     trapIf(c, compare(c, Op::COND_EQUAL,
                 c.emit(Op::OP_AND, type, selector32, immediate(c, 0xFFFC, 32)),
                 immediate(c, 0, 32)), VECTOR_GENERAL_PROTECTION);
@@ -416,18 +447,38 @@ FarTarget checkFarTarget(Context& c, const SemanticOperand& selector32,
         // A return to an outer privilege level switches the stack
         c.branchIf(compare(c, Op::COND_UNSIGNED_GREATER, rpl, cpl), notLifted);
     }
-    // A 16 bit code segment changes the mode
-    c.branchIf(notOf(c, isSet(c, descriptor.m_high, DESCRIPTOR_DEFAULT_32)),
-               notLifted);
-    if (checkLimit)
-        trapIf(c, compare(c, Op::COND_UNSIGNED_GREATER, offset32,
-                          getDescriptorLimit(c, descriptor)),
+    SemanticOperand isDefault32 = isSet(c, descriptor.m_high, DESCRIPTOR_DEFAULT_32);
+    SemanticOperand isLong;
+    if (is64)
+    {
+        // A 64 bit code segment has no default size (L and D together are
+        // #GP). A 16 bit one changes the mode
+        isLong = isSet(c, descriptor.m_high, DESCRIPTOR_LONG);
+        trapIf(c, logic(c, Op::OP_AND, isLong, isDefault32),
                VECTOR_GENERAL_PROTECTION);
+        c.branchIf(logic(c, Op::OP_AND, notOf(c, isLong), notOf(c, isDefault32)),
+                   notLifted);
+    } else
+    {
+        // A 16 bit code segment changes the mode
+        c.branchIf(notOf(c, isDefault32), notLifted);
+    }
+    if (checkLimit)
+    {
+        // The limit of a 64 bit code segment is not checked
+        SemanticOperand isOver = compare(c, Op::COND_UNSIGNED_GREATER, offset,
+                resize(c, getDescriptorLimit(c, descriptor),
+                       offset.getType().getTotalBits()));
+        if (is64)
+            isOver = logic(c, Op::OP_AND, notOf(c, isLong), isOver);
+        trapIf(c, isOver, VECTOR_GENERAL_PROTECTION);
+    }
     return target;
 }
 
 // Load cs from a checked far target. The RPL of cs is the CPL for a branch,
-// and the RPL of the selector for a return
+// and the RPL of the selector for a return. In 64 bit mode the base of cs
+// is ignored
 void loadCodeSegment(Context& c, const FarTarget& target, bool isReturn)
 {
     const SemanticType type = integerType(32);
@@ -439,8 +490,9 @@ void loadCodeSegment(Context& c, const FarTarget& target, bool isReturn)
         selector = resize(c, c.emit(Op::OP_OR, type,
                     c.emit(Op::OP_AND, type, target.m_selector,
                            immediate(c, 0xFFFC, 32)), getCpl(c)), 16);
-    c.move(c.getRegister(IA32_REG_CS_BASE),
-           getDescriptorBase(c, target.m_descriptor));
+    if (!c.is64BitMode())
+        c.move(c.getRegister(IA32_REG_CS_BASE),
+               getDescriptorBase(c, target.m_descriptor));
     c.move(c.getRegister(IA32_REG_CS), selector);
 }
 
@@ -472,12 +524,6 @@ void liftMove(Context& c)
             c.trap(Op::TRAP_FAULT, VECTOR_INVALID_OPCODE);
             return;
         }
-        // 64 bit mode: the descriptors of the segment loads are not modeled
-        if (c.is64BitMode())
-        {
-            emitUndefined(c);
-            return;
-        }
         loadSegmentRegister(c, destination.m_register,
                             c.read(1, integerType(16)));
         return;
@@ -491,14 +537,6 @@ void liftMove(Context& c)
 // pop es, ss, ds, fs, gs
 void liftPopSegment(Context& c)
 {
-    // 64 bit mode: the descriptors of the segment loads and of the far
-    // branches are not modeled (the base of fs and gs is a register, only
-    // the selectors are read)
-    if (c.is64BitMode())
-    {
-        emitUndefined(c);
-        return;
-    }
     const SemanticType type = c.getOperandSizeType();
     const SemanticType stackType = c.getStackAddressType();
     SemanticOperand stackPointer = stackPointerOf(c);
@@ -514,14 +552,6 @@ void liftPopSegment(Context& c)
 template <int SEGMENT>
 void liftLoadFarPointer(Context& c)
 {
-    // 64 bit mode: the descriptors of the segment loads and of the far
-    // branches are not modeled (the base of fs and gs is a register, only
-    // the selectors are read)
-    if (c.is64BitMode())
-    {
-        emitUndefined(c);
-        return;
-    }
     // The register form is invalid
     if (c.getOperand(1).m_kind != IA32DecodedOperand::KIND_MEMORY)
     {
@@ -530,9 +560,10 @@ void liftLoadFarPointer(Context& c)
     }
     const uint bits = c.getOperand(0).m_bits;
     SemanticOperand address = c.getAddress(1);
+    const uint addressBits = address.getType().getTotalBits();
     SemanticOperand offset = c.load(address, integerType(bits));
-    SemanticOperand selector = c.load(c.emit(Op::OP_ADD, integerType(32), address,
-                                             immediate(c, bits / 8, 32)),
+    SemanticOperand selector = c.load(c.emit(Op::OP_ADD, address.getType(), address,
+                                             immediate(c, bits / 8, addressBits)),
                                       integerType(16));
     loadSegmentRegister(c, SEGMENT, selector);
     c.write(0, offset);
@@ -549,20 +580,13 @@ void pushReturnFrame(Context& c)
                 integerType(bits)));
 }
 
-// jmp / call with a far pointer: ptr16:16/32 immediate, or m16:16/32
+// jmp / call with a far pointer: ptr16:16/32 immediate, or m16:16/32/64
 template <bool IS_CALL>
 void liftFarBranch(Context& c)
 {
-    // 64 bit mode: the descriptors of the segment loads and of the far
-    // branches are not modeled (the base of fs and gs is a register, only
-    // the selectors are read)
-    if (c.is64BitMode())
-    {
-        emitUndefined(c);
-        return;
-    }
     const IA32DecodedOperand& operand = c.getOperand(0);
     const uint bits = operandBitsOf(c);
+    const uint nativeBits = c.getNativeType().getTotalBits();
     SemanticOperand offset;
     SemanticOperand selector;
     if (operand.m_kind == IA32DecodedOperand::KIND_FAR_POINTER)
@@ -573,9 +597,11 @@ void liftFarBranch(Context& c)
     {
         CHECK(operand.m_kind == IA32DecodedOperand::KIND_MEMORY);
         SemanticOperand address = c.getAddress(0);
-        offset = resize(c, c.load(address, integerType(bits)), 32);
-        selector = c.load(c.emit(Op::OP_ADD, integerType(32), address,
-                                 immediate(c, bits / 8, 32)), integerType(16));
+        offset = resize(c, c.load(address, integerType(bits)), nativeBits);
+        selector = c.load(c.emit(Op::OP_ADD, address.getType(), address,
+                                 immediate(c, bits / 8,
+                                           address.getType().getTotalBits())),
+                          integerType(16));
     }
     offset = snapshot(c, offset);
 
@@ -635,56 +661,129 @@ void restoreEflags(Context& c, const SemanticOperand& image, uint bits)
     }
 }
 
+// The checks of the stack segment that iret loads in 64 bit mode, from the
+// frame: a null ss is allowed if the new RPL isn't 3, otherwise the segment
+// is a present writable data segment of the new privilege level. Nothing
+// changes: the load is done by loadReturnStackSegment. Returns the descriptor
+// (valid only if ss isn't null)
+Descriptor checkReturnStackSegment(Context& c, const SemanticOperand& ss32,
+                                   const SemanticOperand& isNull,
+                                   const SemanticOperand& rpl)
+{
+    const SemanticType type = integerType(32);
+    SemanticOperand skip = c.newLabel();
+    Descriptor descriptor;
+    descriptor.m_address = c.newTemporary(c.getNativeType());
+    descriptor.m_low = c.newTemporary(type);
+    descriptor.m_high = c.newTemporary(type);
+    // A null selector with an RPL of 3 is #GP
+    trapIf(c, logic(c, Op::OP_AND, isNull,
+                    compare(c, Op::COND_EQUAL, rpl, immediate(c, 3, 32))),
+           VECTOR_GENERAL_PROTECTION);
+    c.branchIf(isNull, skip);
+    trapIf(c, compare(c, Op::COND_NOT_EQUAL,
+                      c.emit(Op::OP_AND, type, ss32, immediate(c, 3, 32)), rpl),
+           VECTOR_GENERAL_PROTECTION);
+    Descriptor fetched = fetchDescriptor(c, ss32);
+    c.move(descriptor.m_address, fetched.m_address);
+    c.move(descriptor.m_low, fetched.m_low);
+    c.move(descriptor.m_high, fetched.m_high);
+    trapIf(c, notOf(c, isSet(c, fetched.m_high, DESCRIPTOR_NOT_SYSTEM)),
+           VECTOR_GENERAL_PROTECTION);
+    trapIf(c, logic(c, Op::OP_OR, isSet(c, fetched.m_high, DESCRIPTOR_CODE),
+                    notOf(c, isSet(c, fetched.m_high, DESCRIPTOR_WRITABLE))),
+           VECTOR_GENERAL_PROTECTION);
+    trapIf(c, compare(c, Op::COND_NOT_EQUAL, getDescriptorDpl(c, fetched), rpl),
+           VECTOR_GENERAL_PROTECTION);
+    trapIf(c, notOf(c, isSet(c, fetched.m_high, DESCRIPTOR_PRESENT)),
+           VECTOR_NOT_PRESENT);
+    c.placeLabel(skip);
+    return descriptor;
+}
+
 // retf, retf imm16 and iret: pop the offset, cs (and the flags), and
-// discard the immediate
+// discard the immediate. In 64 bit mode iret pops rip, cs, rflags, rsp and ss
+// in any case; the target is a 64 bit code segment or a 32 bit one, a
+// return to a 16 bit one, to an outer privilege level or with a 16 bit operand
+// size is not lifted
 template <bool IS_IRET>
 void liftFarReturn(Context& c)
 {
-    // 64 bit mode: the descriptors of the segment loads and of the far
-    // branches are not modeled (the base of fs and gs is a register, only
-    // the selectors are read)
-    if (c.is64BitMode())
+    const bool is64 = c.is64BitMode();
+    const uint bits = operandBitsOf(c);
+    if (is64 && (bits == 16))
     {
         emitUndefined(c);
         return;
     }
-    const uint bits = operandBitsOf(c);
     const uint bytes = bits / 8;
     const SemanticType type = integerType(bits);
     const SemanticType stackType = c.getStackAddressType();
+    const uint nativeBits = c.getNativeType().getTotalBits();
     SemanticOperand stackPointer = stackPointerOf(c);
 
-    // The frame: offset, cs, (flags)
+    // The frame: offset, cs, (flags, rsp, ss)
     SemanticOperand offset = c.load(c.getLinearAddress(IA32_REG_SS, stackPointer), type);
     SemanticOperand selectorAddress = c.getLinearAddress(IA32_REG_SS,
             c.emit(Op::OP_ADD, stackType, stackPointer,
                    immediate(c, bytes, stackType.getTotalBits())));
     SemanticOperand selector = c.load(selectorAddress, type);
     SemanticOperand flags;
+    SemanticOperand newStack;
+    SemanticOperand newSs;
     if (IS_IRET)
         flags = c.load(c.getLinearAddress(IA32_REG_SS,
                 c.emit(Op::OP_ADD, stackType, stackPointer,
                        immediate(c, 2 * bytes, stackType.getTotalBits()))), type);
+    if (IS_IRET && is64)
+    {
+        newStack = c.load(c.getLinearAddress(IA32_REG_SS,
+                c.emit(Op::OP_ADD, stackType, stackPointer,
+                       immediate(c, 3 * bytes, stackType.getTotalBits()))), type);
+        newSs = c.load(c.getLinearAddress(IA32_REG_SS,
+                c.emit(Op::OP_ADD, stackType, stackPointer,
+                       immediate(c, 4 * bytes, stackType.getTotalBits()))), type);
+    }
 
     // The bytes the instruction takes off the stack
-    uint64 total = (IS_IRET ? 3 : 2) * bytes;
+    uint64 total = (IS_IRET ? (is64 ? 5 : 3) : 2) * bytes;
     if (!IS_IRET && (c.getOperandsCount() == 1))
         total += (uint64)(c.getOperand(0).m_immediate & 0xFFFF);
     SemanticOperand newPointer = c.emit(Op::OP_ADD, stackType, stackPointer,
                                         immediate(c, (int64)total,
                                                   stackType.getTotalBits()));
-    SemanticOperand offset32 = snapshot(c, resize(c, offset, 32));
+    SemanticOperand offsetNative = snapshot(c, resize(c, offset, nativeBits));
     SemanticOperand selector16 = snapshot(c, resize(c, selector, 16));
 
     SemanticOperand notLifted = c.newLabel();
     if (isProtected(c))
     {
         // A return to virtual 8086 mode isn't lifted
-        if (IS_IRET && (bits == 32))
+        if (IS_IRET && (bits == 32) && !is64)
             c.branchIf(isSet(c, snapshot(c, flags), (uint32)1 << 17), notLifted);
-        FarTarget target = checkFarTarget(c, resize(c, selector16, 32), offset32,
+        FarTarget target = checkFarTarget(c, resize(c, selector16, 32), offsetNative,
                                           true, false, notLifted);
-        loadCodeSegment(c, target, true);
+        if (IS_IRET && is64)
+        {
+            SemanticOperand ss16 = snapshot(c, resize(c, newSs, 16));
+            SemanticOperand ss32 = resize(c, ss16, 32);
+            SemanticOperand rpl = c.emit(Op::OP_AND, integerType(32),
+                                         resize(c, selector16, 32), immediate(c, 3, 32));
+            SemanticOperand isNull = compare(c, Op::COND_EQUAL,
+                    c.emit(Op::OP_AND, integerType(32), ss32, immediate(c, 0xFFFC, 32)),
+                    immediate(c, 0, 32));
+            Descriptor ssDescriptor = checkReturnStackSegment(c, ss32, isNull, rpl);
+            loadCodeSegment(c, target, true);
+            SemanticOperand skip = c.newLabel();
+            c.branchIf(isNull, skip);
+            setAccessed(c, ssDescriptor);
+            c.placeLabel(skip);
+            c.move(c.getRegister(IA32_REG_SS), ss16);
+            newPointer = resize(c, snapshot(c, newStack), nativeBits);
+        } else
+        {
+            loadCodeSegment(c, target, true);
+        }
     } else
     {
         loadCodeSegmentReal(c, selector16);
@@ -693,7 +792,7 @@ void liftFarReturn(Context& c)
     if (IS_IRET)
         restoreEflags(c, snapshot(c, flags), bits);
     c.emit(SemanticInstruction(Op::OP_RETURN, SemanticType(), SemanticOperand(),
-                               offset32));
+                               offsetNative));
     c.placeLabel(notLifted);
     emitUndefined(c);
 }

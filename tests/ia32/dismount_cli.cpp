@@ -496,6 +496,52 @@ static const uint8 gGdt[] = {
 };
 static const uint gGdtCount = sizeof(gGdt) / 8;
 
+// The fixed GDT of the 64 bit mode, at the same address, see
+// tests/semantics/TEST_PLAN.md. The descriptors of the long mode: L (bit 53)
+// is the 0xa nibble of the flags, a 32 bit code segment has D (0xc)
+enum {
+    GDT64_LIMIT = 0x97
+};
+static const uint8 gGdt64[] = {
+    // 0x00 null
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // 0x08 code 64 bit, DPL 0, execute/read
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0xaf, 0x00,
+    // 0x10 data, DPL 0, base 0, read/write
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x92, 0xcf, 0x00,
+    // 0x18 data, DPL 0, base 0x10000000, read/write, accessed
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x93, 0xcf, 0x10,
+    // 0x20 code 32 bit (compatibility mode), DPL 0, execute/read
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0xcf, 0x00,
+    // 0x28 code 16 bit, DPL 0 (not lifted)
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0x00, 0x00,
+    // 0x30 data, DPL 0, read only
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x90, 0xcf, 0x00,
+    // 0x38 data, DPL 0, read/write, not present
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x12, 0xcf, 0x00,
+    // 0x40 data, DPL 3, base 0x20000000, read/write
+    0xff, 0xff, 0x00, 0x00, 0x00, 0xf2, 0xcf, 0x20,
+    // 0x48 64 bit call gate, DPL 3 (16 bytes, not lifted)
+    0x00, 0x30, 0x08, 0x00, 0x00, 0xec, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    // 0x58 code 64 bit, DPL 3
+    0xff, 0xff, 0x00, 0x00, 0x00, 0xfa, 0xaf, 0x00,
+    // 0x60 code 64 bit, conforming, DPL 0, execute/read
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x9e, 0xaf, 0x00,
+    // 0x68 code with L and D (invalid)
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0xef, 0x00,
+    // 0x70 code 64 bit, execute only
+    0xff, 0xff, 0x00, 0x00, 0x00, 0x98, 0xaf, 0x00,
+    // 0x78 data, DPL 1, read/write
+    0xff, 0xff, 0x00, 0x00, 0x00, 0xb2, 0xcf, 0x00,
+    // 0x80 data, DPL 0, base 0x87654321, read/write
+    0xff, 0xff, 0x21, 0x43, 0x65, 0x92, 0xcf, 0x87,
+    // 0x88 code 64 bit, conforming, DPL 3, execute/read
+    0xff, 0xff, 0x00, 0x00, 0x00, 0xfe, 0xaf, 0x00,
+    // 0x90 code 32 bit, DPL 0, base 0x2000
+    0xff, 0xff, 0x00, 0x20, 0x00, 0x9a, 0xcf, 0x00
+};
+
 // Return the base of the segment 'selector' of the initial state: selector *
 // 16 in real mode; in protected mode 0 for a null selector, otherwise from the
 // fixed GDT
@@ -845,7 +891,10 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
     // The memory: the code is at cs_base + ip
     PatternMemory memory(bytes, bases[ia32dis::IA32_REG_CS - ia32dis::IA32_REG_ES] +
                                 state.m_ip, is64);
-    if (!is16 && !is64)
+    if (is64)
+        for (uint i = 0; i < sizeof(gGdt64); i++)
+            memory.setInitial(GDT_ADDRESS + i, gGdt64[i]);
+    else if (!is16)
         for (uint i = 0; i < sizeof(gGdt); i++)
             memory.setInitial(GDT_ADDRESS + i, gGdt[i]);
     {
@@ -883,7 +932,8 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
                                 SemanticValue(bases[i]));
     }
     interpreter.setRegister(ia32dis::IA32_REG_GDTR_BASE, SemanticValue(GDT_ADDRESS));
-    interpreter.setRegister(ia32dis::IA32_REG_GDTR_LIMIT, SemanticValue(GDT_LIMIT));
+    interpreter.setRegister(ia32dis::IA32_REG_GDTR_LIMIT,
+                            SemanticValue(is64 ? GDT64_LIMIT : GDT_LIMIT));
     interpreter.setRegister(ia32dis::IA32_REG_FPU_CONTROL, SemanticValue(state.m_fcw));
     interpreter.setRegister(ia32dis::IA32_REG_FPU_STATUS, SemanticValue(state.m_fsw));
     interpreter.setRegister(ia32dis::IA32_REG_FPU_TAG, SemanticValue(state.m_ftw));

@@ -471,11 +471,128 @@ public:
         liftAndRun(swapgs, 3, start, interpreter, lifter);
         check("swapgs gs", get(interpreter, IA32_REG_GS_BASE), 0x2222);
         check("swapgs kernel", get(interpreter, AMD64_REG_KERNEL_GS_BASE), 0x1111);
+    }
 
-        // A segment load is not lifted in 64 bit mode
+    // Write the 8 bytes of a descriptor of the GDT at 'index'
+    static void setDescriptor(TestAmd64Memory& memory, uint64 gdt, uint index,
+                              uint64 descriptor)
+    {
+        uint8 bytes[8];
+        for (uint i = 0; i < 8; i++)
+            bytes[i] = (uint8)(descriptor >> (8 * i));
+        memory.write(gdt + index * 8, bytes, 8);
+    }
+
+    // The segment registers, far branches and returns of 64 bit mode
+    void testSegments()
+    {
+        TestAmd64Memory memory;
+        SemanticInterpreter interpreter(getArchitecture(), memory);
+        SemanticLifterPtr lifter = SemanticLifterFactory::getLifter(
+                                OpcodeSubsystems::DISASSEMBLER_AMD_64);
+        const uint64 start = memory.m_base + 0x100;
+        const uint64 gdt = memory.m_base + 0x400;
+        // 1 data, 2 base 0x87654321, 3 code 64 bit (L), 4 code 32 bit, 5 not
+        // present, 6 code 16 bit, 7 L and D
+        setDescriptor(memory, gdt, 1, 0x00CF92000000FFFFULL);
+        setDescriptor(memory, gdt, 2, 0x87CF92654321FFFFULL);
+        setDescriptor(memory, gdt, 3, 0x00AF9A000000FFFFULL);
+        setDescriptor(memory, gdt, 4, 0x00CF9A000000FFFFULL);
+        setDescriptor(memory, gdt, 5, 0x00CF12000000FFFFULL);
+        setDescriptor(memory, gdt, 6, 0x00009A000000FFFFULL);
+        setDescriptor(memory, gdt, 7, 0x00EF9A000000FFFFULL);
+        interpreter.setRegister(IA32_REG_GDTR_BASE, SemanticValue(gdt));
+        interpreter.setRegister(IA32_REG_GDTR_LIMIT, SemanticValue(0x3F));
+
+        // mov fs, ax: the base of fs is the base of the descriptor
+        const uint8 movFs[] = { 0x8E, 0xE0 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0x10));
+        check("mov fs exit", liftAndRun(movFs, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("mov fs", get(interpreter, IA32_REG_FS), 0x10);
+        check("fs base", get(interpreter, IA32_REG_FS_BASE), 0x87654321ULL);
+        check("fs accessed", memory.getByte(gdt + 2 * 8 + 5) & 1, 1);
+        // the base of ds is ignored
         const uint8 movDs[] = { 0x8E, 0xD8 };
-        check("mov ds exit", liftAndRun(movDs, 2, start, interpreter, lifter),
+        liftAndRun(movDs, 2, start, interpreter, lifter);
+        check("ds base", get(interpreter, IA32_REG_DS_BASE), 0);
+        // a null selector: allowed, the base is 0
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0));
+        liftAndRun(movFs, 2, start, interpreter, lifter);
+        check("null fs", get(interpreter, IA32_REG_FS), 0);
+        check("null fs base", get(interpreter, IA32_REG_FS_BASE), 0);
+        // a null ss: allowed at CPL 0, #GP at CPL 3
+        const uint8 movSs[] = { 0x8E, 0xD0 };
+        check("null ss exit", liftAndRun(movSs, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        interpreter.setRegister(IA32_REG_CS, SemanticValue(3));
+        check("null ss cpl 3", liftAndRun(movSs, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        check("null ss vector", interpreter.getTrapNumber(), 13);
+        interpreter.setRegister(IA32_REG_CS, SemanticValue(0));
+        // not present: #NP, past the limit and a system... #GP
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0x28));
+        check("np exit", liftAndRun(movDs, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        check("np vector", interpreter.getTrapNumber(), 11);
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0x48));
+        liftAndRun(movDs, 2, start, interpreter, lifter);
+        check("limit vector", interpreter.getTrapNumber(), 13);
+
+        // jmp far [rbx] (m16:32) to the 64 bit code segment
+        const uint8 jmpFar[] = { 0xFF, 0x2B };
+        const uint64 pointer = memory.m_base + 0x800;
+        const uint8 target[] = { 0x78, 0x56, 0x34, 0x12, 0x18, 0x00 };
+        memory.write(pointer, target, 6);
+        interpreter.setRegister(AMD64_REG_RBX, SemanticValue(pointer));
+        check("jmp far exit", liftAndRun(jmpFar, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_BRANCH);
+        check("jmp far cs", get(interpreter, IA32_REG_CS), 0x18);
+        check("jmp far rip", get(interpreter, AMD64_REG_RIP), 0x12345678);
+        // to the data segment: #GP, to the 16 bit code segment and with L and D
+        const uint8 dataTarget[] = { 0x78, 0x56, 0x34, 0x12, 0x08, 0x00 };
+        memory.write(pointer, dataTarget, 6);
+        check("jmp far data", liftAndRun(jmpFar, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        const uint8 code16Target[] = { 0x78, 0x56, 0x34, 0x12, 0x30, 0x00 };
+        memory.write(pointer, code16Target, 6);
+        check("jmp far code16", liftAndRun(jmpFar, 2, start, interpreter, lifter),
               SemanticInterpreter::EXIT_UNDEFINED);
+        const uint8 longDefault[] = { 0x78, 0x56, 0x34, 0x12, 0x38, 0x00 };
+        memory.write(pointer, longDefault, 6);
+        check("jmp far L and D", liftAndRun(jmpFar, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+
+        // call far [rbx]: pushes cs and the return address, 4 bytes each
+        const uint8 callFar[] = { 0xFF, 0x1B };
+        memory.write(pointer, target, 6);
+        interpreter.setRegister(IA32_REG_CS, SemanticValue(0));
+        interpreter.setRegister(AMD64_REG_RSP, SemanticValue(memory.m_base + 0xF00));
+        check("call far exit", liftAndRun(callFar, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_BRANCH);
+        check("call far rsp", get(interpreter, AMD64_REG_RSP), memory.m_base + 0xEF8);
+        check("call far return", memory.getByte(memory.m_base + 0xEF8), (start + 2) & 0xFF);
+        check("call far cs", memory.getByte(memory.m_base + 0xEFC), 0);
+
+        // iretq: rip, cs, rflags, rsp, ss
+        const uint8 iretq[] = { 0x48, 0xCF };
+        const uint64 frame = memory.m_base + 0xC00;
+        const uint64 values[] = { 0x4000, 0x18, 0x246, memory.m_base + 0x700, 0x8 };
+        for (uint i = 0; i < 5; i++)
+        {
+            uint8 bytes[8];
+            for (uint k = 0; k < 8; k++)
+                bytes[k] = (uint8)(values[i] >> (8 * k));
+            memory.write(frame + 8 * i, bytes, 8);
+        }
+        interpreter.setRegister(AMD64_REG_RSP, SemanticValue(frame));
+        interpreter.setRegister(IA32_REG_ZF, SemanticValue(0));
+        check("iretq exit", liftAndRun(iretq, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_BRANCH);
+        check("iretq rip", get(interpreter, AMD64_REG_RIP), 0x4000);
+        check("iretq rsp", get(interpreter, AMD64_REG_RSP), memory.m_base + 0x700);
+        check("iretq ss", get(interpreter, IA32_REG_SS), 0x8);
+        check("iretq zf", get(interpreter, IA32_REG_ZF), 1);
     }
 
     virtual void test()
@@ -484,6 +601,7 @@ public:
         testAliasing();
         testRunBlocks();
         testLifter();
+        testSegments();
         cout << "AMD64 semantics tests passed" << endl;
     }
 
