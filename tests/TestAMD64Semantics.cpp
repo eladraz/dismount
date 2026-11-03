@@ -403,6 +403,46 @@ public:
         liftAndRun(movSpl, 3, start, interpreter, lifter);
         check("mov spl", get(interpreter, AMD64_REG_RSP), 0x1122334455667712ULL);
 
+        // cmovz eax, ecx with the condition false: the destination is written
+        // anyway, so the upper half of rax is cleared
+        const uint8 cmov32[] = { 0x0F, 0x44, 0xC1 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0xFFFFFFFFFFFFFFFFULL));
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(0x123456789ULL));
+        interpreter.setRegister(IA32_REG_ZF, SemanticValue(0));
+        liftAndRun(cmov32, 3, start, interpreter, lifter);
+        check("cmovz false", get(interpreter, AMD64_REG_RAX), 0xFFFFFFFFULL);
+        interpreter.setRegister(IA32_REG_ZF, SemanticValue(1));
+        liftAndRun(cmov32, 3, start, interpreter, lifter);
+        check("cmovz true", get(interpreter, AMD64_REG_RAX), 0x23456789ULL);
+        // cmovz ax, cx with the condition false keeps the rest of rax
+        const uint8 cmov16[] = { 0x66, 0x0F, 0x44, 0xC1 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0xFFFFFFFFFFFFFFFFULL));
+        interpreter.setRegister(IA32_REG_ZF, SemanticValue(0));
+        liftAndRun(cmov16, 4, start, interpreter, lifter);
+        check("cmovz ax", get(interpreter, AMD64_REG_RAX), 0xFFFFFFFFFFFFFFFFULL);
+        // popcnt rax, rcx: the zero flag tells a zero source, the rest are cleared
+        const uint8 popcnt64[] = { 0xF3, 0x48, 0x0F, 0xB8, 0xC1 };
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(0xF0F0F0F0F0F0F0F0ULL));
+        interpreter.setRegister(IA32_REG_CF, SemanticValue(1));
+        liftAndRun(popcnt64, 5, start, interpreter, lifter);
+        check("popcnt rax", get(interpreter, AMD64_REG_RAX), 32);
+        check("popcnt zf", get(interpreter, IA32_REG_ZF), 0);
+        check("popcnt cf", get(interpreter, IA32_REG_CF), 0);
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(0));
+        liftAndRun(popcnt64, 5, start, interpreter, lifter);
+        check("popcnt zero zf", get(interpreter, IA32_REG_ZF), 1);
+        // tzcnt rax, rcx and lzcnt of zero: the operand size, the carry flag
+        const uint8 tzcnt64[] = { 0xF3, 0x48, 0x0F, 0xBC, 0xC1 };
+        liftAndRun(tzcnt64, 5, start, interpreter, lifter);
+        check("tzcnt zero", get(interpreter, AMD64_REG_RAX), 64);
+        check("tzcnt zero cf", get(interpreter, IA32_REG_CF), 1);
+        check("tzcnt zero zf", get(interpreter, IA32_REG_ZF), 0);
+        // ud2 is the invalid opcode exception
+        const uint8 ud2[] = { 0x0F, 0x0B };
+        check("ud2 exit", liftAndRun(ud2, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        check("ud2 vector", interpreter.getTrapNumber(), 6);
+
         // push rax: 8 bytes
         const uint8 push[] = { 0x50 };
         interpreter.setRegister(AMD64_REG_RSP, SemanticValue(memory.m_base + 0x800));

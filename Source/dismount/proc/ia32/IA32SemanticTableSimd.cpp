@@ -1438,6 +1438,7 @@ const IA32SemanticEntry gIa32SimdSemanticTable[] = {
     SIMD("prefetcht0",  liftPrefetch, CAT_CACHE, U_LOAD, P_READ, DATA_NONE),
     SIMD("prefetcht1",  liftPrefetch, CAT_CACHE, U_LOAD, P_READ, DATA_NONE),
     SIMD("prefetcht2",  liftPrefetch, CAT_CACHE, U_LOAD, P_READ, DATA_NONE),
+    SIMD("prefetchw",   liftPrefetch, CAT_CACHE, U_LOAD, P_READ, DATA_NONE),
     SIMD("clflush",     liftFlushLine, CAT_CACHE, U_STORE, P_WRITE, DATA_NONE),
 
     // End marker

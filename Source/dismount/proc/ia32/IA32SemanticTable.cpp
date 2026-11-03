@@ -556,6 +556,26 @@ void liftInt3(Context& c)
     c.trap(Op::TRAP_BREAKPOINT, 3);
 }
 
+// int1 (icebp) raises the debug exception
+void liftInt1(Context& c)
+{
+    c.trap(Op::TRAP_FAULT, 1);
+}
+
+// ud0, ud1, ud2: the invalid opcode exception, the operands aren't accessed
+void liftUndefinedInstruction(Context& c)
+{
+    c.trap(Op::TRAP_UNDEFINED, 6);
+}
+
+// salc: al = carry ? 0xFF : 0
+void liftSalc(Context& c)
+{
+    c.move(c.getGeneralRegister(IA32_GP32_EAX, 8),
+           c.emit(Op::OP_SELECT, integerType(8), c.testFlags(Op::COND_CARRY),
+                  immediate(c, 0xFF, 8), immediate(c, 0, 8)));
+}
+
 void liftInto(Context& c)
 {
     SemanticOperand skip = c.newLabel();
@@ -1187,6 +1207,41 @@ void liftBitScan(Context& c)
     c.write(0, c.emit(Op::OP_SELECT, type, isZero, destination, index));
 }
 
+// popcnt: the number of set bits. The zero flag tells that the source is
+// zero, the other flags are cleared
+void liftPopulationCount(Context& c)
+{
+    const uint bits = c.getOperand(0).m_bits;
+    SemanticOperand source = c.read(1);
+    SemanticOperand isZero = compare(c, Op::COND_EQUAL, source,
+                                     immediate(c, 0, bits));
+    SemanticOperand count = c.emit(Op::OP_POPULATION_COUNT,
+                                   integerType(bits), source);
+    c.setFlags(FALL & ~FZ, immediate(c, 0, 1));
+    c.setFlags(FZ, isZero);
+    c.write(0, count);
+}
+
+// lzcnt / tzcnt: the number of leading / trailing zero bits, the operand size
+// for a zero source. The carry flag tells that the source is zero and the zero
+// flag that the result is zero
+template <bool IS_LEADING>
+void liftZeroCount(Context& c)
+{
+    const uint bits = c.getOperand(0).m_bits;
+    SemanticOperand source = c.read(1);
+    SemanticOperand isZero = compare(c, Op::COND_EQUAL, source,
+                                     immediate(c, 0, bits));
+    SemanticOperand count = c.emit(IS_LEADING ? Op::OP_COUNT_LEADING_ZEROS :
+                                                Op::OP_COUNT_TRAILING_ZEROS,
+                                   integerType(bits), source);
+    SemanticOperand isCountZero = compare(c, Op::COND_EQUAL, count,
+                                          immediate(c, 0, bits));
+    c.setFlags(FC, isZero);
+    c.setFlags(FZ, isCountZero);
+    c.write(0, count);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Exchange and add, compare and exchange
 /////////////////////////////////////////////////////////////////////////////
@@ -1565,6 +1620,19 @@ const SemanticTemplateStep gSetConditionSteps[] = {
     STEP(OP_ZERO_EXTEND, TYPE_OF(0), OPERAND(0), TEMP(0), NO_REF, NO_REF)
 };
 
+// cmovcc r, r/m: the destination is always written, with its own value when
+// the condition is false (a 32 bit destination of 64 bit mode is zero extended
+// either way), and the source is always read
+const SemanticTemplateStep gConditionalMoveSteps[] = {
+    CONDITION_STEP(OP_TEST_FLAGS, TYPE_BOOLEAN, TEMP(0), NO_REF, NO_REF, FROM_OPCODE),
+    STEP(OP_SELECT, TYPE_OF(0), OPERAND(0), TEMP(0), OPERAND(1), OPERAND(0))
+};
+
+// movbe r, m | m, r
+const SemanticTemplateStep gMoveByteSwappedSteps[] = {
+    STEP(OP_BYTE_SWAP, TYPE_OF(0), OPERAND(0), OPERAND(1), NO_REF, NO_REF)
+};
+
 // jcc rel: jump if the condition holds
 const SemanticTemplateStep gJumpConditionSteps[] = {
     CONDITION_STEP(OP_TEST_FLAGS, TYPE_BOOLEAN, TEMP(0), NO_REF, NO_REF, FROM_OPCODE),
@@ -1687,6 +1755,9 @@ namespace ia32dis {
 #define SET(name, flags) \
     TEMPLATE(name, gSetConditionSteps, CAT_CONDITIONAL, U_ALU | U_MEMORY, \
              P_CONDITIONAL | P_WRITE, flags, 0, 0)
+#define CMOV(name, flags) \
+    TEMPLATE(name, gConditionalMoveSteps, CAT_CONDITIONAL, U_ALU | U_MEMORY, \
+             P_CONDITIONAL | P_READ, flags, 0, 0)
 
 // The bits and shifts: the count and the sizes of the other mnemonics
 #define SHIFT(name, kind, read, written, undefined) \
@@ -1708,7 +1779,11 @@ const IA32SemanticEntry gIa32SemanticTable[] = {
     LIFTER("cbw/cwde", liftConvertAccumulator, CAT_CONVERT, U_ALU,          P_IMPLICIT,   0, 0, 0),
     LIFTER("cwd/cdq",  liftConvertAccumulatorToData, CAT_CONVERT, U_ALU,    P_IMPLICIT,   0, 0, 0),
     LIFTER("xlatb",    liftXlat,             CAT_MOVE,    U_ALU | U_MEMORY, P_READ | P_IMPLICIT, 0, 0, 0),
+    TEMPLATE("movbe",  gMoveByteSwappedSteps, CAT_MOVE,   U_ALU | U_MEMORY, P_READ_WRITE, 0, 0, 0),
     TEMPLATE("nop",    gNopSteps,            CAT_NOP,     U_NONE,           P_NONE,       0, 0, 0),
+    TEMPLATE("pause",  gNopSteps,            CAT_NOP,     U_NONE,           P_NONE,       0, 0, 0),
+    TEMPLATE("endbr32", gNopSteps,           CAT_NOP,     U_NONE,           P_NONE,       0, 0, 0),
+    TEMPLATE("endbr64", gNopSteps,           CAT_NOP,     U_NONE,           P_NONE,       0, 0, 0),
 
     //////////////////////////////////////////////////////////////////////////
     // Arithmetic and logic
@@ -1756,6 +1831,9 @@ const IA32SemanticEntry gIa32SemanticTable[] = {
     LIFTER("btc", liftBitTest<BIT_TEST_COMPLEMENT>, CAT_BITS, U_ALU | U_MEMORY, P_READ_WRITE, 0, FALL & ~FZ, FO | FS | FA | FP),
     LIFTER("bsf", liftBitScan<false>, CAT_BITS, U_ALU | U_MEMORY, P_READ, 0, FALL, FALL & ~FZ),
     LIFTER("bsr", liftBitScan<true>,  CAT_BITS, U_ALU | U_MEMORY, P_READ, 0, FALL, FALL & ~FZ),
+    LIFTER("popcnt", liftPopulationCount, CAT_BITS, U_ALU | U_MEMORY, P_READ, 0, FALL, 0),
+    LIFTER("lzcnt", liftZeroCount<true>,  CAT_BITS, U_ALU | U_MEMORY, P_READ, 0, FALL, FALL & ~(FC | FZ)),
+    LIFTER("tzcnt", liftZeroCount<false>, CAT_BITS, U_ALU | U_MEMORY, P_READ, 0, FALL, FALL & ~(FC | FZ)),
 
     //////////////////////////////////////////////////////////////////////////
     // Atomic read-modify-write
@@ -1861,8 +1939,43 @@ const IA32SemanticEntry gIa32SemanticTable[] = {
     SET("setle",  FZ | FS | FO),
     SET("setg",   FZ | FS | FO),
     SET("setnle", FZ | FS | FO),
+    CMOV("cmovo",   FO),
+    CMOV("cmovno",  FO),
+    CMOV("cmovb",   FC),
+    CMOV("cmovc",   FC),
+    CMOV("cmovnae", FC),
+    CMOV("cmovae",  FC),
+    CMOV("cmovnb",  FC),
+    CMOV("cmovnc",  FC),
+    CMOV("cmovz",   FZ),
+    CMOV("cmove",   FZ),
+    CMOV("cmovnz",  FZ),
+    CMOV("cmovne",  FZ),
+    CMOV("cmovna",  FC | FZ),
+    CMOV("cmovbe",  FC | FZ),
+    CMOV("cmova",   FC | FZ),
+    CMOV("cmovnbe", FC | FZ),
+    CMOV("cmovs",   FS),
+    CMOV("cmovns",  FS),
+    CMOV("cmovp",   FP),
+    CMOV("cmovpe",  FP),
+    CMOV("cmovnp",  FP),
+    CMOV("cmovpo",  FP),
+    CMOV("cmovl",   FS | FO),
+    CMOV("cmovnge", FS | FO),
+    CMOV("cmovnl",  FS | FO),
+    CMOV("cmovge",  FS | FO),
+    CMOV("cmovng",  FZ | FS | FO),
+    CMOV("cmovle",  FZ | FS | FO),
+    CMOV("cmovg",   FZ | FS | FO),
+    CMOV("cmovnle", FZ | FS | FO),
     LIFTER("int",  liftInt,  CAT_INTERRUPT, U_BRANCH, P_NONE, 0,  0, 0),
     LIFTER("int3", liftInt3, CAT_INTERRUPT, U_BRANCH, P_NONE, 0,  0, 0),
+    LIFTER("int1", liftInt1, CAT_INTERRUPT, U_BRANCH, P_NONE, 0,  0, 0),
+    LIFTER("ud0",  liftUndefinedInstruction, CAT_INTERRUPT, U_BRANCH, P_NONE, 0, 0, 0),
+    LIFTER("ud1",  liftUndefinedInstruction, CAT_INTERRUPT, U_BRANCH, P_NONE, 0, 0, 0),
+    LIFTER("ud2",  liftUndefinedInstruction, CAT_INTERRUPT, U_BRANCH, P_NONE, 0, 0, 0),
+    LIFTER("salc", liftSalc, CAT_MOVE, U_ALU, P_IMPLICIT, FC, 0, 0),
     LIFTER("into", liftInto, CAT_INTERRUPT, U_BRANCH, P_CONDITIONAL, FO, 0, 0),
     LIFTER("bound", liftBound, CAT_COMPARE, U_ALU | U_MEMORY, P_READ, 0, 0, 0),
 
@@ -1907,6 +2020,7 @@ const IA32SemanticEntry gIa32SemanticTable[] = {
 #undef LIFTER_OPERANDS
 #undef JUMP
 #undef SET
+#undef CMOV
 #undef SHIFT
 #undef NO_REF
 #undef OPERAND

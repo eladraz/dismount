@@ -21,4 +21,5 @@
 \b(lar|lsl|verr|verw|arpl)\b  # depend on the descriptor tables
 \b(in|out|ins|insb|insw|insd|outs|outsb|outsw|outsd)\b  # port I/O: no device model (Unicorn ignores the access)
 \b(hlt|cli|sti|monitor|mwait)\b  # halt / interrupt flag: privileged; monitor/mwait need a monitored address range
-^(lock |rep |repe |repne )?(vmcall|vmlaunch|vmresume|vmxoff|vmxon|vmread|vmwrite|vmptrld|vmptrst|vmclear|invept|invvpid|vmrun|vmmcall|vmload|vmsave|stgi|clgi|skinit|invlpga|rdmsrlist|wrmsrlist|encls|enclu|enclv|getsec|rdpkru|wrpkru|ud0|ud1|xtest|xbegin|xend|xabort|hreset)\b  # virtualization / SGX / TSX / vendor instructions
+^(lock |rep |repe |repne )?(vmcall|vmlaunch|vmresume|vmxoff|vmxon|vmread|vmwrite|vmptrld|vmptrst|vmclear|invept|invvpid|vmrun|vmmcall|vmload|vmsave|stgi|clgi|skinit|invlpga|rdmsrlist|wrmsrlist|encls|enclu|enclv|getsec|rdpkru|wrpkru|xtest|xbegin|xend|xabort|hreset)\b  # virtualization / SGX / TSX / vendor instructions
+^(ud0|ud1)$  # nasm assembles the operand-less forms to 0F FF / 0F B9 without the ModR/M byte, which is not an instruction (ndisasm: db)

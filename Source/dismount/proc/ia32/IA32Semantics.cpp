@@ -921,13 +921,6 @@ const IA32SemanticEntry* IA32SemanticLifter::findEntry(const IA32Opcode& instruc
                 return NULL;
     }
 
-    // A repeat prefix on bsf and bsr selects tzcnt and lzcnt on the
-    // processors which have them
-    if ((strcmp(opcode->m_opcodeName, "bsf") == 0) ||
-        (strcmp(opcode->m_opcodeName, "bsr") == 0))
-        if (IA32OperandDecoder::hasPrefix(instruction, 0xF3))
-            return NULL;
-
     // The tables of the areas, see IA32Semantics.h. The forms of a mnemonic
     // of the integer table which touch a segment register (mov sreg, pop
     // sreg, the far jmp and call) are in the segments table only

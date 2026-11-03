@@ -220,3 +220,16 @@
 # A negative absolute address ([-0x80000000] is 0xffffffff80000000): Unicorn maps 52 bit addresses and
 # reports the access at 0x000fffff80000000 (the high bits are cut), see oracle64.py
 [64] \[(?:byte |word |dword |qword )?-0x[0-9a-f]+\]  # Unicorn cuts the address of a negative absolute operand to 52 bits
+
+# int1 / icebp (F1): the SDM raises the debug exception (#DB, vector 1). QEMU's translator does not
+# know the opcode and raises the invalid opcode exception: `int1` with any state gives trap:6 in
+# Unicorn 2.1.4 (UC_ERR_INSN_INVALID), dismount gives trap:1
+^(int1|icebp)$  # QEMU treats F1 as an invalid opcode (SDM: #DB, vector 1)
+
+# popcnt, movbe in 16 bit mode: QEMU uses the operand size the wrong way round (the 66 prefix selects
+# 16 bits, no prefix selects 32), unlike bsf / lzcnt / tzcnt. Evidence (Unicorn 2.1.4, UC_MODE_16,
+# eax = aaaa5555, ebx = ffff0001): `popcnt ax, bx` (f3 0f b8 c3) gives eax = 0x11 (SDM: 16 bit, ax = 1,
+# eax = aaaa0001), `popcnt eax, ebx` (66 f3 0f b8 c3) gives eax = aaaa0001; `movbe ax, [si]`
+# (0f 38 f0 04) writes the whole eax, and `movbe ax, [si]` with the 66 prefix is UC_ERR_INSN_INVALID.
+# The 32 bit mode agrees with dismount.
+[16] ^(popcnt|movbe)\b  # QEMU swaps the operand sizes of popcnt and movbe in 16 bit mode (SDM: 66 selects 32 bits)
