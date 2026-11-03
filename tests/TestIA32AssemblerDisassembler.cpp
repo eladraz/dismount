@@ -427,6 +427,37 @@ public:
             {"mov dr3, ebx", {0x0F, 0x23, 0xDB}, 3, "mov dr3, ebx"},
             {"pextrw word [eax], xmm1, 5", {0x66, 0x0F, 0x3A, 0x15, 0x08, 0x05}, 6,
              "pextrw word ptr [eax], xmm1, 05h"},
+            // ----------------------------------------------------------------
+            // The baseline instructions: cmovcc (the first mnemonic of the
+            // aliases is the disassembled one), ud0 / ud1 / ud2, int1, salc,
+            // pause, endbr, popcnt / lzcnt / tzcnt (the repeat prefix is a part
+            // of the opcode), movbe, crc32 and prefetchw
+            // ----------------------------------------------------------------
+            {"cmove eax, ebx", {0x0F, 0x44, 0xC3}, 3, "cmovz eax, ebx"},
+            {"cmovnle ax, word ptr [ecx]", {0x66, 0x0F, 0x4F, 0x01}, 4, "cmovg ax, word ptr [ecx]"},
+            {"cmovc eax, dword ptr [ecx]", {0x0F, 0x42, 0x01}, 3, "cmovb eax, dword ptr [ecx]"},
+            {"cmovo ecx, edx", {0x0F, 0x40, 0xCA}, 3, "cmovo ecx, edx"},
+            {"ud2", {0x0F, 0x0B}, 2, "ud2 "},
+            {"ud1 eax, ecx", {0x0F, 0xB9, 0xC1}, 3, "ud1 eax, ecx"},
+            {"ud0 eax, dword ptr [ecx]", {0x0F, 0xFF, 0x01}, 3, "ud0 eax, dword ptr [ecx]"},
+            {"int1", {0xF1}, 1, "int1 "},
+            {"icebp", {0xF1}, 1, "int1 "},
+            {"salc", {0xD6}, 1, "salc "},
+            {"pause", {0xF3, 0x90}, 2, "pause "},
+            {"endbr32", {0xF3, 0x0F, 0x1E, 0xFB}, 4, "endbr32 "},
+            {"endbr64", {0xF3, 0x0F, 0x1E, 0xFA}, 4, "endbr64 "},
+            {"popcnt eax, ebx", {0xF3, 0x0F, 0xB8, 0xC3}, 4, "popcnt eax, ebx"},
+            {"popcnt ax, word ptr [ecx]", {0x66, 0xF3, 0x0F, 0xB8, 0x01}, 5, "popcnt ax, word ptr [ecx]"},
+            {"lzcnt eax, ebx", {0xF3, 0x0F, 0xBD, 0xC3}, 4, "lzcnt eax, ebx"},
+            {"tzcnt eax, dword ptr [ecx]", {0xF3, 0x0F, 0xBC, 0x01}, 4, "tzcnt eax, dword ptr [ecx]"},
+            {"bsf eax, ebx", {0x0F, 0xBC, 0xC3}, 3, "bsf eax, ebx"},
+            {"bsr eax, ebx", {0x0F, 0xBD, 0xC3}, 3, "bsr eax, ebx"},
+            {"movbe eax, dword ptr [ecx]", {0x0F, 0x38, 0xF0, 0x01}, 4, "movbe eax, dword ptr [ecx]"},
+            {"movbe word ptr [ecx], ax", {0x66, 0x0F, 0x38, 0xF1, 0x01}, 5, "movbe word ptr [ecx], ax"},
+            {"crc32 eax, bl", {0xF2, 0x0F, 0x38, 0xF0, 0xC3}, 5, "crc32 eax, bl"},
+            {"crc32 eax, cx", {0x66, 0xF2, 0x0F, 0x38, 0xF1, 0xC1}, 6, "crc32 eax, cx"},
+            {"crc32 eax, dword ptr [ecx]", {0xF2, 0x0F, 0x38, 0xF1, 0x01}, 5, "crc32 eax, dword ptr [ecx]"},
+            {"prefetchw byte ptr [ecx]", {0x0F, 0x0D, 0x09}, 3, "prefetchw byte ptr [ecx]"},
            /* {"", {0x}, , ""},
             // Mod: 10
             // R/M:

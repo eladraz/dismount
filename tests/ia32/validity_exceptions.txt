@@ -66,17 +66,15 @@ all b (?:66|f2|f3|4[0-9a-f]|6648|f248|f348|664c)?0f1[89a-e][0-9a-f][0-9a-f].*
 # predate the newer instruction execute: the newer encodings are defined as
 # extensions of these (SDM: the F2 / F3 / 66 prefix is "ignored" by the old
 # instruction).
-#   tzcnt, lzcnt (F3 0F BC / BD, bsf / bsr); wbnoinvd (F3 0F 09, wbinvd);
-#   pause (F3 90, nop); movsldup, movshdup, movddup (F3 0F 12 / 16, F2 0F 12:
+#   wbnoinvd (F3 0F 09, wbinvd);
+#   movsldup, movshdup, movddup (F3 0F 12 / 16, F2 0F 12:
 #   movlps, movhps, movhlps, movlhps); movntss, movntsd (SSE4a F3 / F2 0F 2B,
 #   movntps); clflushopt (66 0F AE /7, clflush); the prefetch with 66 (66 0F 18
 #   /0..3, ndisasm prints a 'nop' with the 66 prefix as a 16 bit operand);
 #   incsspd / incsspq (F3 0F AE /5 mod 11, lfence), tpause (66 0F AE /6 mod 11),
 #   umonitor (F3 0F AE /6 mod 11), umwait (F2 0F AE /6 mod 11) (all mfence) and
 #   pcommit (66 0F AE /7 mod 11, sfence)
-all cm f3(?:48|4c)?0fb[cd][0-9a-f][0-9a-f].*
 all cm f3(?:48|4c)?0f09[0-9a-f][0-9a-f].*
-all cm f390.*
 all cm (?:f2|f3)(?:48|4c)?0f12[0-9a-f][0-9a-f].*
 all cm f3(?:48|4c)?0f16[0-9a-f][0-9a-f].*
 all cm (?:f2|f3)(?:48|4c)?0f2b[0-9a-f][0-9a-f].*

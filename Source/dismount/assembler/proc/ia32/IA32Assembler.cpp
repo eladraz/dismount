@@ -1179,8 +1179,13 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
         case ia32dis::OPND_GP_32BIT_MODRM:
             // The register is 32 bit whatever the operand size is, and 64 bit
             // with REX.W
-            // (pextrw takes rax as eax, nasm doesn't write REX.W for it)
-            if (is64 && (enc.m_opcode->m_prefix != 0xC5))
+            // (pextrw takes rax as eax, nasm doesn't write REX.W for it. The
+            // 64 bit register of crc32, whose source is a general purpose
+            // r/m, doesn't select the operand size either, the source does:
+            // nasm writes REX.W only for 'crc32 r64, r/m64')
+            if (is64 && (enc.m_opcode->m_prefix != 0xC5) &&
+                (enc.m_opcode->m_secondOperand != ia32dis::OPND_MODRM_BYTEPTR) &&
+                (enc.m_opcode->m_secondOperand != ia32dis::OPND_MODRM_dWORDPTR))
             {
                 if (!setOperandWidth(64, enc))
                     return false;

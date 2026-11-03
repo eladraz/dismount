@@ -239,6 +239,11 @@ def table_mnemonics(long_mode=False):
 # tables have as an unrelated instruction (not implemented, see UNSUPPORTED)
 VEX_ONLY_FEATURES = {'msr_imm'}
 
+# The nasm lines which assemble to the opcode without its ModR/M byte ('ud0' is
+# 0F FF, 'ud1' is 0F B9): not an instruction, ndisasm says db. The tables have
+# ud0 / ud1 with the ModR/M byte only ('ud0 eax, ecx')
+OPCODE_ONLY_TEXTS = {'ud0', 'ud1'}
+
 # The instructions which take a size suffix in nasm (see isSizeSuffixed in
 # IA32IntelNotation.cpp)
 SUFFIXED = {'ret', 'retf', 'iret', 'leave', 'enter', 'pushf', 'popf', 'pusha', 'popa'}
@@ -495,6 +500,8 @@ def check_file(info, args, ctx, tmp):
         # The VEX encoded forms of mnemonics which the tables have as another
         # instruction ('rdmsr rbx, imm32' against the plain rdmsr)
         if r['feature'] in VEX_ONLY_FEATURES:
+            r['supported'] = False
+        if r['text'].strip() in OPCODE_ONLY_TEXTS:
             r['supported'] = False
         r['host'] = ctx['host_ok'](r['feature'])
     ref = nasm_assemble(ctx['nasm'], texts, bits, tmp)
