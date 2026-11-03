@@ -73,11 +73,19 @@ uint operandBitsOf(Context& c)
     return IA32OperandDecoder::getOperandBits(c.getInstruction());
 }
 
-// Return the stack pointer register: esp in protected mode, sp in real mode
+// Return the stack pointer register: rsp in 64 bit mode, esp in protected
+// mode, sp in real mode
 SemanticOperand stackPointerOf(Context& c)
 {
-    return c.getRegister(c.getStackAddressType().getTotalBits() == 32 ?
-                         IA32_REG_ESP : IA32_REG_SP);
+    return c.getStackPointer();
+}
+
+// Return the frame pointer register of the stack size
+SemanticOperand framePointerOf(Context& c)
+{
+    const uint stackBits = c.getStackAddressType().getTotalBits();
+    return c.getRegister(stackBits == 64 ? AMD64_REG_RBP :
+                         stackBits == 32 ? IA32_REG_EBP : IA32_REG_BP);
 }
 
 // Return the value of a register operand in a temporary, so a later write
@@ -388,8 +396,7 @@ void liftEnter(Context& c)
     const uint level = (uint)(c.getOperand(1).m_immediate & 0x1F);
     const int64 size = c.getOperand(0).m_immediate;
     SemanticOperand stackPointer = stackPointerOf(c);
-    SemanticOperand framePointer = c.getRegister(stackBits == 32 ? IA32_REG_EBP :
-                                                                   IA32_REG_BP);
+    SemanticOperand framePointer = framePointerOf(c);
 
     // push ebp: the new frame is where it's stored
     SemanticOperand frame = c.emit(Op::OP_SUBTRACT, stackType, stackPointer,
@@ -424,8 +431,7 @@ void liftLeave(Context& c)
     const uint bits = operandBitsOf(c);
     const SemanticType stackType = c.getStackAddressType();
     const uint stackBits = stackType.getTotalBits();
-    SemanticOperand framePointer = c.getRegister(stackBits == 32 ? IA32_REG_EBP :
-                                                                   IA32_REG_BP);
+    SemanticOperand framePointer = framePointerOf(c);
     SemanticOperand value = c.load(c.getLinearAddress(IA32_REG_SS, framePointer),
                                    integerType(bits));
     SemanticOperand newPointer = c.emit(Op::OP_ADD, stackType, framePointer,
@@ -770,12 +776,26 @@ void liftDivide(Context& c)
     // The quotient must fit the register
     SemanticOperand narrowQuotient = c.emit(Op::OP_TRUNCATE, type, quotient);
     SemanticOperand fits;
-    if (IS_SIGNED)
+    if (bits == 64)
+    {
+        // The comparisons are on numbers of up to 64 bits: the high half of
+        // the quotient is the sign (or zero)
+        SemanticOperand high = c.emit(Op::OP_EXTRACT, type, quotient,
+                                      immediate(c, 64, 32));
+        SemanticOperand expectedHigh = immediate(c, 0, 64);
+        if (IS_SIGNED)
+            expectedHigh = c.emit(Op::OP_SHIFT_RIGHT_ARITHMETIC, type,
+                                  narrowQuotient, immediate(c, 63, 64));
+        fits = compare(c, Op::COND_EQUAL, high, expectedHigh);
+    } else if (IS_SIGNED)
+    {
         fits = compare(c, Op::COND_EQUAL, quotient,
                        c.emit(Op::OP_SIGN_EXTEND, wide, narrowQuotient));
-    else
+    } else
+    {
         fits = compare(c, Op::COND_EQUAL, quotient,
                        c.emit(Op::OP_ZERO_EXTEND, wide, narrowQuotient));
+    }
     trapUnless(c, fits, 0);
 
     writeProduct(c, bits, narrowQuotient,
@@ -796,10 +816,12 @@ enum ShiftKind {
     ROTATE_RIGHT_CARRY
 };
 
-// Return the count masked to 5 bits (an 8 bit value)
-SemanticOperand maskCount(Context& c, const SemanticOperand& count)
+// Return the count masked to 5 bits, 6 bits for a 64 bit operand (an 8 bit
+// value)
+SemanticOperand maskCount(Context& c, const SemanticOperand& count, uint bits)
 {
-    return c.emit(Op::OP_AND, integerType(8), count, immediate(c, 31, 8));
+    return c.emit(Op::OP_AND, integerType(8), count,
+                  immediate(c, (bits == 64) ? 63 : 31, 8));
 }
 
 // Return the 8 bit count in the size of the operation
@@ -810,15 +832,34 @@ SemanticOperand widenCount(Context& c, const SemanticOperand& count, uint bits)
     return c.emit(Op::OP_ZERO_EXTEND, integerType(bits), count);
 }
 
+// The end of a shift or rotate whose count is zero: nothing changes, flags
+// included. But in 64 bit mode the write of a 32 bit register clears the
+// upper half of the 64 bit register even then
+void placeZeroCountLabel(Context& c, const SemanticOperand& skip,
+                         const SemanticOperand& value)
+{
+    if (c.is64BitMode() && (value.getType().getTotalBits() == 32) &&
+        (c.getOperand(0).m_kind == IA32DecodedOperand::KIND_REGISTER))
+    {
+        SemanticOperand done = c.newLabel();
+        c.branch(done);
+        c.placeLabel(skip);
+        c.write(0, value);
+        c.placeLabel(done);
+        return;
+    }
+    c.placeLabel(skip);
+}
+
 // shl, shr, sar, rol, ror, rcl, rcr: nothing changes, flags included, when
-// the count (masked to 5 bits) is zero
+// the count (masked to 5 bits, 6 for 64 bit operands) is zero
 template <int KIND>
 void liftShift(Context& c)
 {
     const uint bits = c.getOperand(0).m_bits;
     const SemanticType type = integerType(bits);
     SemanticOperand value = c.read(0);
-    SemanticOperand count = maskCount(c, c.read(1));
+    SemanticOperand count = maskCount(c, c.read(1), bits);
     SemanticOperand wideCount = widenCount(c, count, bits);
     SemanticOperand skip = c.newLabel();
     c.branchIf(compare(c, Op::COND_EQUAL, count, immediate(c, 0, 8)), skip);
@@ -854,6 +895,49 @@ void liftShift(Context& c)
     }
     default:
     {
+        if (bits == 64)
+        {
+            // The rotate of a 65 bit value is done with shifts
+            const SemanticOperand carry = c.emit(Op::OP_ZERO_EXTEND, type,
+                                                 c.getRegister(IA32_REG_CF));
+            SemanticOperand complement = c.emit(Op::OP_SUBTRACT, type,
+                                                immediate(c, 64, 64), wideCount);
+            SemanticOperand result;
+            SemanticOperand newCarry;
+            if (KIND == ROTATE_LEFT_CARRY)
+            {
+                // (value << n) | (CF << (n - 1)) | (value >> (65 - n))
+                SemanticOperand left = c.emit(Op::OP_SHIFT_LEFT, type, value, wideCount);
+                SemanticOperand carryBit = c.emit(Op::OP_SHIFT_LEFT, type, carry,
+                    c.emit(Op::OP_SUBTRACT, type, wideCount, immediate(c, 1, 64)));
+                SemanticOperand right = c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type,
+                    c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value, complement),
+                    immediate(c, 1, 64));
+                result = c.emit(Op::OP_OR, type, c.emit(Op::OP_OR, type, left, carryBit), right);
+                newCarry = c.emit(Op::OP_TRUNCATE, integerType(1),
+                    c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value, complement));
+                c.setFlags(FC, newCarry);
+                c.setFlags(FO, c.emit(Op::OP_XOR, integerType(1),
+                                      extractBit(c, result, 63), newCarry));
+            } else
+            {
+                // (value >> n) | (CF << (64 - n)) | (value << (65 - n))
+                SemanticOperand right = c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value, wideCount);
+                SemanticOperand carryBit = c.emit(Op::OP_SHIFT_LEFT, type, carry, complement);
+                SemanticOperand left = c.emit(Op::OP_SHIFT_LEFT, type,
+                    c.emit(Op::OP_SHIFT_LEFT, type, value, complement),
+                    immediate(c, 1, 64));
+                result = c.emit(Op::OP_OR, type, c.emit(Op::OP_OR, type, right, carryBit), left);
+                newCarry = c.emit(Op::OP_TRUNCATE, integerType(1),
+                    c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value,
+                           c.emit(Op::OP_SUBTRACT, type, wideCount, immediate(c, 1, 64))));
+                c.setFlags(FC, newCarry);
+                c.setFlags(FO, c.emit(Op::OP_XOR, integerType(1),
+                                      extractBit(c, value, 63), extractBit(c, result, 63)));
+            }
+            c.write(0, result);
+            break;
+        }
         // Through the carry: a rotate of the bits + 1 bit value, whose
         // lowest bit is the carry flag
         const SemanticType wide = integerType(bits + 1);
@@ -887,7 +971,7 @@ void liftShift(Context& c)
         break;
     }
     }
-    c.placeLabel(skip);
+    placeZeroCountLabel(c, skip, value);
 }
 
 // shld / shrd r/m, r, imm8|cl: the bits come from the second operand. For a 16
@@ -900,9 +984,44 @@ void liftDoubleShift(Context& c)
     const SemanticType type = integerType(bits);
     SemanticOperand value = c.read(0);
     SemanticOperand filler = c.read(1);
-    SemanticOperand count = maskCount(c, c.read(2));
+    SemanticOperand count = maskCount(c, c.read(2), bits);
     SemanticOperand skip = c.newLabel();
     c.branchIf(compare(c, Op::COND_EQUAL, count, immediate(c, 0, 8)), skip);
+
+    if (bits == 64)
+    {
+        // The shifts of a 128 bit value are done with 64 bit shifts (the
+        // count is 1 to 63)
+        SemanticOperand wideCount = c.emit(Op::OP_ZERO_EXTEND, type, count);
+        SemanticOperand complement = c.emit(Op::OP_SUBTRACT, type,
+                                            immediate(c, 64, 64), wideCount);
+        SemanticOperand result;
+        SemanticOperand carry;
+        if (IS_RIGHT)
+        {
+            result = c.emit(Op::OP_OR, type,
+                            c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value, wideCount),
+                            c.emit(Op::OP_SHIFT_LEFT, type, filler, complement));
+            carry = c.emit(Op::OP_TRUNCATE, integerType(1),
+                           c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value,
+                                  c.emit(Op::OP_SUBTRACT, type, wideCount,
+                                         immediate(c, 1, 64))));
+        } else
+        {
+            result = c.emit(Op::OP_OR, type,
+                            c.emit(Op::OP_SHIFT_LEFT, type, value, wideCount),
+                            c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, filler, complement));
+            carry = c.emit(Op::OP_TRUNCATE, integerType(1),
+                           c.emit(Op::OP_SHIFT_RIGHT_LOGICAL, type, value, complement));
+        }
+        c.setFlags(FC, carry);
+        c.setFlags(FO, c.emit(Op::OP_XOR, integerType(1),
+                              extractBit(c, value, 63), extractBit(c, result, 63)));
+        c.setFlags(Op::FLAGS_LOGIC, FZ | FS | FP, type, result, result, result);
+        c.write(0, result);
+        c.placeLabel(skip);
+        return;
+    }
 
     // The value which is shifted, from the high bits to the low bits: dest:src
     // for shld, src:dest for shrd, and for 16 bits dest:src:dest
@@ -947,7 +1066,7 @@ void liftDoubleShift(Context& c)
     c.setFlags(FO, c.emit(Op::OP_XOR, integerType(1), oldSign, newSign));
     c.setFlags(Op::FLAGS_LOGIC, FZ | FS | FP, type, result, result, result);
     c.write(0, result);
-    c.placeLabel(skip);
+    placeZeroCountLabel(c, skip, value);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1160,7 +1279,15 @@ void liftCmpxchg8b(Context& c)
     if (!isLocked)
         c.store(address, c.emit(Op::OP_SELECT, type, isEqual, source, old));
     c.setFlags(FZ, isEqual);
-    // The old value goes to edx:eax if they were different
+    // The old value goes to edx:eax if they were different. In 64 bit mode
+    // the write of the registers clears their upper half, so they are not
+    // written if they were equal
+    SemanticOperand skip;
+    if (c.is64BitMode())
+    {
+        skip = c.newLabel();
+        c.branchIf(isEqual, skip);
+    }
     SemanticOperand low = c.emit(Op::OP_TRUNCATE, integerType(32), old);
     SemanticOperand high = c.emit(Op::OP_EXTRACT, integerType(32), old,
                                   immediate(c, 32, 32));
@@ -1168,6 +1295,8 @@ void liftCmpxchg8b(Context& c)
                 isEqual, c.getRegister(IA32_REG_EAX), low));
     c.move(c.getRegister(IA32_REG_EDX), c.emit(Op::OP_SELECT, integerType(32),
                 isEqual, c.getRegister(IA32_REG_EDX), high));
+    if (c.is64BitMode())
+        c.placeLabel(skip);
 }
 
 /////////////////////////////////////////////////////////////////////////////

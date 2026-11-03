@@ -1127,6 +1127,117 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
     return EVAL_OK;
 }
 
+// A 128 bit unsigned number, for the division of x86-64 (rdx:rax / r64)
+struct Number128 {
+    uint64 m_low;
+    uint64 m_high;
+};
+
+bool isLessThan(const Number128& a, const Number128& b)
+{
+    return (a.m_high < b.m_high) || ((a.m_high == b.m_high) && (a.m_low < b.m_low));
+}
+
+Number128 subtract(const Number128& a, const Number128& b)
+{
+    Number128 result;
+    result.m_low = a.m_low - b.m_low;
+    result.m_high = a.m_high - b.m_high - ((a.m_low < b.m_low) ? 1 : 0);
+    return result;
+}
+
+Number128 negate(const Number128& a)
+{
+    Number128 zero = { 0, 0 };
+    return subtract(zero, a);
+}
+
+// Divide the unsigned numbers, the divisor is not zero
+void divideUnsigned128(const Number128& dividend, const Number128& divisor,
+                       Number128& quotient, Number128& remainder)
+{
+    quotient.m_low = quotient.m_high = 0;
+    remainder.m_low = remainder.m_high = 0;
+    for (int bit = 127; bit >= 0; bit--)
+    {
+        // remainder = remainder * 2 + the bit of the dividend. The shift can
+        // lose the top bit, which then makes the remainder larger than the
+        // divisor
+        const bool isCarry = (remainder.m_high >> 63) != 0;
+        remainder.m_high = (remainder.m_high << 1) | (remainder.m_low >> 63);
+        remainder.m_low = (remainder.m_low << 1) |
+            ((bit >= 64) ? ((dividend.m_high >> (bit - 64)) & 1) :
+                           ((dividend.m_low >> bit) & 1));
+        if (isCarry || !isLessThan(remainder, divisor))
+        {
+            remainder = subtract(remainder, divisor);
+            if (bit >= 64)
+                quotient.m_high |= (uint64)1 << (bit - 64);
+            else
+                quotient.m_low |= (uint64)1 << bit;
+        }
+    }
+}
+
+// OP_DIVIDE / OP_REMAINDER of 128 bit integers (idiv and div of 64 bit
+// operands), same rules as the lanes in evaluateLane
+EvalStatus evaluateDivide128(const SemanticInstruction& instruction,
+                             const SemanticValue* sources,
+                             SemanticValue& result)
+{
+    const SemanticOperation::Operation operation = instruction.getOperation();
+    const bool isSigned = (operation == SemanticOperation::OP_DIVIDE_SIGNED) ||
+                          (operation == SemanticOperation::OP_REMAINDER_SIGNED);
+    const bool isRemainder = (operation == SemanticOperation::OP_REMAINDER_UNSIGNED) ||
+                             (operation == SemanticOperation::OP_REMAINDER_SIGNED);
+    Number128 a = { sources[0].getWord(0), sources[0].getWord(1) };
+    Number128 b = { sources[1].getWord(0), sources[1].getWord(1) };
+    const bool isZero = (b.m_low == 0) && (b.m_high == 0);
+    const bool isNegativeA = isSigned && ((a.m_high >> 63) != 0);
+    const bool isNegativeB = isSigned && ((b.m_high >> 63) != 0);
+    // The minimum / -1 doesn't fit the result
+    const bool isOverflow = isSigned && (a.m_high == ((uint64)1 << 63)) &&
+                            (a.m_low == 0) && (b.m_high == ~(uint64)0) &&
+                            (b.m_low == ~(uint64)0);
+    Number128 r;
+    if (isZero || isOverflow)
+    {
+        if (instruction.getBehavior() == SemanticOperation::BEHAVIOR_DIVIDE_FAULT)
+            return EVAL_FAULT;
+        if (isZero)
+        {
+            if (isRemainder)
+            {
+                r = a;
+            } else
+            {
+                r.m_low = r.m_high = (instruction.getBehavior() ==
+                    SemanticOperation::BEHAVIOR_DIVIDE_ZERO) ? 0 : ~(uint64)0;
+            }
+        } else if (isRemainder)
+        {
+            r.m_low = r.m_high = 0;
+        } else
+        {
+            r = a;
+        }
+    } else
+    {
+        Number128 quotient, remainder;
+        divideUnsigned128(isNegativeA ? negate(a) : a, isNegativeB ? negate(b) : b,
+                          quotient, remainder);
+        if (isRemainder)
+            r = isNegativeA ? negate(remainder) : remainder;
+        else
+            r = (isNegativeA != isNegativeB) ? negate(quotient) : quotient;
+    }
+    SemanticValue value;
+    value.setWord(0, r.m_low);
+    value.setWord(1, r.m_high);
+    result = value;
+    return EVAL_OK;
+}
+
 // Evaluate an operation over values. See SemanticInterpreter::evaluate()
 EvalStatus evaluateOperation(const SemanticInstruction& instruction,
                              const SemanticValue* sources,
@@ -1148,6 +1259,14 @@ EvalStatus evaluateOperation(const SemanticInstruction& instruction,
     const uint totalBits = type.getTotalBits();
     const uint sourcesCount = SemanticOperation::getSourcesCount(operation);
     SemanticValue value;
+
+    // The division of 128 bit integers (the lanes are up to 64 bits)
+    if ((totalBits == 128) && !type.isVector() &&
+        ((operation == SemanticOperation::OP_DIVIDE_UNSIGNED) ||
+         (operation == SemanticOperation::OP_REMAINDER_UNSIGNED) ||
+         (operation == SemanticOperation::OP_DIVIDE_SIGNED) ||
+         (operation == SemanticOperation::OP_REMAINDER_SIGNED)))
+        return evaluateDivide128(instruction, sources, result);
 
     switch (operation)
     {

@@ -37,10 +37,14 @@ namespace {
 // The prefix byte of lock
 const uint8 PREFIX_LOCK = 0xF0;
 
-// Return the size in bits of a register of the IA-32 description
-uint getRegisterBits(uint registerId)
+// Return the size in bits of a register of the IA-32 description, or of the
+// AMD64 one in 64 bit mode (where the segment bases and others are 64 bits)
+uint getRegisterBits(uint registerId, bool is64)
 {
     static IA32Architecture architecture(OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+    static AMD64Architecture architecture64;
+    if (is64)
+        return architecture64.getRegister(registerId).m_bits;
     return architecture.getRegister(registerId).m_bits;
 }
 
@@ -96,7 +100,7 @@ IA32LiftContext::IA32LiftContext(const IA32Opcode& instruction,
                                  bool isFlat) :
     m_instruction(instruction),
     m_block(block),
-    m_isFlat(isFlat),
+    m_isFlat(isFlat || IA32OperandDecoder::is64BitMode(instruction)),
     m_operandsCount(IA32OperandDecoder::getOperandsCount(instruction))
 {
     for (uint i = 0; i < m_operandsCount; i++)
@@ -142,10 +146,22 @@ SemanticType IA32LiftContext::getAddressSizeType() const
 SemanticType IA32LiftContext::getStackAddressType() const
 {
     // The stack of protected mode is esp (the B bit of a flat ss), of real
-    // mode sp
+    // mode sp, of 64 bit mode rsp
+    if (is64BitMode())
+        return SemanticType::integer(64);
     return SemanticType::integer(
         (m_instruction.getType() == OpcodeSubsystems::DISASSEMBLER_INTEL_32) ?
             32 : 16);
+}
+
+SemanticType IA32LiftContext::getNativeType() const
+{
+    return SemanticType::integer(is64BitMode() ? 64 : 32);
+}
+
+bool IA32LiftContext::is64BitMode() const
+{
+    return IA32OperandDecoder::is64BitMode(m_instruction);
 }
 
 SemanticOperand IA32LiftContext::read(uint index, const SemanticType& type)
@@ -195,6 +211,16 @@ SemanticOperand IA32LiftContext::getOffset(uint index)
     CHECK(operand.m_kind == IA32DecodedOperand::KIND_MEMORY);
     const SemanticType addressType = SemanticType::integer(operand.m_addressBits);
 
+    // [rip + disp32]: the address of the next instruction is known
+    if (operand.m_isRipRelative)
+    {
+        const uint64 mask = (operand.m_addressBits == 64) ? ~(uint64)0 :
+                            (((uint64)1 << operand.m_addressBits) - 1);
+        return getImmediate((int64)((IA32OperandDecoder::getNextAddress(m_instruction) +
+                                     (uint64)operand.m_displacement) & mask),
+                            addressType);
+    }
+
     // base + index * scale + displacement, in the address size: the offset
     // wraps at 16 bits for a 16 bit address size
     SemanticOperand offset;
@@ -223,9 +249,9 @@ SemanticOperand IA32LiftContext::getOffset(uint index)
 SemanticOperand IA32LiftContext::getLinearAddress(uint segment,
                                                   const SemanticOperand& offset)
 {
-    const SemanticType linearType = SemanticType::integer(32);
+    const SemanticType linearType = getNativeType();
     SemanticOperand linear = offset;
-    if (offset.getType().getTotalBits() < 32)
+    if (offset.getType().getTotalBits() < linearType.getTotalBits())
     {
         if (offset.getKind() == SemanticOperand::KIND_IMMEDIATE)
             linear = getImmediate(offset.getValue() &
@@ -262,11 +288,28 @@ SemanticOperand IA32LiftContext::getAddress(uint index)
 SemanticOperand IA32LiftContext::getRegister(uint registerId) const
 {
     return SemanticOperand::registerOperand(registerId,
-                    SemanticType::integer(getRegisterBits(registerId)));
+                    SemanticType::integer(getRegisterBits(registerId,
+                                                          is64BitMode())));
+}
+
+SemanticOperand IA32LiftContext::getStackPointer() const
+{
+    if (is64BitMode())
+        return getRegister(AMD64_REG_RSP);
+    return getRegister((getStackAddressType().getTotalBits() == 32) ?
+                       IA32_REG_ESP : IA32_REG_SP);
+}
+
+SemanticOperand IA32LiftContext::getInstructionPointer() const
+{
+    return getRegister(is64BitMode() ? AMD64_REG_RIP : IA32_REG_EIP);
 }
 
 SemanticOperand IA32LiftContext::getGeneralRegister(uint number, uint bits) const
 {
+    if (is64BitMode())
+        return getRegister(getAmd64GeneralRegister(number, bits,
+                                                   m_instruction.hasRex()));
     CHECK(number < NUMBER_OF_REGISTERS);
     switch (bits)
     {
@@ -287,15 +330,14 @@ SemanticOperand IA32LiftContext::getImmediate(int64 value,
 SemanticOperand IA32LiftContext::getCurrentAddress() const
 {
     return SemanticOperand::guestAddress(
-                IA32OperandDecoder::getAddress(m_instruction),
-                SemanticType::integer(32));
+                IA32OperandDecoder::getAddress(m_instruction), getNativeType());
 }
 
 SemanticOperand IA32LiftContext::getNextAddress() const
 {
     return SemanticOperand::guestAddress(
                 IA32OperandDecoder::getNextAddress(m_instruction),
-                SemanticType::integer(32));
+                getNativeType());
 }
 
 SemanticOperation::Condition IA32LiftContext::getOpcodeCondition() const
@@ -426,8 +468,7 @@ void IA32LiftContext::branchIf(const SemanticOperand& condition,
 void IA32LiftContext::push(const SemanticOperand& value)
 {
     const SemanticType stackType = getStackAddressType();
-    const SemanticOperand stackPointer = getRegister((getStackAddressType().getTotalBits() == 32) ? IA32_REG_ESP :
-                                                                IA32_REG_SP);
+    const SemanticOperand stackPointer = getStackPointer();
     // push esp stores the value the register had before the push
     SemanticOperand data = value;
     if (value.getKind() == SemanticOperand::KIND_REGISTER)
@@ -443,8 +484,7 @@ void IA32LiftContext::push(const SemanticOperand& value)
 SemanticOperand IA32LiftContext::pop(const SemanticType& type)
 {
     const SemanticType stackType = getStackAddressType();
-    const SemanticOperand stackPointer = getRegister((getStackAddressType().getTotalBits() == 32) ? IA32_REG_ESP :
-                                                                IA32_REG_SP);
+    const SemanticOperand stackPointer = getStackPointer();
     SemanticOperand value = load(getLinearAddress(IA32_REG_SS, stackPointer),
                                  type);
     // The destination of the pop is written after the increment (pop [esp])
@@ -785,7 +825,8 @@ bool isLockable(const char* name, const IA32LiftContext& context)
 {
     static const char* names[] = {
         "add", "or", "adc", "sbb", "and", "sub", "xor", "inc", "dec", "not",
-        "neg", "bts", "btr", "btc", "xadd", "cmpxchg", "cmpxchg8b"
+        "neg", "bts", "btr", "btc", "xadd", "cmpxchg", "cmpxchg8b",
+        "cmpxchg8b/cmpxchg8b/cmpxchg16b"
     };
     for (uint i = 0; i < sizeof(names) / sizeof(names[0]); i++)
         if (strcmp(name, names[i]) == 0)
@@ -812,7 +853,7 @@ IA32SemanticLifter::IA32SemanticLifter(OpcodeSubsystems::DisassemblerType type,
     m_type(type),
     m_isFlat((segmentModel == SEGMENTS_FLAT) ||
              ((segmentModel == SEGMENTS_DEFAULT) &&
-              (type == OpcodeSubsystems::DISASSEMBLER_INTEL_32))),
+              (type != OpcodeSubsystems::DISASSEMBLER_INTEL_16))),
     m_architecture(ArchitectureDescriptionFactory::getArchitecture(type))
 {
 }
@@ -891,6 +932,7 @@ const IA32SemanticEntry* IA32SemanticLifter::findEntry(const IA32Opcode& instruc
     // of the integer table which touch a segment register (mov sreg, pop
     // sreg, the far jmp and call) are in the segments table only
     static const IA32SemanticEntry* const tables[] = {
+        gAmd64SemanticTable,
         gIa32SemanticTable,
         gIa32SegmentsSemanticTable,
         gIa32X87SemanticTable,
@@ -898,22 +940,36 @@ const IA32SemanticEntry* IA32SemanticLifter::findEntry(const IA32Opcode& instruc
     };
     const uint operandsCount = IA32OperandDecoder::getOperandsCount(instruction);
     const bool isSegments = isSegmentForm(*opcode);
-    const uint firstTable = isSegments ? 1 : 0;
-    const uint lastTable = isSegments ? 2 :
+    // The table of 64 bit mode is searched first in 64 bit mode only
+    const uint firstTable = isSegments ? 2 :
+                            (IA32OperandDecoder::is64BitMode(instruction) ? 0 : 1);
+    const uint lastTable = isSegments ? 3 :
                            (uint)(sizeof(tables) / sizeof(tables[0]));
-    for (uint i = firstTable; i < lastTable; i++)
+    // The names of the 64 bit mode entries with a 64 bit form (movd/movd/movq,
+    // cbw/cwde/cdqe) fall back to the name without the last form, which the
+    // IA-32 tables have (movd/movd, cbw/cwde)
+    char name[128];
+    strncpy(name, opcode->m_opcodeName, sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    for (;;)
     {
-        for (const IA32SemanticEntry* entry = tables[i];
-             entry->m_template.m_name != NULL; entry++)
+        for (uint i = firstTable; i < lastTable; i++)
         {
-            if ((entry->m_operandsCount != IA32SemanticEntry::ANY_OPERANDS_COUNT) &&
-                (entry->m_operandsCount != operandsCount))
-                continue;
-            if (strcmp(entry->m_template.m_name, opcode->m_opcodeName) == 0)
-                return entry;
+            for (const IA32SemanticEntry* entry = tables[i];
+                 entry->m_template.m_name != NULL; entry++)
+            {
+                if ((entry->m_operandsCount != IA32SemanticEntry::ANY_OPERANDS_COUNT) &&
+                    (entry->m_operandsCount != operandsCount))
+                    continue;
+                if (strcmp(entry->m_template.m_name, name) == 0)
+                    return entry;
+            }
         }
+        char* slash = strrchr(name, '/');
+        if (!IA32OperandDecoder::is64BitMode(instruction) || (slash == NULL))
+            return NULL;
+        *slash = 0;
     }
-    return NULL;
 }
 
 OpcodeClassification IA32SemanticLifter::classify(const OpcodePtr& instruction) const
@@ -982,8 +1038,10 @@ OpcodeClassification IA32SemanticLifter::classify(const OpcodePtr& instruction) 
     {
         const IA32DecodedOperand countOperand =
                                 IA32OperandDecoder::decode(ia32, count - 1);
+        const int64 countMask =
+                (IA32OperandDecoder::decode(ia32, 0).m_bits == 64) ? 0x3F : 0x1F;
         if ((countOperand.m_kind == IA32DecodedOperand::KIND_IMMEDIATE) &&
-            ((countOperand.m_immediate & 0x1F) == 1))
+            ((countOperand.m_immediate & countMask) == 1))
             flagsUndefined&= ~(uint32)SemanticFlags::FLAG_OVERFLOW;
     }
 

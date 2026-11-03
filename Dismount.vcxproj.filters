@@ -111,6 +111,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSegments.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableAMD64.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

@@ -365,10 +365,11 @@ extern const IA32SemanticEntry gAmd64SemanticTable[];
  *   - The stack is rsp; push / pop / call / ret move 8 bytes (2 with 66).
  *   - The string instructions and loop use rcx, rsi, rdi (ecx, esi, edi with
  *     67); jrcxz tests rcx.
- *   - The segment loads keep their checks in protected mode; the far
- *     branches with a 64 bit offset (REX.W) and iretq / retf to a 64 bit code
- *     segment are lifted like their 32 bit forms. A load of ds, es or ss
- *     with a null selector is allowed (no #GP).
+ *   - The segment register loads (mov, pop, lds..lgs), the far branches and
+ *     the far returns (jmp / call far, retf, iret, iretq) are not lifted
+ *     (OP_UNDEFINED): the descriptors of 64 bit mode (long mode code segments,
+ *     the base of fs and gs from the MSRs) are not modeled. Reading a
+ *     selector (mov r, sreg, push sreg) is lifted.
  *   - syscall and sysret are traps (TRAP_SYSTEM_CALL); swapgs exchanges
  *     the gs base with AMD64_REG_KERNEL_GS_BASE.
  *   - The instructions which are invalid in 64 bit mode are not decoded

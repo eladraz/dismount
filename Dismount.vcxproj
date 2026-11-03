@@ -48,6 +48,7 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32Semantics.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSegments.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableAMD64.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32IntelNotation.cpp" />

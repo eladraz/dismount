@@ -909,7 +909,10 @@ static cString runLine(char* line, OpcodeSubsystems::DisassemblerType type,
         exitText = "fall";
         break;
     case SemanticInterpreter::EXIT_TRAP:
-        exitText = cString("trap:") + cString((int32)interpreter.getTrapNumber());
+        // A system call has no vector: the protocol numbers it 256
+        exitText = cString("trap:") + cString((interpreter.getTrapKind() ==
+                        SemanticOperation::TRAP_SYSTEM_CALL) ? 256 :
+                        (int32)interpreter.getTrapNumber());
         break;
     case SemanticInterpreter::EXIT_MEMORY_FAULT:
         exitText = cString("fault:") +

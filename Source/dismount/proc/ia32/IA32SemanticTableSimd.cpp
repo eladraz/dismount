@@ -241,9 +241,11 @@ bool isMemoryOperand(Context& c, uint index)
 // Raise #GP unless the memory operand 'index' is aligned to 16 bytes
 void checkAlignment(Context& c, uint index)
 {
-    SemanticOperand low = c.emit(Op::OP_AND, integerType(32), c.getAddress(index),
-                                 immediate(c, 15, 32));
-    trapUnless(c, compare(c, Op::COND_EQUAL, low, immediate(c, 0, 32)),
+    SemanticOperand address = c.getAddress(index);
+    const uint bits = address.getType().getTotalBits();
+    SemanticOperand low = c.emit(Op::OP_AND, integerType(bits), address,
+                                 immediate(c, 15, bits));
+    trapUnless(c, compare(c, Op::COND_EQUAL, low, immediate(c, 0, bits)),
                VECTOR_GENERAL_PROTECTION);
 }
 
@@ -346,22 +348,36 @@ uint generalNumberOf(uint registerId)
     return registerId - IA32_REG_EAX;
 }
 
-// The operands r/m32 of the SSE instructions are 32 bits whatever the
-// operand size is
+// The size of the operands r/m32 of the SSE instructions: 32 bits whatever
+// the operand size is, 64 bits with REX.W in 64 bit mode
+uint generalBits(Context& c, uint index)
+{
+    return c.is64BitMode() ? c.getOperand(index).m_bits : 32;
+}
+
 SemanticOperand readGeneral32(Context& c, uint index)
 {
     const IA32DecodedOperand& operand = c.getOperand(index);
     if (operand.m_kind == IA32DecodedOperand::KIND_REGISTER)
+    {
+        if (c.is64BitMode())
+            return c.getRegister(operand.m_register);
         return c.getGeneralRegister(generalNumberOf(operand.m_register), 32);
-    return c.load(c.getAddress(index), integerType(32));
+    }
+    return c.load(c.getAddress(index), integerType(generalBits(c, index)));
 }
 
 void writeGeneral32(Context& c, uint index, const SemanticOperand& value)
 {
     const IA32DecodedOperand& operand = c.getOperand(index);
     if (operand.m_kind == IA32DecodedOperand::KIND_REGISTER)
-        c.move(c.getGeneralRegister(generalNumberOf(operand.m_register), 32),
-               value);
+    {
+        if (c.is64BitMode())
+            c.move(c.getRegister(operand.m_register), value);
+        else
+            c.move(c.getGeneralRegister(generalNumberOf(operand.m_register), 32),
+                   value);
+    }
     else
         c.store(c.getAddress(index), value);
 }
@@ -447,7 +463,7 @@ void liftMoveDword(Context& c)
     } else
     {
         // r/m32 <- mm / xmm
-        writeGeneral32(c, 0, resize(c, c.read(1), 32));
+        writeGeneral32(c, 0, resize(c, c.read(1), generalBits(c, 0)));
     }
 }
 
@@ -932,7 +948,8 @@ template <uint SOURCE_BITS, bool IS_TRUNCATE>
 void liftConvertScalarToInteger(Context& c)
 {
     SemanticOperand source = readScalarFloat(c, 1, SOURCE_BITS);
-    SemanticOperand result = emitFloat(c, Op::OP_FLOAT_TO_SIGNED, integerType(32),
+    SemanticOperand result = emitFloat(c, Op::OP_FLOAT_TO_SIGNED,
+                                       integerType(generalBits(c, 0)),
                                        source, SemanticOperand(),
                                        IS_TRUNCATE ? Op::ROUND_TOWARD_ZERO :
                                                      Op::ROUND_DYNAMIC);

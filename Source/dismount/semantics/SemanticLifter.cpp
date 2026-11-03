@@ -20,6 +20,7 @@ SemanticLifterPtr SemanticLifterFactory::getLifter(
     {
     case OpcodeSubsystems::DISASSEMBLER_INTEL_16:
     case OpcodeSubsystems::DISASSEMBLER_INTEL_32:
+    case OpcodeSubsystems::DISASSEMBLER_AMD_64:
         return SemanticLifterPtr(new IA32SemanticLifter(type));
     default:
         // No semantic description for this processor

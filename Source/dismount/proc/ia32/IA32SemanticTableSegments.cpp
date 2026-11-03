@@ -472,6 +472,12 @@ void liftMove(Context& c)
             c.trap(Op::TRAP_FAULT, VECTOR_INVALID_OPCODE);
             return;
         }
+        // 64 bit mode: the descriptors of the segment loads are not modeled
+        if (c.is64BitMode())
+        {
+            emitUndefined(c);
+            return;
+        }
         loadSegmentRegister(c, destination.m_register,
                             c.read(1, integerType(16)));
         return;
@@ -485,6 +491,14 @@ void liftMove(Context& c)
 // pop es, ss, ds, fs, gs
 void liftPopSegment(Context& c)
 {
+    // 64 bit mode: the descriptors of the segment loads and of the far
+    // branches are not modeled (the base of fs and gs is a register, only
+    // the selectors are read)
+    if (c.is64BitMode())
+    {
+        emitUndefined(c);
+        return;
+    }
     const SemanticType type = c.getOperandSizeType();
     const SemanticType stackType = c.getStackAddressType();
     SemanticOperand stackPointer = stackPointerOf(c);
@@ -500,6 +514,14 @@ void liftPopSegment(Context& c)
 template <int SEGMENT>
 void liftLoadFarPointer(Context& c)
 {
+    // 64 bit mode: the descriptors of the segment loads and of the far
+    // branches are not modeled (the base of fs and gs is a register, only
+    // the selectors are read)
+    if (c.is64BitMode())
+    {
+        emitUndefined(c);
+        return;
+    }
     // The register form is invalid
     if (c.getOperand(1).m_kind != IA32DecodedOperand::KIND_MEMORY)
     {
@@ -531,6 +553,14 @@ void pushReturnFrame(Context& c)
 template <bool IS_CALL>
 void liftFarBranch(Context& c)
 {
+    // 64 bit mode: the descriptors of the segment loads and of the far
+    // branches are not modeled (the base of fs and gs is a register, only
+    // the selectors are read)
+    if (c.is64BitMode())
+    {
+        emitUndefined(c);
+        return;
+    }
     const IA32DecodedOperand& operand = c.getOperand(0);
     const uint bits = operandBitsOf(c);
     SemanticOperand offset;
@@ -610,6 +640,14 @@ void restoreEflags(Context& c, const SemanticOperand& image, uint bits)
 template <bool IS_IRET>
 void liftFarReturn(Context& c)
 {
+    // 64 bit mode: the descriptors of the segment loads and of the far
+    // branches are not modeled (the base of fs and gs is a register, only
+    // the selectors are read)
+    if (c.is64BitMode())
+    {
+        emitUndefined(c);
+        return;
+    }
     const uint bits = operandBitsOf(c);
     const uint bytes = bits / 8;
     const SemanticType type = integerType(bits);

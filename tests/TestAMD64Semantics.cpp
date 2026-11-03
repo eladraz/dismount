@@ -16,11 +16,14 @@
 #include "xStl/except/trace.h"
 #include "xStl/except/assert.h"
 #include "xStl/stream/ioStream.h"
+#include "xStl/stream/memoryStream.h"
 #include "xStl/../../tests/tests.h"
 
 #include "dismount/OpcodeSubsystems.h"
 #include "dismount/ProcessorAddress.h"
 #include "dismount/semantics/Semantics.h"
+#include "dismount/StreamDisassembler.h"
+#include "dismount/StreamDisassemblerFactory.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
 #include "dismount/proc/ia32/AMD64Architecture.h"
 
@@ -341,11 +344,146 @@ public:
         check("fault address", interpreter.getFaultAddress(), start - 8);
     }
 
+    // Decode and lift the instruction 'code' at 'address' and run it on
+    // 'interpreter'. Return the exit of the block
+    SemanticInterpreter::ExitReason liftAndRun(const uint8* code, uint size,
+                                               uint64 address,
+                                               SemanticInterpreter& interpreter,
+                                               const SemanticLifterPtr& lifter)
+    {
+        cBuffer bytes(size);
+        for (uint i = 0; i < size; i++)
+            bytes[i] = code[i];
+        cMemoryStream stream(bytes);
+        StreamDisassemblerPtr disassembler = StreamDisassemblerFactory::disassemble(
+            OpcodeSubsystems::DISASSEMBLER_AMD_64,
+            BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true, addr(address));
+        OpcodePtr opcode = disassembler->next();
+        SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_AMD_64);
+        lifter->lift(opcode, block);
+        block.setFallThroughAddress(addr(address + size));
+        return interpreter.run(block);
+    }
+
+    // The lifter in 64 bit mode
+    void testLifter()
+    {
+        TestAmd64Memory memory;
+        SemanticInterpreter interpreter(getArchitecture(), memory);
+        SemanticLifterPtr lifter = SemanticLifterFactory::getLifter(
+                                OpcodeSubsystems::DISASSEMBLER_AMD_64);
+        const uint64 start = memory.m_base + 0x100;
+
+        // add rax, rbx: 64 bit flags
+        const uint8 add[] = { 0x48, 0x01, 0xD8 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0x7FFFFFFFFFFFFFFFULL));
+        interpreter.setRegister(AMD64_REG_RBX, SemanticValue(1));
+        check("add exit", liftAndRun(add, 3, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("add rax", get(interpreter, AMD64_REG_RAX), 0x8000000000000000ULL);
+        check("add of", get(interpreter, IA32_REG_OF), 1);
+        check("add sf", get(interpreter, IA32_REG_SF), 1);
+        check("add cf", get(interpreter, IA32_REG_CF), 0);
+        check("add rip", get(interpreter, AMD64_REG_RIP), start + 3);
+
+        // mov eax, ecx: a 32 bit write clears the upper half of rax
+        const uint8 mov32[] = { 0x89, 0xC8 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0xFFFFFFFFFFFFFFFFULL));
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(0x123456789ULL));
+        liftAndRun(mov32, 2, start, interpreter, lifter);
+        check("mov eax", get(interpreter, AMD64_REG_RAX), 0x23456789ULL);
+        // mov al, cl keeps the rest
+        const uint8 mov8[] = { 0x88, 0xC8 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0xFFFFFFFFFFFFFFFFULL));
+        liftAndRun(mov8, 2, start, interpreter, lifter);
+        check("mov al", get(interpreter, AMD64_REG_RAX), 0xFFFFFFFFFFFFFF89ULL);
+        // mov spl, 0x12 (REX) is bits 0..7 of rsp
+        const uint8 movSpl[] = { 0x40, 0xB4, 0x12 };
+        interpreter.setRegister(AMD64_REG_RSP, SemanticValue(0x1122334455667788ULL));
+        liftAndRun(movSpl, 3, start, interpreter, lifter);
+        check("mov spl", get(interpreter, AMD64_REG_RSP), 0x1122334455667712ULL);
+
+        // push rax: 8 bytes
+        const uint8 push[] = { 0x50 };
+        interpreter.setRegister(AMD64_REG_RSP, SemanticValue(memory.m_base + 0x800));
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0x0102030405060708ULL));
+        check("push exit", liftAndRun(push, 1, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("push rsp", get(interpreter, AMD64_REG_RSP), memory.m_base + 0x7F8);
+        check("push byte 0", memory.getByte(memory.m_base + 0x7F8), 0x08);
+        check("push byte 7", memory.getByte(memory.m_base + 0x7FF), 0x01);
+        // 66 50 pushes 2 bytes
+        const uint8 push16[] = { 0x66, 0x50 };
+        liftAndRun(push16, 2, start, interpreter, lifter);
+        check("push16 rsp", get(interpreter, AMD64_REG_RSP), memory.m_base + 0x7F6);
+
+        // push qword [rip + 0x10]: relative to the next instruction
+        const uint8 pushRip[] = { 0xFF, 0x35, 0x10, 0x00, 0x00, 0x00 };
+        const uint8 value = 0x5A;
+        const uint64 target = start + 6 + 0x10;
+        memory.write(target, &value, 1);
+        liftAndRun(pushRip, 6, start, interpreter, lifter);
+        check("push [rip]", memory.getByte(get(interpreter, AMD64_REG_RSP)), 0x5A);
+
+        // movsxd rax, ecx
+        const uint8 movsxd[] = { 0x48, 0x63, 0xC1 };
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(0x80000000ULL));
+        liftAndRun(movsxd, 3, start, interpreter, lifter);
+        check("movsxd", get(interpreter, AMD64_REG_RAX), 0xFFFFFFFF80000000ULL);
+
+        // div rbx: rdx:rax / rbx, and the divide error
+        const uint8 div[] = { 0x48, 0xF7, 0xF3 };
+        interpreter.setRegister(AMD64_REG_RDX, SemanticValue(1));
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(5));
+        interpreter.setRegister(AMD64_REG_RBX, SemanticValue(0x10));
+        check("div exit", liftAndRun(div, 3, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("div quotient", get(interpreter, AMD64_REG_RAX), 0x1000000000000000ULL);
+        check("div remainder", get(interpreter, AMD64_REG_RDX), 5);
+        interpreter.setRegister(AMD64_REG_RBX, SemanticValue(1));
+        check("div overflow", liftAndRun(div, 3, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        check("div overflow vector", interpreter.getTrapNumber(), 0);
+
+        // shl rax, cl: the count is masked to 6 bits
+        const uint8 shl[] = { 0x48, 0xD3, 0xE0 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(3));
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(65));
+        liftAndRun(shl, 3, start, interpreter, lifter);
+        check("shl 65", get(interpreter, AMD64_REG_RAX), 6);
+        // shl eax, cl with a count of 32: a zero count, but eax is written
+        const uint8 shl32[] = { 0xD3, 0xE0 };
+        interpreter.setRegister(AMD64_REG_RAX, SemanticValue(0xFFFFFFFF00000005ULL));
+        interpreter.setRegister(AMD64_REG_RCX, SemanticValue(32));
+        liftAndRun(shl32, 2, start, interpreter, lifter);
+        check("shl eax 32", get(interpreter, AMD64_REG_RAX), 5);
+
+        // syscall is a trap
+        const uint8 syscall[] = { 0x0F, 0x05 };
+        check("syscall exit", liftAndRun(syscall, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_TRAP);
+        check("syscall kind", interpreter.getTrapKind(), Op::TRAP_SYSTEM_CALL);
+
+        // swapgs exchanges the gs base
+        const uint8 swapgs[] = { 0x0F, 0x01, 0xF8 };
+        interpreter.setRegister(IA32_REG_GS_BASE, SemanticValue(0x1111));
+        interpreter.setRegister(AMD64_REG_KERNEL_GS_BASE, SemanticValue(0x2222));
+        liftAndRun(swapgs, 3, start, interpreter, lifter);
+        check("swapgs gs", get(interpreter, IA32_REG_GS_BASE), 0x2222);
+        check("swapgs kernel", get(interpreter, AMD64_REG_KERNEL_GS_BASE), 0x1111);
+
+        // A segment load is not lifted in 64 bit mode
+        const uint8 movDs[] = { 0x8E, 0xD8 };
+        check("mov ds exit", liftAndRun(movDs, 2, start, interpreter, lifter),
+              SemanticInterpreter::EXIT_UNDEFINED);
+    }
+
     virtual void test()
     {
         testArchitecture();
         testAliasing();
         testRunBlocks();
+        testLifter();
         cout << "AMD64 semantics tests passed" << endl;
     }
 

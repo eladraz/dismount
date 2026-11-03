@@ -1406,7 +1406,8 @@ SemanticOperand offsetAddress(Context& c, const SemanticOperand& address,
 {
     if (offset == 0)
         return address;
-    return c.emit(Op::OP_ADD, integerType(32), address, immediate(c, offset, 32));
+    const uint bits = address.getType().getTotalBits();
+    return c.emit(Op::OP_ADD, integerType(bits), address, immediate(c, offset, bits));
 }
 
 // Return the 2 bit tag of the physical register i for the tag word: 0 valid, 1
@@ -1524,7 +1525,7 @@ void liftStoreEnvironment(Context& c)
 {
     SemanticOperand address = c.getAddress(0);
     storeEnvironment(c, address, IA32OperandDecoder::getOperandBits(
-                                    c.getInstruction()) == 32);
+                                    c.getInstruction()) != 16);
     SemanticOperand control = controlWord(c);
     c.move(control, c.emit(Op::OP_OR, integerType(16), control,
                            immediate(c, SW_EXCEPTIONS, 16)));
@@ -1535,13 +1536,13 @@ void liftLoadEnvironment(Context& c)
 {
     waitCheck(c);
     loadEnvironment(c, c.getAddress(0), IA32OperandDecoder::getOperandBits(
-                                    c.getInstruction()) == 32);
+                                    c.getInstruction()) != 16);
 }
 
 // fnsave: the environment, ST(0) to ST(7), then fninit
 void liftSave(Context& c)
 {
-    const bool is32 = IA32OperandDecoder::getOperandBits(c.getInstruction()) == 32;
+    const bool is32 = IA32OperandDecoder::getOperandBits(c.getInstruction()) != 16;
     SemanticOperand address = c.getAddress(0);
     storeEnvironment(c, address, is32);
     const uint base = is32 ? 28 : 14;
@@ -1558,7 +1559,7 @@ void liftSave(Context& c)
 void liftRestore(Context& c)
 {
     waitCheck(c);
-    const bool is32 = IA32OperandDecoder::getOperandBits(c.getInstruction()) == 32;
+    const bool is32 = IA32OperandDecoder::getOperandBits(c.getInstruction()) != 16;
     SemanticOperand address = c.getAddress(0);
     loadEnvironment(c, address, is32);
     const uint base = is32 ? 28 : 14;
@@ -1576,19 +1577,27 @@ void liftRestore(Context& c)
  * aligned: #GP):
  *    0 fcw   2 fsw   4 abridged tag (1 byte)   6 fop   8 fip   12 fcs
  *   16 fdp  20 fds  24 mxcsr  28 mxcsr mask  32 ST(0)..ST(7), 16 bytes each
- *  160 xmm0..xmm7
+ *  160 xmm0..xmm7 (xmm0..xmm15 in 64 bit mode)
  * The pointers are stored as zeros, the opcode and the padding of the
  * registers (bytes 10 to 15 of each) is not written
  */
 void checkAlignment(Context& c, const SemanticOperand& address)
 {
+    const uint bits = address.getType().getTotalBits();
     SemanticOperand isAligned = compare(c, Op::COND_EQUAL,
-        c.emit(Op::OP_AND, integerType(32), address, immediate(c, 0xF, 32)),
-        immediate(c, 0, 32));
+        c.emit(Op::OP_AND, integerType(bits), address, immediate(c, 0xF, bits)),
+        immediate(c, 0, bits));
     SemanticOperand ok = c.newLabel();
     c.branchIf(isAligned, ok);
     c.trap(Op::TRAP_FAULT, 13);
     c.placeLabel(ok);
+}
+
+// Return the register xmm 'number' (0 to 15 in 64 bit mode)
+SemanticOperand xmmRegister(Context& c, uint number)
+{
+    return c.getRegister((number < 8) ? (IA32_REG_XMM0 + number) :
+                                        (AMD64_REG_XMM8 + (number - 8)));
 }
 
 void liftFxsave(Context& c)
@@ -1613,9 +1622,9 @@ void liftFxsave(Context& c)
         // The reserved bytes of the register slot
         c.store(offsetAddress(c, address, 42 + 16 * i), immediate(c, 0, 16));
         c.store(offsetAddress(c, address, 44 + 16 * i), immediate(c, 0, 32));
-        c.store(offsetAddress(c, address, 160 + 16 * i),
-                c.getRegister(IA32_REG_XMM0 + i));
     }
+    for (uint i = 0; i < (c.is64BitMode() ? 16u : 8u); i++)
+        c.store(offsetAddress(c, address, 160 + 16 * i), xmmRegister(c, i));
 }
 
 void liftFxrstor(Context& c)
@@ -1644,9 +1653,10 @@ void liftFxrstor(Context& c)
                                       integerType(80));
         writeRegister(c, physical(c, i), c.emit(Op::OP_BITCAST,
                                                 extendedType(), bits));
-        c.move(c.getRegister(IA32_REG_XMM0 + i),
-               c.load(offsetAddress(c, address, 160 + 16 * i), integerType(128)));
     }
+    for (uint i = 0; i < (c.is64BitMode() ? 16u : 8u); i++)
+        c.move(xmmRegister(c, i),
+               c.load(offsetAddress(c, address, 160 + 16 * i), integerType(128)));
 }
 
 /////////////////////////////////////////////////////////////////////////////
