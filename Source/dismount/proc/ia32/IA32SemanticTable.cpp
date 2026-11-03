@@ -211,15 +211,6 @@ void liftXlat(Context& c)
     c.move(c.getRegister(IA32_REG_AL), value);
 }
 
-// The prefetches: a hint with the address
-void liftPrefetch(Context& c)
-{
-    // With a register operand it's a nop
-    if (c.getOperand(0).m_kind == IA32DecodedOperand::KIND_MEMORY)
-        c.emit(SemanticInstruction(Op::OP_PREFETCH, SemanticType(),
-                                   SemanticOperand(), c.getAddress(0)));
-}
-
 /////////////////////////////////////////////////////////////////////////////
 // The stack
 /////////////////////////////////////////////////////////////////////////////
@@ -1511,7 +1502,6 @@ const uint8 CAT_ATOMIC      = Cl::CATEGORY_ATOMIC;
 const uint8 CAT_INTERRUPT   = Cl::CATEGORY_INTERRUPT;
 const uint8 CAT_IO          = Cl::CATEGORY_IO;
 const uint8 CAT_SYSTEM      = Cl::CATEGORY_SYSTEM;
-const uint8 CAT_CACHE       = Cl::CATEGORY_CACHE;
 
 // The execution units
 const uint32 U_NONE   = Cl::UNIT_NONE;
@@ -1590,7 +1580,6 @@ const IA32SemanticEntry gIa32SemanticTable[] = {
     LIFTER("cwd/cdq",  liftConvertAccumulatorToData, CAT_CONVERT, U_ALU,    P_IMPLICIT,   0, 0, 0),
     LIFTER("xlatb",    liftXlat,             CAT_MOVE,    U_ALU | U_MEMORY, P_READ | P_IMPLICIT, 0, 0, 0),
     TEMPLATE("nop",    gNopSteps,            CAT_NOP,     U_NONE,           P_NONE,       0, 0, 0),
-    LIFTER("prefetchnta", liftPrefetch,      CAT_CACHE,   U_MEMORY,         P_READ,       0, 0, 0),
 
     //////////////////////////////////////////////////////////////////////////
     // Arithmetic and logic
