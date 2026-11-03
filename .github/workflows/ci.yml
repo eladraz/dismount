@@ -160,6 +160,7 @@ jobs:
         run: |
           python3 tests/ia32/tools/fuzz_lengths.py --count 50000 --seed 1
           python3 tests/ia32/tools/fuzz_lengths.py --count 50000 --seed 1 --bits 16
+          python3 tests/ia32/tools/fuzz_lengths.py --count 50000 --seed 1 --bits 64
 
       - name: Upload compatibility report
         if: failure()

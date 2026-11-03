@@ -23,9 +23,11 @@ Reference material:
 tests/ia32/
   TEST_PLAN.md            this file
   corpus/*.asm            the test sources (generated, checked in, plain nasm)
-  tools/gen_corpus.py     regenerates corpus/ from insns.dat + addressing matrix
+  corpus64/*.asm          the same for 64-bit mode (`bits 64`), see "64-bit mode"
+  tools/gen_corpus.py     regenerates corpus/ and corpus64/ from insns.dat + the matrices
   tools/gen_future_opcodes.py  regenerates opcodeTableFuture.inc, the opcode inventory
-  dismount_cli.cpp        `asm`, `dis` and `cpuinfo` sub-commands over libdismount
+  dismount_cli.cpp        `asm`, `dis`, `run` and `cpuinfo` sub-commands over libdismount
+                          (`--bits 16|32|64`)
   cpuprobe.c              stand-alone CPUID probe (used under Rosetta on arm64 macOS)
   opcodeTableFuture.inc   generated, comment-only inventory of the opcodes not implemented
   run_compat.py           the driver: nasm <-> dismount comparison + report
@@ -33,7 +35,8 @@ tests/ia32/
 ```
 
 Build: `cmake -DDISMOUNT_BUILD_TESTS=ON ..` adds `dismount_cli` and `test_dismount`
-(the existing xStl-harness unit test) to the CMake build.
+(the existing xStl-harness unit test, with `tests/TestAMD64Disassembler.cpp`: the
+directed decode cases of 64-bit mode) to the CMake build.
 
 ## Corpus format
 
@@ -75,8 +78,109 @@ Corpus files:
 | `i386.asm`, `i486.asm`, `pentium.asm`, `p6.asm` | every general-purpose form from insns.dat that is valid in 32-bit mode |
 | `x87.asm`, `mmx.asm`, `sse*.asm`, ..., `avx*.asm`, `avx512*.asm`, ... | one file per feature, every form, generated from insns.dat |
 
-Instructions that are valid only in 64-bit mode (REX, APX, AMX, ...) are excluded,
-because this is a 32-bit test plan.
+Instructions that are valid only in 64-bit mode (REX, APX, AMX, ...) are not in
+`corpus/`: they are in `corpus64/` (APX and AMX are excluded by the plan).
+
+## 64-bit mode (`corpus64/`)
+
+`tests/ia32/corpus64/*.asm` is the same comparison for the 64-bit (long) mode:
+`bits 64` sources, run with `dismount_cli dis|asm --bits 64`, and assembled /
+disassembled by `nasm` and `ndisasm -b 64`. `run_compat.py` runs `corpus/` and
+`corpus64/` by default (`--corpus 32`, `--corpus 64` select one), and reports the
+64-bit files as `corpus64/NAME.asm` (the summary lists their features as
+`feature [64]`).
+
+```
+python3 tests/ia32/run_compat.py --corpus 64                    # only corpus64/
+python3 tests/ia32/run_compat.py --file corpus64/sse2.asm       # one file (the basename also works)
+python3 tests/ia32/run_compat.py --corpus 64 --grep 'rel \$'    # the rip relative lines
+python3 tests/ia32/tools/gen_corpus.py --only 64                # regenerate corpus64/
+python3 tests/ia32/tools/fuzz_lengths.py --bits 64 --count 50000
+```
+
+`--strict` checks the DIS column of `corpus64/` only, because the assembler does
+not implement 64-bit mode in every build: `--strict-asm64` checks ASM too.
+
+Files: `00_addressing64.asm` (every base / index / scale / displacement with the
+REX registers r8-r15, rsp / r12 and rbp / r13, no base, absolute, rip relative and
+the 32-bit addresses of the 0x67 prefix, plus the byte registers spl..dil / ah..bh
+and r8-r15 in all register-to-register forms), `02_prefixes64.asm` (0x66, REX.W,
+the segment overrides, lock, rep, `a32`), `03_immediates64.asm` (imm64, the sign
+extended imm32 and imm8, moffs64 / moffs32), `04_branches64.asm` (jcc, jmp, call,
+loop, jrcxz / jecxz, indirect and far branches, ret), and one file per feature
+generated from `insns.dat` in long mode: the `NOLONG` entries are dropped, the
+`LONG` / `X86_64` ones are kept, with the registers r8-r15, xmm8-xmm15 and
+spl..dil.
+
+Syntax additions of the nasm subset in 64-bit mode (dismount must accept and
+print them):
+
+- 64-bit registers `rax..r15`, `r8d..r15d`, `r8w..r15w`, `spl bpl sil dil`,
+  `r8b..r15b`, `xmm8..xmm15`, `cr8`.
+- Rip relative memory is `[rel $+N]` / `[rel $-N]` (`N` counts from the start of
+  the instruction, like the branch targets: the displacement is `N - length`).
+  nasm has no `rip` register. With the 0x67 prefix it is `[a32 rel $+N]`.
+- A 32-bit address without registers is `[a32 0x12345678]`; the 32-bit address
+  registers (`[eax+r9d*2]`) select 0x67 by themselves.
+- An absolute address is `[0x12345678]` (a SIB byte with no base and no index, the
+  disp32 is sign extended; `[0xffffffff80000000]` or `[-0x80000000]`). The
+  `moffs64` form of `mov al, [moffs]` is `[qword 0x1122334455667788]`.
+- `mov rax, imm64` is `mov rax, 0x1122334455667788`. The sign extended imm32 of
+  `mov rax, -1`, `add rax, -0x80000000`, `push -1` is written as a negative number.
+- `retq`, `leaveq`, `pushfq` are the default 64-bit forms (the same bytes as
+  `ret`, `leave`, `pushf`); `retw`, `pushfw`, `leavew` have the 0x66 prefix; REX.W
+  forms that nasm spells with a suffix: `iretq`, `retfq`, `movsq`, `stosq`, `cdqe`,
+  `cqo`, `cmpxchg16b`, `fxsave64`, `movq xmm0, rax`.
+- `xchg rax, rax` is `48 90` and `nop` is `90`; `xchg r8d, eax` is `41 90`.
+
+### Decisions where nasm / ndisasm and the SDM differ
+
+- The operand size follows REX.W, then 0x66, then the default (32 bits). The
+  instructions with a default of 64 bits (push / pop, pushf / popf, leave, enter,
+  call / jmp r/m, ret, push / pop fs / gs) take 0x66 as 16 bits; REX.W is 64 bits
+  and wins over 0x66, as everywhere (`MODE64_DEFAULT_64`). Intel ignores 0x66 for `ret`, `call` and `jmp` r/m; nasm and
+  ndisasm honor it for `ret` (`retw`), so dismount does as well. `call/jmp ax`
+  (`66 ff d0`) is not accepted by nasm: such a line is not in the corpus.
+- The near relative branches (`call`, `jmp`, `jcc`, `loop`, `jrcxz`) always have a
+  64-bit operand size: 0x66 and REX.W are ignored (`MODE64_FORCE_64`), as in ndisasm.
+- `in`, `out`, `ins`, `outs` and the memory operands of the FPU ignore REX.W
+  (`MODE64_NO_REXW`).
+- Several REX prefixes: the first one is used, like ndisasm (the processors ignore
+  all but the one before the opcode). A REX prefix followed by a legacy prefix is
+  not an instruction (it decodes as an invalid byte, 1 byte): ndisasm prints it
+  as `rex.w` / `rex` by itself.
+- `40 90` is `nop`, `48 90` is `xchg rax, rax` (ndisasm shows `o64 nop`, nasm
+  assembles `xchg rax, rax` to `48 90`), `66 90` is `xchg ax, ax`.
+- `lgdt` / `lidt` / `sgdt` / `sidt` take a 10 byte memory operand: the text has no
+  size keyword, the 0x66 form is `lgdt word [...]`.
+- `mov cr0, rax` and `mov dr0, rax` always use the 64-bit register; the `mod` field is
+  ignored by the processors but only `mod = 11` is decoded.
+- 0x67 on a string instruction is written with `a32` (`a32 movsb`), on `loop` with
+  the count register (`loop $+N, ecx`), on `jrcxz` as `jecxz`.
+
+### Expected failures
+
+Every line of the instruction sets which dismount supports in 32-bit mode (i386,
+i486, pentium, p6, x87, mmx, sse, sse2, the hand matrices and the instructions
+only valid in long mode that it implements) is DIS PASS: the decoded length is
+nasm's and nasm assembles the printed text to the same bytes. These lines
+are DIS INVALID because the mnemonic exists but the encoding is not in the opcode
+table:
+
+- `pextrw word [mem], xmm, imm` (SSE4.1, `66 0f 3a 15`): 8 lines, as in the 32-bit
+  corpus.
+- `rdmsr r64, imm32` (`msr_imm`, VEX encoded): 2 lines.
+
+Everything else that is UNSUPPORTED is a mnemonic that is in no table (SSE3 and later,
+AVX, ...): the 32-bit tables do not have it either.
+
+What `corpus64/` cannot express, because nasm cannot assemble it: a redundant or
+misplaced REX prefix (`40 89 c0`, `48 66 89 c0`, `48 48 ...`), 0x66 on a near branch
+or `call/jmp r/m`, REX.W on an instruction that ignores it, `mov cr0, eax`. They are
+covered by `tests/TestAMD64Disassembler.cpp` (directed decode cases of the text,
+the length and the structured operands) and by `fuzz_lengths.py --bits 64`, which
+compares the instruction lengths with `ndisasm -b 64` for random bytes (REX
+prefixes alone, `d5` REX2 and `rex.*` lines of ndisasm are skipped).
 
 ## Checks (per line)
 

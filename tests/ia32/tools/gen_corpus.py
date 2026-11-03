@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
-Regenerates tests/ia32/corpus/*.asm (see tests/ia32/TEST_PLAN.md, "Corpus format").
+Regenerates tests/ia32/corpus/*.asm and tests/ia32/corpus64/*.asm (see
+tests/ia32/TEST_PLAN.md, "Corpus format").
 
-  python3 tests/ia32/tools/gen_corpus.py [--nasm nasm] [--out DIR]
+  python3 tests/ia32/tools/gen_corpus.py [--nasm nasm] [--out DIR] [--out64 DIR]
+                                         [--only 32|64]
 
 * Hand-built matrices: 00_addressing32, 01_addressing16, 02_prefixes,
-  03_immediates, 04_branches, 05_bits16.
+  03_immediates, 04_branches, 05_bits16 (32 bit corpus) and 00_addressing64,
+  02_prefixes64, 03_immediates64, 04_branches64 (64 bit corpus).
 * Per-feature files: parsed from insns.dat (nasm's x86 instruction table, BSD-2,
   copied next to this script). Macro lines ($bwdq, $br, ...) are expanded.
   Operand types are instantiated with concrete values; every candidate line is
-  validated by nasm in batches and only lines nasm accepts are kept.
+  validated by nasm in batches and only lines nasm accepts are kept. The 64 bit
+  corpus is the same table read in long mode (NOLONG entries dropped, LONG and
+  X86_64 kept, REX registers r8-r15 / xmm8-xmm15 / spl-dil, rip relative
+  memory).
 
 Nothing here talks to dismount. The output is plain nasm.
 """
@@ -25,6 +31,10 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 INSNS = os.path.join(HERE, 'insns.dat')
 DEFAULT_OUT = os.path.normpath(os.path.join(HERE, '..', 'corpus'))
+DEFAULT_OUT64 = os.path.normpath(os.path.join(HERE, '..', 'corpus64'))
+
+# True while the 64 bit (long mode) corpus is generated
+LONG = False
 
 # ---------------------------------------------------------------------------
 # Feature mapping (insns.dat flag -> Linux /proc/cpuinfo name)
@@ -92,19 +102,30 @@ BRANCH_MN = {'CALL', 'LOOP', 'LOOPE', 'LOOPZ', 'LOOPNE', 'LOOPNZ', 'JECXZ',
              'JCXZ', 'XBEGIN'}
 
 
+# Long mode memory operands: a REX.B base with an index, and rip relative
+MEM_BASE64 = '[r9+rcx*2+0x10]'
+MEM_RIP64 = '[rel $+0x20]'
+
+
 def sized_mem(bits, brd=None):
     """Memory candidates for an operand of `bits` width (None = no keyword)."""
     kw = SIZE_KW.get(bits, '') if bits else ''
     pre = (kw + ' ') if kw else ''
-    first = pre + MEM_BASE
+    first = pre + (MEM_BASE64 if LONG else MEM_BASE)
     if brd:
         first += brd
-    return [first, pre + MEM_ABS]
+    return [first, pre + (MEM_RIP64 if LONG else MEM_ABS)]
 
 
 GPR8 = ['al', 'cl']
 GPR16 = ['ax', 'cx']
 GPR32 = ['eax', 'ecx']
+# Long mode: bl / sil need or avoid a REX prefix, r10b needs REX.B
+GPR8_64 = ['bl', 'sil', 'r10b']
+GPR16_64 = ['bx', 'r9w']
+GPR32_64 = ['ebx', 'r10d']
+GPR64_64 = ['rbx', 'r9']
+XMM_64 = ['xmm1', 'xmm9']
 
 
 def _decorate_reg(regs, decos):
@@ -140,7 +161,7 @@ def operand_candidates(op, mn):
     if base in ('al', 'cl', 'ax', 'cx', 'eax', 'ecx', 'dx', 'edx', 'bx', 'ebx'):
         return [base]
     if base in ('rax', 'rcx', 'rdx'):
-        return None
+        return [base] if LONG else None
     if base in ('near', 'short') or (base.startswith('imm') and 'near' in decos) \
             or base == 'short' or (base == 'imm' and mn in BRANCH_MN) \
             or (base.startswith('imm') and mn.startswith('J') and not base.startswith('imm8') is None):
@@ -163,6 +184,10 @@ def operand_candidates(op, mn):
         return ['0x1234:0x12345678']
     if base in ('imm8', 'imm'):
         return ['0x12', '0x1234', '0x12345678'] if base == 'imm' else ['0x12', '-1']
+    if base == 'imm64' and LONG:
+        return ['0x1122334455667788']
+    if base in ('udword64', 'sdword64') and LONG:
+        return ['0x12345678', '-1']
     if base == 'imm16':
         return ['0x1234']
     if base == 'imm32':
@@ -172,7 +197,7 @@ def operand_candidates(op, mn):
     if base == 'one':
         return ['1']
     if base == 'mem_offs':
-        return [MEM_ABS]
+        return ['[qword 0x1122334455667788]'] if LONG else [MEM_ABS]
     if base in ('imm64', 'udword64', 'sdword64'):
         return None
     if base == 'rm_sel' or base.startswith('spec'):
@@ -184,18 +209,20 @@ def operand_candidates(op, mn):
              'reg_ebx': ['ebx'], 'reg_cs': ['cs'], 'reg_ds': ['ds'],
              'reg_es': ['es'], 'reg_fs': ['fs'], 'reg_gs': ['gs'],
              'reg_ss': ['ss'], 'reg_sreg': ['fs', 'ds'],
-             'reg_creg': ['cr0', 'cr4'], 'reg_dreg': ['dr0', 'dr7'],
-             'reg_treg': ['tr3'], 'reg32na': ['eax'], 'reg_rax': None,
+             'reg_creg': ['cr0', 'cr8'] if LONG else ['cr0', 'cr4'],
+             'reg_dreg': ['dr0', 'dr7'],
+             'reg_treg': ['tr3'], 'reg32na': ['eax'],
+             'reg_rax': ['rax'] if LONG else None,
              'fpu0': ['st0'], 'fpureg': ['st1', 'st0'], 'bndreg': ['bnd0', 'bnd1'],
              'xmm0': ['xmm0'], 'tmmreg': ['tmm1', 'tmm2']}
     if base in fixed:
         return fixed[base]
     if base in ('reg_rax', 'reg_rcx'):
-        return None
+        return [base[4:]] if LONG else None
     # Macro-expanded size-specific accumulator/count registers
     if base.startswith('reg_') or base.startswith('reg'):
         m = re.match(r'^reg(\d+)$', base)
-        if m:
+        if m and not LONG:
             bits = int(m.group(1))
             return {8: ['al', 'cl'], 16: ['ax', 'cx'], 32: ['eax', 'ecx']}.get(bits)
     if base.startswith('kreg'):
@@ -206,15 +233,17 @@ def operand_candidates(op, mn):
         return ['k2'] + mem if bits else ['k2', MEM_BASE]
     if base == 'mmxreg':
         return ['mm1', 'mm2']
+    if base == 'mmxreg64' and LONG:
+        return None
     if base in ('mmxrm', 'mmxrm64'):
         return ['mm2'] + sized_mem(64)
     if base.startswith('xmem') or base.startswith('ymem') or base.startswith('zmem'):
         bits = int(re.search(r'(\d+)$', base).group(1))
         idx = {'x': 'xmm2', 'y': 'ymm2', 'z': 'zmm2'}[base[0]]
         pre = (SIZE_KW.get(bits, '') + ' ') if bits else ''
-        return [pre + '[ebx+%s*4+0x10]' % idx]
+        return [pre + '[%s+%s*4+0x10]' % ('r9' if LONG else 'ebx', idx)]
     if base == 'mem':
-        return [MEM_BASE, MEM_ABS]
+        return [MEM_BASE64, MEM_RIP64] if LONG else [MEM_BASE, MEM_ABS]
     m = re.match(r'^mem(\d+)$', base)
     if m:
         return sized_mem(int(m.group(1)))
@@ -224,6 +253,10 @@ def operand_candidates(op, mn):
         kind, form, bits = m.group(1), m.group(2), m.group(3)
         regs = {'xmm': ['xmm1', 'xmm2'], 'ymm': ['ymm1', 'ymm2'],
                 'zmm': ['zmm1', 'zmm2']}[kind]
+        if LONG:
+            # The registers which need REX.R / REX.B (EVEX: R' / X)
+            regs = {'xmm': ['xmm1', 'xmm10'], 'ymm': ['ymm1', 'ymm10'],
+                    'zmm': ['zmm1', 'zmm18']}[kind]
         if form == 'reg':
             return _decorate_reg(regs, decos)
         size = int(bits) if bits else {'xmm': 128, 'ymm': 256, 'zmm': 512}[kind]
@@ -232,15 +265,20 @@ def operand_candidates(op, mn):
         mem = sized_mem(size, '{1to%d}' % (size // brd_bits) if brd_bits else None)
         return regs_c + mem
     if base == 'xmmrm':
-        return _decorate_reg(['xmm2'], decos) + sized_mem(128)
+        return _decorate_reg(['xmm10' if LONG else 'xmm2'], decos) + sized_mem(128)
     m = re.match(r'^xmmrm(\d+)$', base)
     if m:
         bits = int(m.group(1))
         mem = sized_mem(bits, '{1to%d}' % (128 // brd_bits) if brd_bits else None)
-        return _decorate_reg(['xmm2'], decos) + mem
+        return _decorate_reg(['xmm10' if LONG else 'xmm2'], decos) + mem
     m = re.match(r'^(reg|rm)(8|16|32|64)$', base)
     if m:
         form, bits = m.group(1), int(m.group(2))
+        if LONG:
+            regs = {8: GPR8_64, 16: GPR16_64, 32: GPR32_64, 64: GPR64_64}[bits]
+            if form == 'reg':
+                return list(regs)
+            return list(regs[:2]) + sized_mem(bits)
         if bits == 64:
             return None
         regs = {8: GPR8, 16: GPR16, 32: GPR32}[bits]
@@ -397,18 +435,30 @@ for _mn in ['ROL', 'ROR', 'RCL', 'RCR', 'SHL', 'SAL', 'SHR', 'SAR']:
 def classify(entry):
     """Returns (feature or None, drop-reason or None)."""
     flags = entry['flags']
-    if flags & EXCLUDE_64BIT or 'PSEUDO' in flags:
-        return None, '64-bit-only or pseudo'
-    if re.search(r'evex\.(nf|nd|ndd|ndx|zu)[.0-9]', entry['code']) or 'o64' in entry['code'].split():
-        return None, '64-bit-only (APX/REX.W)'
-    if any(tok in EXCLUDE_AMD_OBSOLETE for tok in flags):
-        return None, 'AMD-only/obsolete family'
-    if any(tok.startswith(EXCLUDE_PREFIX) for tok in flags):
-        return None, 'AMX (excluded by plan)'
-    if any(o.startswith('reg64') or o.startswith('rm64') or o.startswith('mmxreg64')
-           or o in ('imm64', 'imm64|abs', 'imm64|near', 'udword64', 'sdword64')
-           or o.startswith('reg64:') for o in entry['ops']):
-        return None, '64-bit operand'
+    if LONG:
+        # Long mode: the entries which are not valid in it are dropped, the
+        # 64 bit ones kept. APX (extended EVEX) and AMX stay out of the plan
+        if flags & {'NOLONG', 'PSEUDO', 'NEVER', 'ND', 'APX'}:
+            return None, 'not valid in 64-bit mode or pseudo'
+        if re.search(r'evex\.(nf|nd|ndd|ndx|zu)[.0-9]', entry['code']):
+            return None, 'APX (excluded by plan)'
+        if any(tok in EXCLUDE_AMD_OBSOLETE - {'AMD'} for tok in flags):
+            return None, 'AMD-only/obsolete family'
+        if any(tok.startswith(EXCLUDE_PREFIX) for tok in flags):
+            return None, 'AMX (excluded by plan)'
+    else:
+        if flags & EXCLUDE_64BIT or 'PSEUDO' in flags:
+            return None, '64-bit-only or pseudo'
+        if re.search(r'evex\.(nf|nd|ndd|ndx|zu)[.0-9]', entry['code']) or 'o64' in entry['code'].split():
+            return None, '64-bit-only (APX/REX.W)'
+        if any(tok in EXCLUDE_AMD_OBSOLETE for tok in flags):
+            return None, 'AMD-only/obsolete family'
+        if any(tok.startswith(EXCLUDE_PREFIX) for tok in flags):
+            return None, 'AMX (excluded by plan)'
+        if any(o.startswith('reg64') or o.startswith('rm64') or o.startswith('mmxreg64')
+               or o in ('imm64', 'imm64|abs', 'imm64|near', 'udword64', 'sdword64')
+               or o.startswith('reg64:') for o in entry['ops']):
+            return None, '64-bit operand'
     for tok, feat in FEATURE_RULES:
         if tok in flags:
             return feat, None
@@ -640,6 +690,316 @@ HAND_FILES = [
 
 
 # ---------------------------------------------------------------------------
+# Hand-built matrices of the 64 bit corpus
+# ---------------------------------------------------------------------------
+
+REGS64 = ['rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi',
+          'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+REGS32_64 = ['eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi',
+             'r8d', 'r9d', 'r10d', 'r11d', 'r12d', 'r13d', 'r14d', 'r15d']
+REGS16_64 = ['ax', 'cx', 'dx', 'bx', 'sp', 'bp', 'si', 'di',
+             'r8w', 'r9w', 'r10w', 'r11w', 'r12w', 'r13w', 'r14w', 'r15w']
+REGS8_REX = ['al', 'cl', 'dl', 'bl', 'spl', 'bpl', 'sil', 'dil',
+             'r8b', 'r9b', 'r10b', 'r11b', 'r12b', 'r13b', 'r14b', 'r15b']
+REGS8_LEGACY = ['al', 'cl', 'dl', 'bl', 'ah', 'ch', 'dh', 'bh']
+DISPS64 = ['', '+0x7f', '+0x80', '-0x80', '-0x81', '+0x12345678', '-0x12345678']
+
+
+def addressing64_mems():
+    mems = []
+    # [base + disp] for all the 16 bases (rsp / r12 need a SIB byte,
+    # rbp / r13 need a displacement)
+    for b in REGS64:
+        for d in DISPS64:
+            mems.append('[%s%s]' % (b, d))
+    # [base + index * scale + disp]; the index rsp does not exist, r12 does
+    index_regs = [r for r in REGS64 if r != 'rsp']
+    for i in index_regs:
+        for sc in (1, 2, 4, 8):
+            for b in ('rax', 'rsp', 'rbp', 'r8', 'r12', 'r13', 'r15'):
+                for d in ('', '+0x10', '-0x10'):
+                    mems.append('[%s+%s*%d%s]' % (b, i, sc, d))
+    # no base, a disp32
+    for i in index_regs:
+        for sc in (1, 2, 4, 8):
+            mems.append('[%s*%d+0x10]' % (i, sc))
+            mems.append('[%s*%d-0x12345678]' % (i, sc))
+    # absolute (sign extended disp32 in a SIB byte)
+    mems += ['[0x12345678]', '[0x7f]', '[0x80]', '[-0x80000000]',
+             '[0xffffffff80000000]', '[0]']
+    # rip relative
+    for d in ('$+0x10', '$-0x10', '$+0x7f', '$+0x80', '$-0x80', '$+0x12345678',
+              '$-0x12345678', '$+0x1000', '$+0x6', '$+0x7'):
+        mems.append('[rel %s]' % d)
+    # 32 bit addresses (0x67): the registers are 32 bit, [eip + disp32]
+    for b in REGS32_64:
+        for d in ('', '+0x10', '+0x12345678'):
+            mems.append('[%s%s]' % (b, d))
+    for i in ('eax', 'r9d', 'r12d', 'r15d'):
+        for sc in (1, 2, 4, 8):
+            for b in ('eax', 'esp', 'ebp', 'r8d', 'r13d'):
+                mems.append('[%s+%s*%d+0x10]' % (b, i, sc))
+            mems.append('[%s*%d+0x10]' % (i, sc))
+    mems += ['[a32 0x12345678]', '[a32 rel $+0x10]', '[a32 rel $-0x10]']
+    return mems
+
+
+def gen64_00():
+    lines = []
+    templates = ['mov eax, {m}', 'mov {m}, r9d', 'add r10, {m}', 'lea r11, {m}',
+                 'inc dword {m}', 'push qword {m}', 'movzx eax, byte {m}',
+                 'imul rax, {m}', 'cmp qword {m}, 0x12', 'test {m}, cl',
+                 'movzx r8d, word {m}', 'mov byte {m}, 0x12']
+    for m in addressing64_mems():
+        for t in templates:
+            lines.append(t.format(m=m))
+    for a in REGS64:
+        for b in REGS64:
+            lines.append('add %s, %s' % (a, b))
+            lines.append('mov %s, %s' % (a, b))
+    for a in REGS32_64:
+        for b in REGS32_64:
+            lines.append('xor %s, %s' % (a, b))
+    for a in REGS16_64:
+        lines.append('mov %s, bx' % a)
+        lines.append('mov cx, %s' % a)
+    # The byte registers: spl..dil need a REX prefix, ah..bh forbid it
+    for a in REGS8_REX:
+        for b in REGS8_REX:
+            lines.append('mov %s, %s' % (a, b))
+        for b in REGS8_LEGACY:
+            lines.append('mov %s, %s' % (a, b))
+            lines.append('mov %s, %s' % (b, a))
+    for a in REGS8_LEGACY:
+        for b in REGS8_LEGACY:
+            lines.append('mov %s, %s' % (a, b))
+    for r in REGS8_REX:
+        lines += ['mov %s, 0x12' % r, 'inc %s' % r, 'neg %s' % r,
+                  'movzx eax, %s' % r, 'movsx rax, %s' % r, 'test %s, 1' % r,
+                  'mov [rbx], %s' % r, 'mov %s, [rbx]' % r]
+    for r, r32 in zip(REGS64, REGS32_64):
+        lines += ['push %s' % r, 'pop %s' % r, 'inc %s' % r, 'dec %s' % r,
+                  'bswap %s' % r, 'xchg rax, %s' % r, 'xchg %s, rbx' % r,
+                  'mov %s, 0x1122334455667788' % r, 'not %s' % r,
+                  'call %s' % r, 'jmp %s' % r, 'imul rax, %s, 0x12' % r,
+                  'shl %s, 4' % r, 'shr %s, cl' % r, 'movsxd rax, %s' % r32]
+    for r in REGS32_64:
+        lines += ['mov %s, 0x12345678' % r, 'bswap %s' % r, 'inc %s' % r,
+                  'mul %s' % r, 'idiv %s' % r]
+    for r in REGS16_64:
+        lines += ['mov %s, 0x1234' % r, 'push %s' % r, 'pop %s' % r, 'inc %s' % r,
+                  'movzx eax, %s' % r, 'movsx rax, %s' % r]
+    # SSE: the extended registers
+    for x in ('xmm0', 'xmm7', 'xmm8', 'xmm15'):
+        for y in ('xmm1', 'xmm9', 'xmm15'):
+            lines += ['addps %s, %s' % (x, y), 'movaps %s, %s' % (x, y),
+                      'pxor %s, %s' % (x, y), 'cvtsd2ss %s, %s' % (x, y)]
+        for r in ('rax', 'r8', 'r15'):
+            lines += ['cvtsi2sd %s, %s' % (x, r), 'cvttsd2si %s, %s' % (r, x),
+                      'movq %s, %s' % (x, r), 'movq %s, %s' % (r, x),
+                      'movmskps %s, %s' % (r, x)]
+        for r in ('eax', 'r9d'):
+            lines += ['movd %s, %s' % (x, r), 'movd %s, %s' % (r, x),
+                      'cvtsi2ss %s, %s' % (x, r), 'cvttss2si %s, %s' % (r, x),
+                      'pextrw %s, %s, 1' % (r, x), 'pinsrw %s, %s, 1' % (x, r)]
+    return lines
+
+
+def gen64_02():
+    lines = []
+    # operand-size override (0x66) and REX.W, which wins over it
+    lines += ['mov ax, bx', 'mov ax, [rbx]', 'mov [rbx], ax', 'add ax, 0x1234',
+              'add ax, 0x12', 'push ax', 'pop cx', 'inc ax', 'xchg ax, bx',
+              'lea ax, [rbx+rcx*2+0x10]', 'shl ax, 1', 'cwd', 'pushfw', 'popfw',
+              'retw', 'retw 8', 'iretw', 'movsw', 'stosw', 'lodsw', 'scasw',
+              'cmpsw', 'mov ax, 0x1234', 'mov word [rbx], 0x1234',
+              'push word 0x12', 'push word 0x1234', 'sub ax, cx', 'bsf ax, bx',
+              'movzx ax, byte [rbx]', 'cmp word [rsi+rcx*4], 0x12',
+              'xadd [rbx], ax', 'imul ax, cx, 0x1234', 'mov r8w, r9w',
+              'mov ax, [r9+r10*2]', 'push word [rax]', 'pop word [rax]',
+              'cbw', 'leavew', 'enterw 0x10, 0', 'xchg r8w, ax', 'nop',
+              'xchg ax, ax', 'xchg eax, eax', 'xchg r8d, eax', 'xchg rax, r8',
+              'xchg rax, rax', 'o16 nop']
+    lines += ['mov rax, rbx', 'mov rax, [rbx]', 'mov [rbx], rax', 'add rax, rbx',
+              'push qword [rax]', 'pop qword [rax]', 'cdqe', 'cqo', 'cwde', 'cdq',
+              'movsq', 'stosq', 'lodsq', 'scasq', 'cmpsq', 'movsd', 'stosd',
+              'lodsd', 'scasd', 'cmpsd', 'movsb', 'insd', 'outsd', 'insb', 'outsb',
+              'iretq', 'iret', 'iretd', 'retfq', 'retf', 'pushf', 'popf', 'pushfq',
+              'popfq', 'leave', 'leaveq', 'enter 0x10, 0', 'enterq 0x10, 0',
+              'lea rax, [rbx]', 'lea eax, [rbx]', 'cmpxchg16b [rax]',
+              'cmpxchg8b [rax]', 'cmpxchg16b [r9+r10*8]', 'cmpxchg8b [r9]',
+              'movsxd rax, ecx', 'movsxd rax, dword [rax]', 'movsxd eax, ecx',
+              'movsxd r8, r9d', 'syscall', 'sysret', 'swapgs',
+              'mov rax, cr0', 'mov cr0, rax', 'mov cr8, rax', 'mov r9, cr8',
+              'mov rax, cr2', 'mov cr3, r15', 'mov cr4, r8', 'mov rax, dr0',
+              'mov dr7, rax', 'mov r10, dr3', 'lgdt [rax]', 'lidt [rax]',
+              'sgdt [rax]', 'sidt [rax]', 'lgdt [r9]', 'fxsave [rax]',
+              'fxrstor [rax]', 'fxsave64 [rax]', 'fxrstor64 [r9]', 'ldmxcsr [rax]',
+              'stmxcsr [r9+rax*4]', 'invlpg [rax]', 'bt r9, rax', 'bts [rax], r10',
+              'btr rax, 5', 'btc qword [rax], 0x3f', 'shld rax, rbx, 4',
+              'shrd r9, r10, cl', 'movnti [rax], r9', 'movnti [rax], ecx',
+              'lss eax, [rax]', 'lfs rax, [rbx]', 'lgs eax, [rbx]',
+              'lss rax, [rbx]', 'in al, dx', 'in eax, dx', 'out dx, eax',
+              'in al, 0x60', 'out 0x80, al', 'in eax, 0x60', 'out 0x60, eax']
+    # segment overrides: only fs and gs have a base in 64 bit mode
+    for seg in ('es', 'cs', 'ss', 'ds', 'fs', 'gs'):
+        lines += ['mov eax, [%s:rbx]' % seg,
+                  'mov [%s:rcx+0x10], edx' % seg,
+                  'add rax, [%s:0x1234]' % seg,
+                  'mov al, [%s:rsi]' % seg,
+                  'mov r9, [%s:rbx+r10*4]' % seg,
+                  'mov ax, [%s:rbx]' % seg,
+                  'push qword [%s:rbp+0x7f]' % seg,
+                  'lea eax, [%s:rbx]' % seg,
+                  'mov eax, [%s:rel $+0x10]' % seg,
+                  'mov al, [%s:qword 0x1122334455667788]' % seg,
+                  'movsb' if seg == 'es' else 'lodsb']
+    # lock prefix
+    lines += ['lock add [rbx], eax', 'lock inc dword [rcx]',
+              'lock dec qword [rsi+0x10]', 'lock cmpxchg [rbx], rcx',
+              'lock xadd [rdx], rax', 'lock xchg [rbx], rax', 'lock btc [rax], rcx',
+              'lock neg dword [rbx]', 'lock not byte [rax]', 'lock or [rax], r9',
+              'lock and dword [rdi], 0x12', 'lock sub [rax], rcx', 'lock adc [rbx], r8',
+              'lock sbb [rbx], eax', 'lock xor [rbx], r10d', 'lock add [rbx], ax',
+              'lock cmpxchg8b [rsi]', 'lock cmpxchg16b [rsi]', 'lock bts [rbx+rcx*8], rax']
+    # rep / repe / repne on string instructions (with REX.W)
+    for sn in ('movsb', 'movsw', 'movsd', 'movsq', 'stosb', 'stosw', 'stosd', 'stosq',
+               'lodsb', 'lodsq', 'cmpsb', 'cmpsw', 'cmpsd', 'cmpsq', 'scasb', 'scasw',
+               'scasd', 'scasq', 'insb', 'outsb', 'insd', 'outsd'):
+        for pf in ('rep', 'repe', 'repne', 'repz', 'repnz'):
+            lines.append('%s %s' % (pf, sn))
+    lines += ['rep movsq', 'rep stosq', 'repe cmpsq', 'repne scasq', 'lock rep movsb',
+              'rep fs movsb', 'rep gs movsq', 'a32 rep movsb', 'a32 movsq',
+              'a32 rep stosq', 'a32 lodsb', 'a32 scasd', 'a32 cmpsb', 'a32 movsb',
+              'a32 movsd', 'a32 stosb', 'a32 loop $+0x10']
+    # REX prefix implied by the operands
+    lines += ['mov spl, al', 'mov sil, dil', 'mov bpl, 5', 'mov r8b, r9b',
+              'mov al, r15b', 'mov [r8], sil', 'mov dil, [r9+rax]', 'mov ah, al',
+              'movzx eax, ah', 'movzx eax, spl', 'movzx r8d, r9b',
+              'movsx r8, r9b', 'movsx r8, r9w', 'movzx rax, word [rax]',
+              'movzx rax, bl', 'setz sil', 'setz r9b', 'setz ah', 'xchg sil, al',
+              'push r8', 'pop r15', 'push r8w', 'pop r15w', 'push fs', 'pop gs',
+              'push qword fs', 'pop qword gs', 'nop dword [rax]', 'nop word [rax+rax]',
+              'nop qword [rax]', 'nop r8d', 'prefetcht0 [r9]', 'prefetchnta [rax+r10*8]']
+    return lines
+
+
+def gen64_03():
+    lines = []
+    for op in ('add', 'or', 'adc', 'sbb', 'and', 'sub', 'xor', 'cmp', 'test'):
+        for imm in ('0x7f', '0x80', '-0x80', '-0x81', '0x12', '0x12345678',
+                    '-1', '0x7fffffff', '-0x80000000'):
+            lines.append('%s rax, %s' % (op, imm))
+            lines.append('%s r9, %s' % (op, imm))
+            lines.append('%s qword [rbx], %s' % (op, imm))
+        for imm in ('0x7f', '0x80', '-0x80', '-0x81', '0x12', '0x12345678', '-1',
+                    '0xff', '0x7fffffff', '-0x80000000'):
+            lines.append('%s eax, %s' % (op, imm))
+        lines.append('%s ecx, 0x7f' % op)
+        lines.append('%s r10d, 0x7f' % op)
+        lines.append('%s dword [rbx], 0x80' % op)
+        lines.append('%s byte [rbx], 0x12' % op)
+        lines.append('%s word [rbx], 0x1234' % op)
+        lines.append('%s ax, 0x1234' % op)
+        lines.append('%s al, 0x12' % op)
+        lines.append('%s r11b, 0x12' % op)
+        lines.append('%s sil, 0x12' % op)
+    lines += ['mov al, 0x12', 'mov ax, 0x1234', 'mov eax, 0x12345678',
+              'mov eax, 0', 'mov eax, -1', 'mov byte [rax], 0x12',
+              'mov word [rax], 0x1234', 'mov dword [rax], -1',
+              'mov dword [rax+rbx*4], 0x80', 'mov qword [rax], -1',
+              'mov qword [rax], 0x12345678', 'mov qword [rax], -0x80000000',
+              'mov qword [r9+r10*8], 0x7fffffff',
+              'mov rax, 0x1122334455667788', 'mov r8, 0x1122334455667788',
+              'mov r15, 0x8877665544332211', 'mov rax, 0x12345678',
+              'mov rax, 0xffffffff', 'mov rax, 0x100000000', 'mov rax, -1',
+              'mov rax, -0x80000000', 'mov rax, -0x80000001',
+              'mov rax, 0xffffffff80000000', 'mov rax, 0x7fffffff',
+              'mov rax, 0x80000000', 'mov r8d, 0xffffffff', 'mov r9d, 0x12345678',
+              'mov r8w, 0x1234', 'mov r8b, 0x12', 'mov rcx, 0',
+              'mov ecx, 0x80000000',
+              'push 0x7f', 'push 0x80', 'push -0x80', 'push -0x81', 'push 0x12345678',
+              'push -0x12345678', 'push qword 0x12', 'push word 0x12',
+              'push word 0x1234', 'push 0x7fffffff', 'push -0x80000000',
+              'imul eax, ebx, 0x12', 'imul rax, rbx, 0x12345678',
+              'imul r9, [rbx], 0x7f', 'imul r10, qword [rbx], -0x81',
+              'imul rax, rbx, -1', 'imul ecx, dword [rbx], 0x12345678',
+              'test rax, 0x7f', 'test rax, 0x12345678', 'test eax, 0x7f',
+              'test r9, -1', 'and rcx, 0xff', 'or rdx, -2',
+              'cmp rbx, 0x7fffffff', 'cmp rbx, -0x80000000',
+              'enter 0x10, 0', 'enter 0, 0', 'ret 0x10', 'ret 0xfffe', 'int 0x80',
+              'int 3', 'int 0x21', 'in al, 0x60', 'out 0x80, al', 'in eax, dx',
+              'out dx, al', 'shl rax, 4', 'rol r9, 0x1f', 'sar rdx, 63', 'shr bx, 8',
+              'shl r8d, 1', 'shl r8, 1', 'rcl r10b, 1', 'sar qword [rax], 1',
+              'shl rax, cl', 'ror qword [r9], cl',
+              'mov al, [qword 0x1122334455667788]', 'mov ax, [qword 0x1122334455667788]',
+              'mov eax, [qword 0x1122334455667788]', 'mov rax, [qword 0x1122334455667788]',
+              'mov [qword 0x1122334455667788], al', 'mov [qword 0x1122334455667788], ax',
+              'mov [qword 0x1122334455667788], eax', 'mov [qword 0x1122334455667788], rax',
+              'mov al, [qword 0]', 'mov rax, [qword -1]',
+              'mov al, [a32 0x12345678]', 'mov eax, [a32 0x12345678]',
+              'mov rax, [a32 0x12345678]', 'mov [a32 0x12345678], eax',
+              'mov [a32 0x12345678], al', 'mov eax, [fs:qword 0x1122334455667788]',
+              'mov al, [0x12]', 'mov eax, [0x12345678]', 'mov [0x12345678], eax',
+              'mov rax, [0x12345678]', 'mov rax, [-0x80000000]',
+              'mov byte [0x12345678], 0x12', 'mov ecx, [0x12345678]',
+              'test al, 0x80', 'test ax, 0x8000', 'xor eax, eax', 'and al, 0x7f',
+              'xor r9d, r9d', 'xor r8, r8', 'add rsp, 0x28', 'sub rsp, 0x1000',
+              'lea rax, [rsp+0x20]', 'cmp byte [rel $+0x20], 0x12',
+              'mov dword [rel $+0x20], 0x12345678', 'mov qword [rel $+0x20], -1',
+              'add qword [rel $+0x20], 0x12345678', 'cmp word [rel $+0x20], 0x1234',
+              'imul eax, [rel $+0x20], 0x12', 'shl qword [rel $+0x20], 4',
+              'pshufd xmm9, [rel $+0x20], 0x12', 'cmpps xmm8, [rel $+0x20], 3',
+              'enter 0xffff, 0xff', 'enter 0x10, 3']
+    return lines
+
+
+def gen64_04():
+    lines = []
+    ccs = ['jo', 'jno', 'jb', 'jnb', 'jz', 'jnz', 'jbe', 'ja', 'js', 'jns', 'jp',
+           'jnp', 'jl', 'jge', 'jle', 'jg', 'jc', 'jnc', 'je', 'jne', 'jnae', 'jae',
+           'jna', 'jnbe', 'jpe', 'jpo', 'jnge', 'jnl', 'jng', 'jnle']
+    distances = ['$+0x10', '$-0x10', '$+0x7f', '$-0x7f', '$+0x80', '$-0x80',
+                 '$+0x1000', '$-0x1000', '$+0x7fffff', '$-0x7fffff']
+    for mn in ccs + ['jmp', 'call']:
+        for d in distances:
+            lines.append('%s %s' % (mn, d))
+        if mn != 'call':
+            lines.append('%s short $+0x10' % mn)
+        lines.append('%s near $+0x10' % mn)
+    for mn in ('loop', 'loope', 'loopne', 'loopz', 'loopnz', 'jrcxz', 'jecxz'):
+        for d in ('$+0x10', '$-0x10', '$+0x7f', '$-0x7c', '$+0x2'):
+            lines.append('%s %s' % (mn, d))
+    for mn in ('loop', 'loope', 'loopne'):
+        lines += ['%s $+0x10, ecx' % mn, '%s $+0x10, rcx' % mn]
+    for r in REGS64:
+        lines += ['call %s' % r, 'jmp %s' % r, 'call qword [%s]' % r,
+                  'jmp qword [%s+0x10]' % r, 'push qword [%s]' % r]
+    lines += ['call [rax]', 'jmp [rax]', 'call qword [rbx+rcx*4]',
+              'jmp qword [rbp-0x10]', 'call qword [r9+r10*8+0x12345678]',
+              'jmp qword [rel $+0x20]', 'call qword [rel $-0x20]',
+              'call [rel $+0x10]', 'jmp [a32 0x12345678]', 'call qword [0x12345678]',
+              'jmp far [rax]', 'call far [rax]', 'jmp far dword [rax]',
+              'call far dword [rax]', 'jmp far qword [rax]', 'call far qword [r9]',
+              'jmp far word [rax]',
+              'ret', 'ret 8', 'ret 0x7fff', 'retf', 'retf 4', 'retfq', 'retfq 8',
+              'iret', 'iretq', 'iretw', 'leave', 'int1', 'int3', 'xbegin $+0x10',
+              'call $+0x7fffff', 'jmp near $+0x10', 'jmp $+0x2', 'jmp $+0x3',
+              'jz $+0x2', 'jz $+0x6', 'call $+0x5', 'syscall', 'sysret', 'ud2',
+              'hlt', 'cpuid', 'rdtsc', 'rdmsr', 'wrmsr', 'swapgs', 'sysenter',
+              'sysexit']
+    return lines
+
+
+HAND_FILES64 = [
+    ('00_addressing64', 'i386', 64, gen64_00, 'ModRM/SIB/RIP/disp matrix, REX registers, 0x67'),
+    ('02_prefixes64', 'i386', 64, gen64_02, '0x66, REX.W, segment overrides, lock, rep family'),
+    ('03_immediates64', 'i386', 64, gen64_03, 'imm64, sign extended imm32, moffs64'),
+    ('04_branches64', 'i386', 64, gen64_04, 'jcc/jmp/call/loop/jrcxz, indirect, far'),
+]
+
+
+# ---------------------------------------------------------------------------
 # Writing
 # ---------------------------------------------------------------------------
 
@@ -652,19 +1012,19 @@ def write_file(path, file_feature, bits, items):
             f.write('%-44s ; @feature: %s\n' % (text, feat))
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
-    ap.add_argument('--nasm', default='nasm')
-    ap.add_argument('--out', default=DEFAULT_OUT)
-    args = ap.parse_args()
-    os.makedirs(args.out, exist_ok=True)
-    for old in os.listdir(args.out):
+def generate(out_dir, hand_files, bits, nasm):
+    """Writes the hand matrices and the insns.dat feature files of one
+    corpus. `bits` is the operating mode of the feature files."""
+    global LONG
+    LONG = (bits == 64)
+    os.makedirs(out_dir, exist_ok=True)
+    for old in os.listdir(out_dir):
         if old.endswith('.asm'):
-            os.remove(os.path.join(args.out, old))
+            os.remove(os.path.join(out_dir, old))
 
     summary = []
     # 1. hand-built matrices
-    for name, feat, bits, gen, desc in HAND_FILES:
+    for name, feat, mbits, gen, desc in hand_files:
         raw = gen()
         # de-duplicate, keep order
         seen = set()
@@ -673,11 +1033,11 @@ def main():
             if l not in seen:
                 seen.add(l)
                 uniq.append(l)
-        good, bad = nasm_check_file_lines(args.nasm, uniq, bits)
+        good, bad = nasm_check_file_lines(nasm, uniq, mbits)
         if bad:
             sys.stderr.write('%s: %d hand-written lines rejected by nasm: %s\n'
                              % (name, len(bad), '; '.join(bad[:10])))
-        write_file(os.path.join(args.out, name + '.asm'), feat, bits,
+        write_file(os.path.join(out_dir, name + '.asm'), feat, mbits,
                    [(l, feat) for l in good])
         summary.append((name, len(good), len(bad), 'hand-built: ' + desc))
 
@@ -686,7 +1046,6 @@ def main():
     drops = collections.Counter()
     form_drops = collections.Counter()
     candidates = []        # (feature, text, entry_index)
-    seen_entries = set()
     for idx, e in enumerate(entries):
         feat, reason = classify(e)
         if reason:
@@ -699,9 +1058,9 @@ def main():
         for c in cands:
             candidates.append((feat, c, idx))
 
-    # Batch-validate all candidate lines with nasm (32-bit)
+    # Batch-validate all candidate lines with nasm
     texts = [c[1] for c in candidates]
-    accepted = nasm_accepts(args.nasm, texts, 32)
+    accepted = nasm_accepts(nasm, texts, 64 if LONG else 32)
 
     per_feature = collections.OrderedDict()
     seen_text = set()
@@ -724,8 +1083,9 @@ def main():
 
     for feat, items in per_feature.items():
         fname = FILE_NAME.get(feat, feat)
-        write_file(os.path.join(args.out, fname + '.asm'), feat, 32, items)
+        write_file(os.path.join(out_dir, fname + '.asm'), feat, bits, items)
         summary.append((fname, len(items), 0, 'insns.dat feature ' + feat))
+    print('== %s (bits %d)' % (out_dir, bits))
     for name, n, bad, desc in summary:
         print('%-18s %6d lines  rejected=%-3d %s' % (name, n, bad, desc))
     print()
@@ -733,8 +1093,22 @@ def main():
     print('dropped entries by reason:')
     for reason, n in sorted(drops.items(), key=lambda kv: -kv[1]):
         print('  %-40s %d' % (reason, n))
-    print('entries with no nasm-accepted spelling (32-bit): %d' % total_forms_rejected)
+    print('entries with no nasm-accepted spelling (%d-bit): %d' % (bits, total_forms_rejected))
     print('total generated feature lines: %d' % sum(len(v) for v in per_feature.values()))
+    print()
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[1])
+    ap.add_argument('--nasm', default='nasm')
+    ap.add_argument('--out', default=DEFAULT_OUT, help='the 16/32 bit corpus directory')
+    ap.add_argument('--out64', default=DEFAULT_OUT64, help='the 64 bit corpus directory')
+    ap.add_argument('--only', choices=('32', '64'), help='generate one corpus only')
+    args = ap.parse_args()
+    if args.only != '64':
+        generate(args.out, HAND_FILES, 32, args.nasm)
+    if args.only != '32':
+        generate(args.out64, HAND_FILES64, 64, args.nasm)
 
 
 if __name__ == '__main__':

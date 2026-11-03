@@ -206,7 +206,7 @@ MODRM_DIGIT_BIT = {d: (4 << d) for d in range(8)}
 
 
 # The OpcodeEntry m_mandatoryPrefix values (opcodeTable.h, enum MandatoryPrefix)
-MANDATORY_VALUES = {"MANDATORY_NONE": 0x00, "MANDATORY_66": 0x66,
+MANDATORY_VALUES = {"0": 0x00, "MANDATORY_NONE": 0x00, "MANDATORY_66": 0x66,
                     "MANDATORY_F2": 0xF2, "MANDATORY_F3": 0xF3}
 MPFX_VALUES = {"": 0x00, "66": 0x66, "F2": 0xF2, "F3": 0xF3}
 
@@ -260,16 +260,18 @@ def parse_tables(cpp_lines):
         if not m:
             raise ValueError("unparsed table line: %s" % line)
         fields = [f.strip() for f in m.group(1).split(",")]
-        if len(fields) not in (9, 10):
-            raise ValueError("expected 9 or 10 fields, got %d: %s" % (len(fields), line))
+        if len(fields) not in (9, 10, 11):
+            raise ValueError("expected 9, 10 or 11 fields, got %d: %s" % (len(fields), line))
         name_f = fields[0]
         if name_f == "OPCODEEOT":
             continue
         invalid = name_f == "INVALID"
         prefix = int(fields[1], 16)
         mask = int(fields[2], 16)
-        # m_mandatoryPrefix is the last field, MANDATORY_NONE when omitted
-        mandatory = MANDATORY_VALUES[fields[9]] if len(fields) == 10 else 0
+        # m_mandatoryPrefix is the field after the altering property,
+        # MANDATORY_NONE when omitted (written as 0 before m_mode64, which
+        # the inventory does not need)
+        mandatory = MANDATORY_VALUES[fields[9]] if len(fields) >= 10 else 0
         modrm = eval_modrm(fields[6])
         tables[current].append(Entry(name_f.strip('"'), prefix, mask, mandatory, modrm, invalid))
     return tables

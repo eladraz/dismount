@@ -3,7 +3,7 @@
 
 Every sequence of --count random 1-15 byte strings is decoded twice: by
 `dismount_cli dis` (first instruction only, see dismount_cli.cpp) and by
-`ndisasm -b 32` (or -b 16). The result is classified as follows.
+`ndisasm -b 32` (or -b 16 / -b 64). The result is classified as follows.
 
 (a) Exceptions. An `ERR` line from dismount (CHECK failures, unknown
     exceptions, a crashed CLI) is always a bug. The one exception is
@@ -31,6 +31,7 @@ Exit status: 1 when (a) or (b) is non-empty, else 0.
 Usage:
     python3 tests/ia32/tools/fuzz_lengths.py --count 50000 --seed 1
     python3 tests/ia32/tools/fuzz_lengths.py --bits 16 --count 5000 --cli out/bin/dismount_cli
+    python3 tests/ia32/tools/fuzz_lengths.py --bits 64 --count 50000
 """
 
 import argparse
@@ -130,14 +131,17 @@ def implemented(nd, table):
 
 def is_prefix_only(nd):
     """ndisasm printed only a prefix (lock, o16, cs, ...): not an instruction."""
-    return nd is not None and nd[1].rstrip(':') in rc.PREFIX_WORDS
+    # ndisasm -b 64 shows a REX prefix which is not followed by an opcode as
+    # 'rex', 'rex.w', 'rex.wrxb'...
+    return nd is not None and (nd[1].rstrip(':') in rc.PREFIX_WORDS or
+                               re.match(r'^rex(\.[wrxb]+)?$', nd[1]) is not None)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--count', type=int, default=5000, help='number of random sequences')
     ap.add_argument('--seed', type=int, default=1)
-    ap.add_argument('--bits', type=int, choices=(16, 32), default=32)
+    ap.add_argument('--bits', type=int, choices=(16, 32, 64), default=32)
     ap.add_argument('--cli', default=rc.DEFAULT_CLI, help='dismount_cli binary')
     ap.add_argument('--ndisasm', default='ndisasm')
     ap.add_argument('--jobs', type=int, default=8, help='parallel ndisasm runs')
@@ -158,7 +162,7 @@ def main():
         n = rng.randint(1, MAX_LEN)
         seqs.append(bytes(rng.randrange(256) for _ in range(n)))
     hexes = [s.hex() for s in seqs]
-    table = rc.table_mnemonics()
+    table = rc.table_mnemonics(args.bits == 64)
 
     dis_out = dismount_lengths(cli, args.bits, hexes)
     tmpdir = tempfile.mkdtemp(prefix='fuzz_lengths_')

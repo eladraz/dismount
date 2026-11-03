@@ -3,7 +3,10 @@
 IA-32 compatibility driver: dismount vs. nasm (see tests/ia32/TEST_PLAN.md).
 
   python3 tests/ia32/run_compat.py [--file NAME[,NAME...]] [--features F[,F...]]
-          [--grep REGEX] [--host-only] [--cli PATH] [--out DIR]
+          [--grep REGEX] [--host-only] [--corpus 32|64|all] [--cli PATH] [--out DIR]
+
+The corpus is corpus/ (bits 16 and 32) and corpus64/ (bits 64, the lines are
+reported as corpus64/NAME.asm); --corpus selects one of them (default: both).
 
 Per corpus file: nasm gives the reference bytes (listing), dismount_cli
 assembles every line (ASM) and disassembles nasm's bytes (DIS). Normalized
@@ -28,7 +31,9 @@ import time
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(TESTS_DIR, '..', '..'))
 CORPUS_DIR = os.path.join(TESTS_DIR, 'corpus')
+CORPUS64_DIR = os.path.join(TESTS_DIR, 'corpus64')
 OPCODE_TABLE = os.path.join(REPO, 'Source', 'dismount', 'proc', 'ia32', 'opcodeTable.cpp')
+OPCODE_TABLE_AMD64 = os.path.join(REPO, 'Source', 'dismount', 'proc', 'ia32', 'opcodeTableAMD64.cpp')
 DEFAULT_CLI = os.path.join(REPO, 'out', 'bin', 'dismount_cli')
 DEFAULT_OUT = os.path.join(REPO, 'out', 'compat')
 
@@ -78,7 +83,7 @@ def parse_corpus(path):
                 if m:
                     info['file_feature'] = m.group(1)
                 continue
-            m = re.match(r'^bits\s+(16|32)$', code)
+            m = re.match(r'^bits\s+(16|32|64)$', code)
             if m:
                 info['bits'] = int(m.group(1))
                 continue
@@ -177,6 +182,9 @@ def run_cli(cli, mode, bits, inputs):
 #   #e  -> 'e' (32 bit) or nothing (16 bit)      j#ecxz     -> jecxz, jcxz
 #   ##  -> 'd' (32 bit) or 'w' (16 bit)         movs##     -> movsd, movsw
 #   a/b -> the first or the second part          cbw/cwde   -> cbw, cwde
+#   a/b/c -> the 16, 32 or 64 bit operand size   cbw/cwde/cdqe
+# In 64 bit mode '#d' and '##' give 'q' too (pushfq, movsq) and '#e' gives 'r'
+# (jrcxz)
 # A name is accepted when any of its expansions matches the instruction.
 
 def expand_mnemonic(name):
@@ -188,10 +196,13 @@ def expand_mnemonic(name):
             for f in forms:
                 if '##' in f:
                     nxt.add(f.replace('##', 'd', 1)); nxt.add(f.replace('##', 'w', 1))
+                    nxt.add(f.replace('##', 'q', 1))
                 elif '#d' in f:
                     nxt.add(f.replace('#d', 'd', 1)); nxt.add(f.replace('#d', '', 1))
+                    nxt.add(f.replace('#d', 'q', 1))
                 elif '#e' in f:
                     nxt.add(f.replace('#e', 'e', 1)); nxt.add(f.replace('#e', '', 1))
+                    nxt.add(f.replace('#e', 'r', 1))
                 else:
                     nxt.add(f)
             forms = nxt
@@ -200,16 +211,19 @@ def expand_mnemonic(name):
     return {v.lower() for v in variants if v}
 
 
-def table_mnemonics():
+def table_mnemonics(long_mode=False):
+    """The mnemonics of the opcode tables. In 64 bit mode also the ones of
+    opcodeTableAMD64.cpp."""
     names = set()
-    try:
-        with open(OPCODE_TABLE, encoding='utf-8', errors='replace') as f:
-            for line in f:
-                m = re.match(r'^\s*\{\s*"([^"]+)"\s*,', line)
-                if m:
-                    names |= expand_mnemonic(m.group(1))
-    except IOError:
-        pass
+    for path in ((OPCODE_TABLE, OPCODE_TABLE_AMD64) if long_mode else (OPCODE_TABLE,)):
+        try:
+            with open(path, encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    m = re.match(r'^\s*\{\s*"([^"]+)"\s*,', line)
+                    if m:
+                        names |= expand_mnemonic(m.group(1))
+        except IOError:
+            pass
     # The nasm pseudo-ops which spell an imm8 (cmpltps, pclmulhqlqdq) are
     # assembled by the assembler onto cmpps/pclmulqdq
     for sfx in ('ps', 'ss', 'pd', 'sd'):
@@ -221,9 +235,14 @@ def table_mnemonics():
     return names
 
 
+# The instructions which take a size suffix in nasm (see isSizeSuffixed in
+# IA32IntelNotation.cpp)
+SUFFIXED = {'ret', 'retf', 'iret', 'leave', 'enter', 'pushf', 'popf', 'pusha', 'popa'}
+
 # Prefix words that may lead a line; the mnemonic is the first token after them
 PREFIX_WORDS = {'lock', 'rep', 'repe', 'repz', 'repne', 'repnz',
-                'cs', 'ds', 'es', 'ss', 'fs', 'gs', 'o16', 'o32', 'a16', 'a32'}
+                'cs', 'ds', 'es', 'ss', 'fs', 'gs', 'o16', 'o32', 'a16', 'a32',
+                'o64', 'a64'}
 
 
 def split_prefixes(text):
@@ -273,6 +292,15 @@ def _norm_mem(expr, keep_order=False):
     m = re.match(r'^(es|cs|ss|ds|fs|gs):(.*)$', expr)
     if m:
         seg, expr = m.group(1) + ':', m.group(2)
+    # The keywords of nasm inside the brackets (64 bit mode): [rel $+N] is
+    # rip relative, a32 selects the 32 bit address, qword a 64 bit offset
+    keywords = ''
+    while True:
+        m = re.match(r'^\s*(rel|a32|a64|qword)\s+(.*)$', expr)
+        if not m:
+            break
+        keywords += m.group(1) + ' '
+        expr = m.group(2)
     expr = expr.replace(' ', '')
     regs = []
     disp = 0
@@ -294,7 +322,7 @@ def _norm_mem(expr, keep_order=False):
             out += ('-0x%x' % -disp) if disp < 0 else ('+0x%x' % disp)
         else:
             out = ('-0x%x' % -disp) if disp < 0 else '0x%x' % disp
-    return seg + out
+    return seg + keywords + out
 
 
 def norm_text(text, keep_order=False):
@@ -442,12 +470,13 @@ def check_file(info, args, ctx, tmp):
     if not lines:
         return []
 
-    mnemonics = ctx['mnemonics']
+    mnemonics = ctx['mnemonics64'] if bits == 64 else ctx['mnemonics']
     texts = [r['text'] for r in lines]
     for r in lines:
         _, r['mn'], _ = split_prefixes(r['text'])
-        # nasm size suffixes (retw, iretd, enterw) spell a table mnemonic
-        bare = r['mn'][:-1] if r['mn'][-1:] in ('w', 'd') else ''
+        # nasm size suffixes (retw, iretd, enterw, pushfq) spell a table mnemonic
+        bare = r['mn'][:-1] if r['mn'][-1:] in ('w', 'd', 'q') and \
+            r['mn'][:-1] in SUFFIXED else ''
         r['supported'] = (not mnemonics) or r['mn'] in mnemonics or \
             (bare != '' and bare in mnemonics)
         r['host'] = ctx['host_ok'](r['feature'])
@@ -553,11 +582,12 @@ def summarize_and_write(recs, out_dir, args, host_source, files):
     totals = collections.Counter()
     feat_stats = collections.OrderedDict()
     for rec in recs:
+        rec_feature = rec['feature'] + (' [64]' if rec['file'].startswith('corpus64/') else '')
         totals['asm:' + rec['asm']['status']] += 1
         totals['dis:' + (rec['dis']['status'] or 'NONE')] += 1
         if rec['text']['status'] in ('SAME', 'DIFF'):
             totals['text:' + rec['text']['status']] += 1
-        s = feat_stats.setdefault(rec['feature'], collections.Counter())
+        s = feat_stats.setdefault(rec_feature, collections.Counter())
         s['lines'] += 1
         s['asm:' + rec['asm']['status']] += 1
         s['dis:' + (rec['dis']['status'] or 'NONE')] += 1
@@ -637,13 +667,18 @@ def main():
     ap.add_argument('--features', default='', help='comma-separated feature tags')
     ap.add_argument('--grep', default='', help='regex on the instruction text')
     ap.add_argument('--host-only', action='store_true')
+    ap.add_argument('--corpus', choices=('32', '64', 'all'), default='all',
+                    help='32: corpus/ (bits 16 and 32), 64: corpus64/ (bits 64)')
     ap.add_argument('--cli', default=DEFAULT_CLI)
     ap.add_argument('--out', default=DEFAULT_OUT)
     ap.add_argument('--nasm', default='nasm')
     ap.add_argument('--ndisasm', default='ndisasm')
     ap.add_argument('--selftest', action='store_true', help='run the normalization asserts and exit')
     ap.add_argument('--strict', action='store_true',
-                    help='exit 1 if a line that dismount implements is not ASM PASS and DIS PASS')
+                    help='exit 1 if a line that dismount implements is not ASM PASS and DIS PASS '
+                         '(for the 64 bit corpus: not DIS PASS, see --strict-asm64)')
+    ap.add_argument('--strict-asm64', action='store_true',
+                    help='--strict checks the assembler of the 64 bit corpus too')
     args = ap.parse_args()
     if args.selftest:
         if not os.path.exists(args.cli):
@@ -665,13 +700,18 @@ def main():
     host, host_source = host_features(out_dir)
     host_ok = lambda feat: feat in BASELINE or feat in host
     ctx = {'nasm': args.nasm, 'ndisasm': args.ndisasm, 'cli': os.path.abspath(args.cli),
-           'host_ok': host_ok, 'mnemonics': table_mnemonics()}
+           'host_ok': host_ok, 'mnemonics': table_mnemonics(),
+           'mnemonics64': table_mnemonics(True)}
     if not os.path.exists(ctx['cli']):
         sys.stderr.write('dismount_cli not found: %s (build with -DDISMOUNT_BUILD_TESTS=ON)\n'
                          % ctx['cli'])
         return 1
 
-    paths = sorted(glob.glob(os.path.join(CORPUS_DIR, '*.asm')))
+    paths = []
+    if args.corpus in ('32', 'all'):
+        paths += sorted(glob.glob(os.path.join(CORPUS_DIR, '*.asm')))
+    if args.corpus in ('64', 'all'):
+        paths += sorted(glob.glob(os.path.join(CORPUS64_DIR, '*.asm')))
     if wanted:
         paths = [p for p in paths if os.path.basename(p) in wanted]
     all_recs = []
@@ -681,6 +721,9 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for path in paths:
             info = parse_corpus(path)
+            if os.path.dirname(path) == CORPUS64_DIR:
+                # The files of both corpora have the same names
+                info['name'] = 'corpus64/' + info['name']
             recs = check_file(info, args, ctx, tmp)
             all_recs.extend(recs)
             files[info['name']] = {'bits': info['bits'], 'lines': len(recs)}
@@ -701,9 +744,12 @@ def main():
         1 for r in all_recs if r['asm']['status'] == 'PASS' and r['dis']['status'] == 'PASS'))
     print('reports: %s/{report.json,summary.md,failures.txt}' % out_dir)
     if args.strict:
-        # UNSUPPORTED lines are not implemented yet; every other line must be exact
+        # UNSUPPORTED lines are not implemented yet; every other line must be
+        # exact. The assembler of the 64 bit corpus is checked with
+        # --strict-asm64 only
         failed = [r for r in all_recs
-                  if r['asm']['status'] not in ('PASS', 'UNSUPPORTED') or
+                  if ((r['asm']['status'] not in ('PASS', 'UNSUPPORTED')) and
+                      (args.strict_asm64 or not r['file'].startswith('corpus64/'))) or
                   r['dis']['status'] not in ('PASS', 'UNSUPPORTED')]
         if failed:
             print('strict: %d lines failed, see %s/failures.txt' % (len(failed), out_dir))
