@@ -39,10 +39,74 @@ REGS64 = ['rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi',
           'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
 UC_REG64 = {n: getattr(X, 'UC_X86_REG_' + n.upper()) for n in REGS64}
 KERNEL_GS_BASE_MSR = 0xC0000102
+# The fixed GDT of the 64 bit mode, at the address of the 32 bit mode GDT (oracle.GDT_ADDRESS):
+# 8-byte descriptors, the selector is index * 8 (the same table is in dismount_cli.cpp)
+GDT_ADDRESS = oracle.GDT_ADDRESS
+GDT64_LIMIT = 0x97
+GDT64 = bytes([
+    0, 0, 0, 0, 0, 0, 0, 0,                          # 0x00 null
+    0xff, 0xff, 0, 0, 0, 0x9a, 0xaf, 0x00,           # 0x08 code64 DPL0 (L)
+    0xff, 0xff, 0, 0, 0, 0x92, 0xcf, 0x00,           # 0x10 data DPL0 rw
+    0xff, 0xff, 0, 0, 0, 0x93, 0xcf, 0x10,           # 0x18 data base 0x10000000 rw, accessed
+    0xff, 0xff, 0, 0, 0, 0x9a, 0xcf, 0x00,           # 0x20 code32 (compatibility) DPL0
+    0xff, 0xff, 0, 0, 0, 0x9a, 0x00, 0x00,           # 0x28 code16 DPL0 (not lifted)
+    0xff, 0xff, 0, 0, 0, 0x90, 0xcf, 0x00,           # 0x30 data read only
+    0xff, 0xff, 0, 0, 0, 0x12, 0xcf, 0x00,           # 0x38 data not present
+    0xff, 0xff, 0, 0, 0, 0xf2, 0xcf, 0x20,           # 0x40 data DPL3 base 0x20000000
+    0x00, 0x30, 0x08, 0, 0, 0xec, 0x00, 0x00,        # 0x48 call gate DPL3 (16 bytes, not lifted)
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0xff, 0xff, 0, 0, 0, 0xfa, 0xaf, 0x00,           # 0x58 code64 DPL3
+    0xff, 0xff, 0, 0, 0, 0x9e, 0xaf, 0x00,           # 0x60 code64 conforming DPL0
+    0xff, 0xff, 0, 0, 0, 0x9a, 0xef, 0x00,           # 0x68 code with L and D (invalid)
+    0xff, 0xff, 0, 0, 0, 0x98, 0xaf, 0x00,           # 0x70 code64 execute only
+    0xff, 0xff, 0, 0, 0, 0xb2, 0xcf, 0x00,           # 0x78 data DPL1
+    0xff, 0xff, 0x21, 0x43, 0x65, 0x92, 0xcf, 0x87,  # 0x80 data base 0x87654321
+    0xff, 0xff, 0, 0, 0, 0xfe, 0xaf, 0x00,           # 0x88 code64 conforming DPL3
+    0xff, 0xff, 0, 0x20, 0, 0x9a, 0xcf, 0x00,        # 0x90 code32 DPL0 base 0x2000
+])
 # The trap number of `syscall` in the protocol (not an interrupt vector)
 TRAP_SYSCALL = 0x100
 XMM_COUNT = 16
 BASES = ['es_base', 'cs_base', 'ss_base', 'ds_base', 'fs_base', 'gs_base']
+
+
+# ---------------------------------------------------------------------------
+# The GDT
+# ---------------------------------------------------------------------------
+
+def gdt_entry(selector):
+    """The 8 bytes of the GDT entry of a selector, or None (beyond the limit, or the LDT)."""
+    index = selector >> 3
+    if selector & 4 or index >= len(GDT64) // 8:
+        return None
+    return GDT64[index * 8:index * 8 + 8]
+
+
+def reaches_not_lifted(selector, is_return):
+    """True if the far branch (or return) to `selector` isn't a case of the random states: it ends
+    in OP_UNDEFINED in the lifter (a gate or a system descriptor, a 16 bit code segment, a return to
+    an outer privilege level), or Unicorn is wrong about it (a code segment with L and D: the SDM
+    says #GP, QEMU jumps)."""
+    d = gdt_entry(selector)
+    if d is None or selector & 0xfffc == 0:
+        return False                                   # #GP
+    access, flags = d[5], d[6] >> 4
+    if access & 0x10 == 0:                             # a system descriptor
+        return not is_return
+    if access & 0x08 == 0:                             # data: #GP
+        return False
+    rpl, dpl, conforming = selector & 3, (access >> 5) & 3, access & 4
+    if is_return:
+        denied = dpl > rpl if conforming else dpl != rpl
+    else:
+        denied = dpl > 0 if conforming else (rpl > 0 or dpl != 0)
+    if denied or access & 0x80 == 0:                   # #GP, #NP
+        return False
+    if is_return and rpl > 0:                          # an outer privilege level
+        return True
+    if flags & 2 and flags & 4:                        # L and D: #GP (QEMU: no fault)
+        return True
+    return not (flags & 2) and not (flags & 4)         # a 16 bit code segment
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +316,31 @@ class Oracle64(object):
                 uc.mem_write(a, bytes([b]))
             for i, b in enumerate(code):
                 uc.mem_write((rip + i) & M64, bytes([b]))
+            # The GDT, and the non-null initial selectors: reg_write loads (and checks) the
+            # descriptor. The accessed bits that the loads set are undone, and the bases of
+            # fs and gs are those of the state
+            for base in sorted({(GDT_ADDRESS + i) & ~(PAGE - 1) for i in range(len(GDT64))}):
+                if base not in self.pages:
+                    self._map(base)
+            uc.mem_write(GDT_ADDRESS, GDT64)
+            uc.reg_write(X.UC_X86_REG_GDTR, (0, GDT_ADDRESS, GDT64_LIMIT, 0))
+            segs = {n: v2['seg'].get(n, 0) for n in SEGS}
+            if segs['cs'] != 0:
+                uc.reg_write(UC_SEG['cs'], segs['cs'])
+            # reg_write of a segment register in 64 bit mode only sets the selector (the
+            # hidden flags stay, QEMU takes the size of the stack from the flags of ss): the
+            # selectors are loaded by `mov sreg, ax` executed in a scratch page
+            scratch = 0x20000
+            if scratch not in self.pages:
+                self._map(scratch)
+            for i, (n, modrm) in enumerate((('ss', 0xd0), ('ds', 0xd8), ('es', 0xc0), ('fs', 0xe0),
+                                            ('gs', 0xe8))):
+                if segs[n] != 0:
+                    # (one address for each: the translated code is cached by address)
+                    uc.mem_write(scratch + 16 * i, bytes([0x8e, modrm]))
+                    uc.reg_write(X.UC_X86_REG_RAX, segs[n])
+                    uc.emu_start(scratch + 16 * i, 0, count=1)
+            uc.mem_write(GDT_ADDRESS, GDT64)
             for n in REGS64:
                 uc.reg_write(UC_REG64[n], state[n] & M64)
             uc.reg_write(X.UC_X86_REG_EFLAGS, state['eflags'] & M32)
@@ -345,6 +434,14 @@ class Oracle64(object):
             res['seg'] = {n: uc.reg_read(UC_SEG[n]) for n in SEGS}
             if exit_ == 'fall':
                 fix_fxsave(code, state, res)
+            if not exit_.startswith('trap:') and oracle.is_far_transfer(split_rex(code)[0]):
+                # QEMU's far jmp / call / retf / iret don't set the accessed bit of the
+                # descriptors they load (cs, and the ss of iret); the SDM does
+                for n in (['cs', 'ss'] if split_rex(code)[0][-1:] == b'\xcf' else ['cs']):
+                    sel = res['seg'][n]
+                    if sel & 4 == 0 and 0 < sel >> 3 < len(GDT64) // 8:
+                        a = GDT_ADDRESS + (sel >> 3) * 8 + 5
+                        res['mem'][a] = uc.mem_read(a, 1)[0] | 1
             res['fs_base'] = uc.reg_read(X.UC_X86_REG_FS_BASE)
             res['gs_base'] = uc.reg_read(X.UC_X86_REG_GS_BASE)
             res['kernel_gs_base'] = uc.msr_read(KERNEL_GS_BASE_MSR)

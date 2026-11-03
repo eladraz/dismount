@@ -268,6 +268,8 @@ def mem_value(side, addr, code, state, bits):
             return code[off]
         if addr in state.get('mem', {}):
             return state['mem'][addr]
+        if oracle64.GDT_ADDRESS <= addr < oracle64.GDT_ADDRESS + len(oracle64.GDT64):
+            return oracle64.GDT64[addr - oracle64.GDT_ADDRESS]
         return oracle.pattern_byte(addr)
     code_at = (oracle.segment_base(bits, state.get('seg', {}).get('cs', 0)) + state['eip']) & oracle.M32
     off = (addr - code_at) & oracle.M32

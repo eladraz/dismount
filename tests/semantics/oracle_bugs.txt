@@ -199,6 +199,24 @@
 # r9): the offset moves the address by up to 2^60 bytes, out of the 52 bit address space of Unicorn
 [64] ^bt[crs]? (?:\w+ )?\[(r\d+)\b[^\]]*\], \1[dw]?$  # the bit offset is the base register: the address leaves the 52 bit space of Unicorn
 
+# lfs, lgs, lss with a 64 bit register (REX.W, m16:64): QEMU reads the offset as 32 bits and the selector
+# after them (m16:32), so the selector is the high half of the offset. SDM: m16:64. Evidence: lfs rax, [rbx]
+# with the bytes 88 77 66 55 44 33 22 11 10 00 (the offset 0x1122334455667788, the selector 0x10) gives #GP
+# (the selector 0x11223344 is read), and the m16:32 forms of the same instruction work
+[64] ^l(fs|gs|ss) (r[a-z]{2}|r\d{1,2}), .*\[  # QEMU: lfs / lgs / lss with REX.W read a m16:32 operand, not m16:64
+
+# A far jmp / call / retf to a code segment with L and D set: the SDM says #GP (Vol. 2 JMP, CALL: "If the
+# code segment is 64 bit (L = 1) and D = 1"); QEMU's helper_ljmp_protected / helper_lcall_protected /
+# helper_ret_protected don't check it. Evidence: the selector 0x68 of the GDT (access 0x9a, flags 0xe) gives
+# trap:13 in dismount and a branch in Unicorn (the lines of segments64.asm that use [r13] and retf 0x28)
+[64] ^(jmp|call) far dword \[r13\]$  # QEMU: no #GP for a far branch to a code segment with L and D
+[64] ^retfq? 0x28$  # QEMU: no #GP for a far return to a code segment with L and D
+
+# A far jmp / call with a 64 bit offset (m16:64) to a compatibility mode code segment (L = 0), whose
+# limit is 4GB - 1: the SDM says #GP when the offset is above the limit; QEMU branches (call far qword
+# [r14] with the offset 0xffffffff12345678 and the selector 0x20: trap:13 in dismount, a branch in Unicorn)
+[64] ^(jmp|call) far qword \[r14\]$  # QEMU: the offset of a far branch to a compatibility mode segment isn't checked against the limit
+
 # A negative absolute address ([-0x80000000] is 0xffffffff80000000): Unicorn maps 52 bit addresses and
 # reports the access at 0x000fffff80000000 (the high bits are cut), see oracle64.py
 [64] \[(?:byte |word |dword |qword )?-0x[0-9a-f]+\]  # Unicorn cuts the address of a negative absolute operand to 52 bits

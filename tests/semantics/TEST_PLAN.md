@@ -377,13 +377,32 @@ The comparison is State v2's, with `rax..r15`, `rip`, `fs_base`, `gs_base`, `ker
 - fxsave / fxrstor have 16 xmm registers.
 
 **UNLIFTED in 64 bit mode, and why.** The same as in 32 bit mode (crc32, movbe, popcnt, lzcnt, tzcnt, cmovcc, the 3DNow!
-instructions, rcpps and rsqrtps (helpers), the new instruction sets of the decoder), and the segment forms: the loads of
-a segment register (mov / pop / lds..lgs with a segment register destination), the far jmp and call, retf and iret
-(iretq): the long mode descriptors are not modeled. sysret is skipped (Unicorn raises #UD).
+instructions, rcpps and rsqrtps (helpers), the new instruction sets of the decoder), the 16 bit forms of retf and iret
+(retfw, iretw), and the far transfers that the 32 bit lifter doesn't lift either: through a call gate, to a 16 bit code
+segment, a return to an outer privilege level (the `[r15]`, `retf 0x18` lines of `segments64.asm` have them). sysret is
+skipped (Unicorn raises #UD).
+
+**Segments in 64 bit mode (`corpus/segments64.asm`, `tools/gen_segments64.py`).** `dismount_cli` and `oracle64.py` have a
+fixed GDT at 0xf0000 (`oracle64.GDT64`, 8 byte descriptors; the selector is index * 8): 0x08 code 64 (L), 0x10 data, 0x18 data
+with a base and the accessed bit, 0x20 code 32 (compatibility), 0x28 code 16, 0x30 read only, 0x38 not present, 0x40 data DPL 3,
+0x48 call gate (16 bytes), 0x58 code 64 DPL 3, 0x60 conforming, 0x68 L and D, 0x70 execute only, 0x78 data DPL 1, 0x80 data with
+the base 0x87654321, 0x88 conforming DPL 3, 0x90 code 32 with a base. The limit is 0x97. The oracle loads the initial selectors
+by executing `mov sreg, ax` (the `reg_write` of a segment register only sets the selector in 64 bit mode, and QEMU takes the
+size of the stack of a far call from the flags of ss), puts the bases of fs and gs of the state with `UC_X86_REG_FS_BASE` /
+`GS_BASE`, and applies the SDM to what QEMU leaves out (the accessed bit of the code segment, and of ss for iret, after a far
+transfer). The states draw every kind of selector (null with each RPL, each descriptor, past the limit, the LDT) for mov, pop,
+lfs / lgs / lss, far jmp / call and the frames of retf / iretq; the lines have the directed `@state:` of every kind too.
+The rules that the lifter implements (SDM, MOV to Sreg, JMP / CALL far, RET far, IRET in IA-32e mode):
+- Data segments: as in protected mode (system descriptor, execute only code, privilege, present); the bases of es, ss, ds are
+  ignored, fs and gs get the 32 bit base (a null selector: 0); a null ss is allowed at CPL < 3.
+- Far jmp / call / retf: a code segment of the same privilege, L = 1 (no limit check) or L = 0 with D = 1 (offset <= limit),
+  L and D together are #GP; the stack frames are in the operand size (m16:64 with REX.W). iretq pops rip, cs, rflags, rsp, ss
+  in any case; a null ss is allowed if the RPL of cs isn't 3.
 
 **The oracle bugs of 64 bit mode** (`oracle_bugs.txt`, `[64]` lines and the generic ones): the shld / shrd imm8 with a rip
 relative operand is one byte short in QEMU (the address is relative to the end of the instruction, immediate included);
-the negative absolute addresses; the bit offset register that is the base register of the address; and the 32 bit bugs
+QEMU's lfs / lgs / lss with REX.W (read as m16:32), a far branch or return to a code segment with L and D (no #GP), a far jmp /
+call with a 64 bit offset above the limit of a compatibility mode segment; the negative absolute addresses; the bit offset register that is the base register of the address; and the 32 bit bugs
 (`lock neg`, `ret imm16` >= 0x8000, cmpps imm8 >= 8 on xmm8-15, fprem).
 Unicorn can't be compared when the instruction stores near the code it executes (the page of the code, or the page
 after it when the code is within 15 bytes of the end of its page): it doesn't retire the instruction. The states
