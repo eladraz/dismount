@@ -1290,10 +1290,17 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
         switch (ia32disType)
         {
         case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
-            return compilerOperand.getBranchHint() != Operand::HINT_NEAR;
         case ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32:
         case ia32dis::OPND_IMMEDIATE_OFFSET_DS:
-            return compilerOperand.getBranchHint() != Operand::HINT_SHORT;
+            if (compilerOperand.getBranchHint() ==
+                ((ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8) ?
+                    Operand::HINT_NEAR : Operand::HINT_SHORT))
+                return false;
+            // 'jmp word $+N', 'call dword $+N': the operand size of the
+            // branch
+            if (compilerOperand.getSize() != 0)
+                return setOperandWidth(compilerOperand.getSize(), enc);
+            return true;
         default:
             return false;
         }

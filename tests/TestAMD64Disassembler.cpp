@@ -565,6 +565,9 @@ public:
             // pextrw
             {{0x66, 0x0F, 0x3A, 0x15, 0x00, 0x05}, 6, "pextrw word ptr [bx+si], xmm0, 05h",
              "pextrw word ptr [eax], xmm0, 05h", 6},
+            // push imm8 with the operand size which isn't the default of the
+            // mode
+            {{0x66, 0x6A, 0x12}, 3, "push dword 12h", "push word 12h", 3},
             {{0, 0}, 0, NULL, NULL, 0}
         };
 

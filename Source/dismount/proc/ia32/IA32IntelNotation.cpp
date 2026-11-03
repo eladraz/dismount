@@ -390,6 +390,18 @@ uint IA32IntelNotation::getDefaultOperandBits() const
     return is32bit() ? 32 : 16;
 }
 
+cString IA32IntelNotation::getOperandSizeKeyword() const
+{
+    if (getOperandBits() == getDefaultOperandBits())
+        return cString();
+    switch (getOperandBits())
+    {
+    case 16: return "word ";
+    case 32: return "dword ";
+    default: return "qword ";
+    }
+}
+
 uint IA32IntelNotation::getOperandBits() const
 {
     switch (m_opcode->m_operandSize)
@@ -955,15 +967,15 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
             return m_dataFormatter.translateUint8(
                         (uint8)m_opcode->m_immediate.secondOffset);
         // The sign-extended imm8 (83 /digit ib, 6B /r ib, 6A ib) is shown as a
-        // signed value. 'push imm8' with a 16 bit operand size pushes a word.
+        // signed value. 'push imm8' with an operand size which isn't the
+        // default of the mode has the size keyword (push word, push dword)
         if ((m_opcode->m_opcode->m_prefix == 0x83) ||
             (m_opcode->m_opcode->m_prefix == 0x6B) ||
             (m_opcode->m_opcode->m_prefix == 0x6A))
         {
             cString size;
-            if ((m_opcode->m_opcode->m_prefix == 0x6A) &&
-                (m_opcode->m_operandSize == IntegerEncoding::INTEGER_16BIT))
-                size = "word ";
+            if (m_opcode->m_opcode->m_prefix == 0x6A)
+                size = getOperandSizeKeyword();
             if ((int8)m_opcode->m_immediate.offset < 0)
                 return size + "-" + m_dataFormatter.translateUint8(
                         (uint8)(-(int8)m_opcode->m_immediate.offset));
@@ -979,13 +991,14 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         switch (operandBits)
         {
         case 16:
-            // nasm writes a 16 bit push in 64 bit mode with the word keyword
-            return cString((is64bit() && (m_opcode->m_opcode->m_prefix == 0x68)) ?
-                           "word " : "") +
+            return ((m_opcode->m_opcode->m_prefix == 0x68) ?
+                        getOperandSizeKeyword() : cString()) +
                 m_dataFormatter.translateUint16(
                         (uint16)m_opcode->m_immediate.offset);
         case 32:
-            return m_dataFormatter.translateUint32(
+            return ((m_opcode->m_opcode->m_prefix == 0x68) ?
+                        getOperandSizeKeyword() : cString()) +
+                m_dataFormatter.translateUint32(
                         (uint32)m_opcode->m_immediate.offset);
         case 64:
             // The immediate is 32 bits, sign extended. A negative one is
@@ -1043,7 +1056,8 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
 
 
     case ia32dis::OPND_IMMEDIATE_OFFSET_SHORT_8:
-        return m_dataFormatter.translateRelativeAddress(
+        // The operand size, if it isn't the default of the mode (66 jz)
+        return getOperandSizeKeyword() + m_dataFormatter.translateRelativeAddress(
             (ProcessorAddress::intAddress)((int8)m_opcode->m_immediate.offset) +
                 // NOTE: All ia32 relative calculate are from the next operation
                 m_opcode->m_opcodeData.getSize(),
@@ -1066,7 +1080,10 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         if ((m_opcode->m_opcode->m_prefix != 0xE8) &&
             (relative - 2 >= -0x80) && (relative - 2 <= 0x7F))
             hint = "near ";
-        return hint + m_dataFormatter.translateRelativeAddress(relative,
+        // The operand size, if it isn't the default of the mode ('jmp word
+        // $+N' in 32 bit mode, 'call dword $+N' in 16 bit mode)
+        return hint + getOperandSizeKeyword() +
+            m_dataFormatter.translateRelativeAddress(relative,
                 m_opcode->m_shouldUseAddress,
                 m_opcode->m_opcodeAddress);
     }

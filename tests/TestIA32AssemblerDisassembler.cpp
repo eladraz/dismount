@@ -428,6 +428,15 @@ public:
             {"pextrw word [eax], xmm1, 5", {0x66, 0x0F, 0x3A, 0x15, 0x08, 0x05}, 6,
              "pextrw word ptr [eax], xmm1, 05h"},
             // ----------------------------------------------------------------
+            // push imm and the near branches with the 16 bit operand size:
+            // the size keyword, there is no register to show it
+            // ----------------------------------------------------------------
+            {"push word 0x1234", {0x66, 0x68, 0x34, 0x12}, 4, "push word 1234h"},
+            {"push word 0x12", {0x66, 0x6A, 0x12}, 3, "push word 12h"},
+            {"jng word $+0x10", {0x66, 0x7E, 0x0D}, 3, "jng word $+10h"},
+            {"jng near word $+0x10", {0x66, 0x0F, 0x8E, 0x0B, 0x00}, 5, "jng near word $+10h"},
+            {"call word $+0x10", {0x66, 0xE8, 0x0C, 0x00}, 4, "call word $+10h"},
+            // ----------------------------------------------------------------
             // The baseline instructions: cmovcc (the first mnemonic of the
             // aliases is the disassembled one), ud0 / ud1 / ud2, int1, salc,
             // pause, endbr, popcnt / lzcnt / tzcnt (the repeat prefix is a part

@@ -67,6 +67,13 @@ private:
     uint getDefaultOperandBits() const;
 
     /*
+     * Return the size keyword of an operand which has no register or memory
+     * to show the operand size ("word ", "dword "): 'push imm' and the near
+     * branches. Empty if the operand size is the default of the mode
+     */
+    cString getOperandSizeKeyword() const;
+
+    /*
      * Return the operand size / address size in bits
      */
     uint getOperandBits() const;
