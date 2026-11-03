@@ -42,7 +42,12 @@ public:
         DISASSEMBLER_DUMMY,
 
         // Used for all disassemblers. Store illegal opcode start byte.
-        DISASSEMBLER_INVALID_OPCODE
+        DISASSEMBLER_INVALID_OPCODE,
+        // Little-endian ARMv8 / ARMv9 AArch64 microprocessor (A64). The values
+        // are after the old ones since SecondPassBinary serializes the type
+        DISASSEMBLER_ARM_64_LE,
+        // Big-endian AArch64 data (the instructions are always little endian)
+        DISASSEMBLER_ARM_64_BE
     };
 
     /*
