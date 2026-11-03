@@ -16,6 +16,7 @@ OpcodeClassification::OpcodeClassification() :
     m_flagsRead(0),
     m_flagsWritten(0),
     m_flagsUndefined(0),
+    m_floatStatusUndefined(0),
     m_stackDelta(0)
 {
 }
@@ -29,6 +30,7 @@ OpcodeClassification::OpcodeClassification(Category category,
     m_flagsRead(0),
     m_flagsWritten(0),
     m_flagsUndefined(0),
+    m_floatStatusUndefined(0),
     m_stackDelta(0)
 {
 }
@@ -74,6 +76,16 @@ void OpcodeClassification::setFlags(uint32 read, uint32 written,
     m_flagsRead = read;
     m_flagsWritten = written;
     m_flagsUndefined = undefined;
+}
+
+uint32 OpcodeClassification::getFloatStatusUndefined() const
+{
+    return m_floatStatusUndefined;
+}
+
+void OpcodeClassification::setFloatStatusUndefined(uint32 bits)
+{
+    m_floatStatusUndefined = bits;
 }
 
 const SemanticType& OpcodeClassification::getDataType() const

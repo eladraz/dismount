@@ -123,6 +123,9 @@
     <ClCompile Include="Source\dismount\semantics\ArchitectureDescription.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\semantics\SemanticFloat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\semantics\SemanticInterpreter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -255,6 +258,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\semantics\SemanticBlock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\semantics\SemanticFloat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\semantics\SemanticInstruction.h">

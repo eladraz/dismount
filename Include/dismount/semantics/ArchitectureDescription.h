@@ -48,6 +48,117 @@ public:
 };
 
 /*
+ * The floating point exceptions of the semantic IR (IEEE-754, plus the
+ * denormal operand of IA-32 and ARM). Each architecture keeps them in its own
+ * status register, see FloatEnvironment.
+ */
+class SemanticFloatFlags {
+public:
+    enum Flag {
+        // An invalid operation (a NaN result from non NaN operands, a signaling
+        // NaN operand, an out of range integer conversion)
+        FLOAT_INVALID           = 0x01,
+        // A denormal operand (IA-32 DE, ARM IDC)
+        FLOAT_DENORMAL          = 0x02,
+        // A division of a finite non zero number by zero
+        FLOAT_DIVIDE_BY_ZERO    = 0x04,
+        // The rounded result is too large
+        FLOAT_OVERFLOW          = 0x08,
+        // The result is tiny (and inexact, when the underflow is masked)
+        FLOAT_UNDERFLOW         = 0x10,
+        // The result was rounded
+        FLOAT_INEXACT           = 0x20,
+
+        // The number of flags
+        FLOAT_FLAGS_COUNT       = 6
+    };
+};
+
+/*
+ * Where an architecture keeps its floating point environment: the rounding
+ * mode, the exception flags and masks, and the rules for NaNs. Each field is
+ * a bit offset in a register; NO_FIELD when the architecture has no such
+ * field. The interpreter uses it for the operations with ROUND_DYNAMIC and
+ * ATTRIBUTE_FLOAT_EXCEPTIONS.
+ *
+ *            control   rounding      status  flags            traps
+ *   x87      fcw       bits 10-11    fsw     bits 0-5         deferred (#MF)
+ *   SSE      mxcsr     bits 13-14    mxcsr   bits 0-5         #XM (19)
+ *   ARM64    fpcr      bits 22-23    fpsr    bits 0-4, 7      (enable bits)
+ *   RISC-V   frm       bits 0-2      fflags  bits 0-4         none
+ */
+struct FloatEnvironment {
+    // The value of a field offset which doesn't exist
+    enum { NO_FIELD = 0xFF };
+
+    // How a NaN result is chosen when an operand is a NaN
+    enum NanRule {
+        // The first NaN operand, quieted (SSE). An invalid operation gives
+        // m_defaultNan
+        NAN_FIRST_OPERAND,
+        // The NaN operand with the larger significand, quieted (x87)
+        NAN_LARGER_SIGNIFICAND,
+        // A signaling NaN operand first, then a quiet one, quieted (ARM
+        // with FPCR.DN = 0)
+        NAN_SIGNALING_FIRST,
+        // Always m_defaultNan (ARM with FPCR.DN = 1, RISC-V)
+        NAN_DEFAULT
+    };
+
+    // How an unmasked exception traps
+    enum TrapMode {
+        // Exceptions never trap
+        TRAP_NONE,
+        // The operation faults with m_trapNumber before writing its result
+        // (SSE #XM)
+        TRAP_IMMEDIATE,
+        // The flags and m_summaryOffset are set, the result is not written,
+        // and the next waiting instruction traps (x87 #MF, see the lifter)
+        TRAP_DEFERRED
+    };
+
+    // The register of the control fields
+    uint m_controlRegister;
+    // The 2 bit rounding field, and the SemanticOperation::RoundingMode of
+    // each of its values
+    uint8 m_roundingOffset;
+    uint8 m_roundingModes[4];
+    // The 2 bit precision control field of x87 (0: 24 bits, 2: 53 bits, 3:
+    // 64 bits significand)
+    uint8 m_precisionOffset;
+    // Flush tiny results to zero (SSE FTZ, ARM FZ)
+    uint8 m_flushToZeroOffset;
+    // Treat denormal operands as zero (SSE DAZ)
+    uint8 m_denormalsAreZeroOffset;
+    // The mask (or enable) bit of each SemanticFloatFlags flag, by the bit
+    // number of the flag
+    uint8 m_maskOffsets[SemanticFloatFlags::FLOAT_FLAGS_COUNT];
+    // True if a set mask bit disables the trap (IA-32), false if a set bit
+    // enables it (ARM)
+    bool m_isMaskSetDisabled;
+
+    // The register of the sticky exception flags
+    uint m_statusRegister;
+    // The bit of each SemanticFloatFlags flag, by the bit number of the flag
+    uint8 m_flagOffsets[SemanticFloatFlags::FLOAT_FLAGS_COUNT];
+    // The summary bits set with a deferred trap (x87 ES and B)
+    uint8 m_summaryOffset;
+    uint8 m_busyOffset;
+
+    // See TrapMode
+    uint8 m_trapMode;
+    // The trap number of TRAP_IMMEDIATE
+    uint m_trapNumber;
+
+    // See NanRule
+    uint8 m_nanRule;
+    // The sign of the default NaN (IA-32 "indefinite" is negative, ARM and
+    // RISC-V are positive). The default NaN is the quiet NaN with only the
+    // top significand bit set
+    bool m_isDefaultNanNegative;
+};
+
+/*
  * A register of an architecture.
  *
  * A sub-register is an alias of bits of its parent register:
@@ -191,6 +302,19 @@ public:
      * (ARM: C = 1 when there was no borrow). IA-32 returns false
      */
     virtual bool isCarryInvertedOnSubtract() const = 0;
+
+    /*
+     * Return the floating point environment of the operations
+     *
+     * attributes  - The SemanticInstruction attributes of the operation
+     *               (IA-32 has one environment for x87, ATTRIBUTE_X87, and
+     *               one for SSE)
+     * environment - Will be filled with the environment
+     *
+     * Return false if the processor has no floating point
+     */
+    virtual bool getFloatEnvironment(uint32 attributes,
+                                     FloatEnvironment& environment) const = 0;
 
     /*
      * Return true if the processor can do 'operation' on 'type' with a short

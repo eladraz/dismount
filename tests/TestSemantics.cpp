@@ -627,12 +627,54 @@ public:
 
         // Not yet implemented operations fail
         TESTS_ASSERT(!SemanticInterpreter::evaluate(
-                makeInstruction(Op::OP_FLOAT_ADD,
+                makeInstruction(Op::OP_FLOAT_RECIPROCAL_ESTIMATE,
                     SemanticType::floating(SemanticType::FLOAT_DOUBLE)),
                 sources, value));
         TESTS_ASSERT(!SemanticInterpreter::evaluate(
-                makeInstruction(Op::OP_AES_MIX_COLUMNS,
-                    SemanticType::vector(i8, 16)), sources, value));
+                makeInstruction(Op::OP_CRC32, SemanticType::integer(32)),
+                sources, value));
+    }
+
+    // The steps of AES on the 128 bit state (the test vectors of FIPS-197:
+    // the MixColumns examples, and the S-box and ShiftRows of the bytes 0..15)
+    void testEvaluateAes()
+    {
+        const SemanticType v16i8 = SemanticType::vector(SemanticType::integer(8), 16);
+        SemanticValue sources[3];
+        SemanticValue value;
+
+        // Columns db135345 f20a225c 01010101 c6c6c6c6
+        sources[0].setWord(0, 0x5c220af2455313dbULL);
+        sources[0].setWord(1, 0xc6c6c6c601010101ULL);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(
+                makeInstruction(Op::OP_AES_MIX_COLUMNS, v16i8), sources, value));
+        check("mix columns word 0", value.getWord(0), 0x9d58dc9fbca14d8eULL);
+        check("mix columns word 1", value.getWord(1), 0xc6c6c6c601010101ULL);
+        sources[0] = value;
+        TESTS_ASSERT(SemanticInterpreter::evaluate(
+                makeInstruction(Op::OP_AES_INVERSE_MIX_COLUMNS, v16i8),
+                sources, value));
+        check("inverse mix columns word 0", value.getWord(0), 0x5c220af2455313dbULL);
+        check("inverse mix columns word 1", value.getWord(1), 0xc6c6c6c601010101ULL);
+
+        // The bytes 0, 1, ..., 15
+        sources[0].setWord(0, 0x0706050403020100ULL);
+        sources[0].setWord(1, 0x0f0e0d0c0b0a0908ULL);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(
+                makeInstruction(Op::OP_AES_SUB_SHIFT, v16i8), sources, value));
+        check("sub shift word 0", value.getWord(0), 0x7bab01f276676b63ULL);
+        check("sub shift word 1", value.getWord(1), 0x2b6f7cfec577d730ULL);
+        sources[0] = value;
+        TESTS_ASSERT(SemanticInterpreter::evaluate(
+                makeInstruction(Op::OP_AES_INVERSE_SUB_SHIFT, v16i8),
+                sources, value));
+        check("inverse sub shift word 0", value.getWord(0), 0x0706050403020100ULL);
+        check("inverse sub shift word 1", value.getWord(1), 0x0f0e0d0c0b0a0908ULL);
+
+        // Only the 128 bit state
+        TESTS_ASSERT(!SemanticInterpreter::evaluate(
+                makeInstruction(Op::OP_AES_SUB_SHIFT, SemanticType::integer(64)),
+                sources, value));
     }
 
     void testEvaluateVector()
@@ -1364,7 +1406,7 @@ public:
         SemanticBlock floating(OpcodeSubsystems::DISASSEMBLER_INTEL_32);
         floating.beginGuestInstruction(addr(0x5100), 2);
         const SemanticType f64 = SemanticType::floating(SemanticType::FLOAT_DOUBLE);
-        floating.append(SemanticInstruction(Op::OP_FLOAT_ADD, f64,
+        floating.append(SemanticInstruction(Op::OP_FLOAT_RECIPROCAL_ESTIMATE, f64,
                 SemanticOperand::registerOperand(IA32_REG_XMM0, f64),
                 SemanticOperand::registerOperand(IA32_REG_XMM1, f64),
                 SemanticOperand::registerOperand(IA32_REG_XMM2, f64)));
@@ -1670,6 +1712,7 @@ public:
         testEvaluateInteger();
         testEvaluateMove();
         testEvaluateVector();
+        testEvaluateAes();
         testFlags();
         testArchitecture();
         testRunRegisters();

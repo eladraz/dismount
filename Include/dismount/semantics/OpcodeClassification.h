@@ -192,6 +192,14 @@ public:
     void setFlags(uint32 read, uint32 written, uint32 undefined);
 
     /*
+     * The bits of the x87 status word (C0-C3, in their fsw bit positions)
+     * that the instruction leaves undefined, 0 for the instructions which
+     * don't use the x87 condition codes
+     */
+    uint32 getFloatStatusUndefined() const;
+    void setFloatStatusUndefined(uint32 bits);
+
+    /*
      * The type of the data the instruction works on: the element type and
      * the number of lanes of a vector instruction (paddw xmm is 8 lanes of
      * i16), or the operand size of a scalar one
@@ -218,6 +226,8 @@ private:
     uint32 m_flagsRead;
     uint32 m_flagsWritten;
     uint32 m_flagsUndefined;
+    // See getFloatStatusUndefined()
+    uint32 m_floatStatusUndefined;
     // The data the instruction works on
     SemanticType m_dataType;
     // The change of the stack pointer in bytes

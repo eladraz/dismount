@@ -60,7 +60,10 @@ public:
         ATTRIBUTE_MAY_FAULT         = 0x0040,
         // The floating point operation updates the cumulative exception
         // flags of the guest (MXCSR, FPSR, fflags)
-        ATTRIBUTE_FLOAT_EXCEPTIONS  = 0x0080
+        ATTRIBUTE_FLOAT_EXCEPTIONS  = 0x0080,
+        // The floating point operation doesn't raise the denormal operand
+        // exception (the x87 stores to a narrower format: fst m32, m64)
+        ATTRIBUTE_IGNORE_DENORMAL   = 0x0100
     };
 
     /*
@@ -147,8 +150,9 @@ public:
     void setBehavior(SemanticOperation::Behavior behavior);
 
     /*
-     * The kind of OP_TRAP, OP_HINT and OP_CACHE_MAINTENANCE: a
-     * SemanticOperation::TrapKind, HintKind or CacheOperation
+     * The kind of OP_TRAP, OP_HINT, OP_CACHE_MAINTENANCE, OP_FLOAT_ROUND and
+     * the FLAGS_FLOAT_COMPARE OP_SET_FLAGS: a SemanticOperation::TrapKind,
+     * HintKind, CacheOperation, FloatRoundKind or FloatCompareKind
      */
     uint getKind() const;
     void setKind(uint kind);

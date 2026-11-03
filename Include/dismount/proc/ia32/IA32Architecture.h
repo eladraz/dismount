@@ -53,11 +53,19 @@ enum {
     IA32_REG_FS_BASE, IA32_REG_GS_BASE,
 
     // x87 stack registers, by their physical number (the top of stack is
-    // IA32_REG_FPU_TOP, ST(i) is (top + i) mod 8)
+    // IA32_REG_FPU_TOP, ST(i) is (top + i) mod 8, see
+    // OP_READ_REGISTER_INDEXED)
     IA32_REG_FPR0, IA32_REG_FPR1, IA32_REG_FPR2, IA32_REG_FPR3,
     IA32_REG_FPR4, IA32_REG_FPR5, IA32_REG_FPR6, IA32_REG_FPR7,
-    // The x87 control word, status word and the top of stack field
-    IA32_REG_FPU_CONTROL, IA32_REG_FPU_STATUS, IA32_REG_FPU_TOP,
+    // The x87 control word and status word
+    IA32_REG_FPU_CONTROL, IA32_REG_FPU_STATUS,
+    // Aliases of the status word: the top of stack (bits 11..13) and the
+    // condition codes C0 (bit 8), C1 (9), C2 (10), C3 (14)
+    IA32_REG_FPU_TOP,
+    IA32_REG_FPU_C0, IA32_REG_FPU_C1, IA32_REG_FPU_C2, IA32_REG_FPU_C3,
+    // The abridged tag word (as fxsave stores it): bit i is set if the
+    // physical register i is not empty
+    IA32_REG_FPU_TAG,
 
     // MMX registers, aliases of bits 0..63 of the x87 registers
     IA32_REG_MM0, IA32_REG_MM1, IA32_REG_MM2, IA32_REG_MM3,
@@ -67,6 +75,12 @@ enum {
     IA32_REG_XMM0, IA32_REG_XMM1, IA32_REG_XMM2, IA32_REG_XMM3,
     IA32_REG_XMM4, IA32_REG_XMM5, IA32_REG_XMM6, IA32_REG_XMM7,
     IA32_REG_MXCSR,
+
+    // The descriptor tables: the global table (base and limit), and the
+    // local table (selector, base and limit). The segment loads of
+    // protected mode read the descriptors from them
+    IA32_REG_GDTR_BASE, IA32_REG_GDTR_LIMIT,
+    IA32_REG_LDTR, IA32_REG_LDTR_BASE, IA32_REG_LDTR_LIMIT,
 
     // Control and debug registers
     IA32_REG_CR0, IA32_REG_CR2, IA32_REG_CR3, IA32_REG_CR4,
@@ -110,6 +124,8 @@ public:
     virtual bool getModeRegister(uint& registerId) const;
     virtual bool getFlagRegister(uint32 flag, uint& registerId) const;
     virtual bool isCarryInvertedOnSubtract() const;
+    virtual bool getFloatEnvironment(uint32 attributes,
+                                     FloatEnvironment& environment) const;
     virtual bool isSupported(SemanticOperation::Operation operation,
                              const SemanticType& type) const;
 

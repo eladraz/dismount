@@ -12,6 +12,7 @@
 #include "xStl/except/trace.h"
 #include "dismount/OpcodeSubsystems.h"
 #include "dismount/semantics/ArchitectureDescription.h"
+#include "dismount/semantics/SemanticInstruction.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
 
 using namespace ia32dis;
@@ -94,7 +95,12 @@ const ArchitectureRegister IA32Architecture::gRegisters[IA32_REGISTERS_COUNT] =
     { "fpr7", FILE_X87, 80, NO_PARENT, 0, false, 0, false },
     { "fpu_control", FILE_CONTROL, 16, NO_PARENT, 0, false, 0, false },
     { "fpu_status", FILE_CONTROL, 16, NO_PARENT, 0, false, 0, false },
-    { "fpu_top", FILE_CONTROL, 3, NO_PARENT, 0, false, 0, false },
+    { "fpu_top", FILE_CONTROL, 3, IA32_REG_FPU_STATUS, 11, false, 0, false },
+    { "fpu_c0", FILE_CONTROL, 1, IA32_REG_FPU_STATUS, 8, false, 0, false },
+    { "fpu_c1", FILE_CONTROL, 1, IA32_REG_FPU_STATUS, 9, false, 0, false },
+    { "fpu_c2", FILE_CONTROL, 1, IA32_REG_FPU_STATUS, 10, false, 0, false },
+    { "fpu_c3", FILE_CONTROL, 1, IA32_REG_FPU_STATUS, 14, false, 0, false },
+    { "fpu_tag", FILE_CONTROL, 8, NO_PARENT, 0, false, 0, false },
     { "mm0", FILE_VECTOR, 64, IA32_REG_FPR0, 0, false, 0, false },
     { "mm1", FILE_VECTOR, 64, IA32_REG_FPR1, 0, false, 0, false },
     { "mm2", FILE_VECTOR, 64, IA32_REG_FPR2, 0, false, 0, false },
@@ -112,6 +118,11 @@ const ArchitectureRegister IA32Architecture::gRegisters[IA32_REGISTERS_COUNT] =
     { "xmm6", FILE_VECTOR, 128, NO_PARENT, 0, false, 0, false },
     { "xmm7", FILE_VECTOR, 128, NO_PARENT, 0, false, 0, false },
     { "mxcsr", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
+    { "gdtr_base", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
+    { "gdtr_limit", FILE_CONTROL, 16, NO_PARENT, 0, false, 0, false },
+    { "ldtr", FILE_SEGMENT, 16, NO_PARENT, 0, false, 0, false },
+    { "ldtr_base", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
+    { "ldtr_limit", FILE_CONTROL, 16, NO_PARENT, 0, false, 0, false },
     { "cr0", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
     { "cr2", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
     { "cr3", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
@@ -230,6 +241,64 @@ bool IA32Architecture::getFlagRegister(uint32 flag, uint& registerId) const
 bool IA32Architecture::isCarryInvertedOnSubtract() const
 {
     return false;
+}
+
+bool IA32Architecture::getFloatEnvironment(uint32 attributes,
+                                           FloatEnvironment& environment) const
+{
+    // The rounding control field of both fcw and mxcsr: nearest, down, up,
+    // toward zero
+    environment.m_roundingModes[0] = SemanticOperation::ROUND_NEAREST_EVEN;
+    environment.m_roundingModes[1] = SemanticOperation::ROUND_TOWARD_NEGATIVE;
+    environment.m_roundingModes[2] = SemanticOperation::ROUND_TOWARD_POSITIVE;
+    environment.m_roundingModes[3] = SemanticOperation::ROUND_TOWARD_ZERO;
+    environment.m_isMaskSetDisabled = true;
+    environment.m_isDefaultNanNegative = true;
+
+    if ((attributes & SemanticInstruction::ATTRIBUTE_X87) != 0)
+    {
+        // fcw: the masks at bits 0..5 (IM DM ZM OM UM PM), the precision at
+        // 8..9 and the rounding at 10..11. fsw: the flags at bits 0..5 (IE
+        // DE ZE OE UE PE), ES at 7 and B at 15
+        environment.m_controlRegister = IA32_REG_FPU_CONTROL;
+        environment.m_roundingOffset = 10;
+        environment.m_precisionOffset = 8;
+        environment.m_flushToZeroOffset = FloatEnvironment::NO_FIELD;
+        environment.m_denormalsAreZeroOffset = FloatEnvironment::NO_FIELD;
+        environment.m_statusRegister = IA32_REG_FPU_STATUS;
+        for (uint i = 0; i < SemanticFloatFlags::FLOAT_FLAGS_COUNT; i++)
+        {
+            environment.m_maskOffsets[i] = (uint8)i;
+            environment.m_flagOffsets[i] = (uint8)i;
+        }
+        environment.m_summaryOffset = 7;
+        environment.m_busyOffset = 15;
+        environment.m_trapMode = FloatEnvironment::TRAP_DEFERRED;
+        environment.m_trapNumber = 16;
+        environment.m_nanRule = FloatEnvironment::NAN_LARGER_SIGNIFICAND;
+        return true;
+    }
+
+    // mxcsr: the flags at bits 0..5 (IE DE ZE OE UE PE), DAZ at 6, the masks
+    // at 7..12, the rounding at 13..14 and FZ at 15. An unmasked exception
+    // is #XM
+    environment.m_controlRegister = IA32_REG_MXCSR;
+    environment.m_roundingOffset = 13;
+    environment.m_precisionOffset = FloatEnvironment::NO_FIELD;
+    environment.m_flushToZeroOffset = 15;
+    environment.m_denormalsAreZeroOffset = 6;
+    environment.m_statusRegister = IA32_REG_MXCSR;
+    for (uint i = 0; i < SemanticFloatFlags::FLOAT_FLAGS_COUNT; i++)
+    {
+        environment.m_maskOffsets[i] = (uint8)(7 + i);
+        environment.m_flagOffsets[i] = (uint8)i;
+    }
+    environment.m_summaryOffset = FloatEnvironment::NO_FIELD;
+    environment.m_busyOffset = FloatEnvironment::NO_FIELD;
+    environment.m_trapMode = FloatEnvironment::TRAP_IMMEDIATE;
+    environment.m_trapNumber = 19;
+    environment.m_nanRule = FloatEnvironment::NAN_FIRST_OPERAND;
+    return true;
 }
 
 namespace {

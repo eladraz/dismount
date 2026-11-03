@@ -164,6 +164,8 @@ const OperationInfo gOperations[] =
     /* OP_HINT                          */ { "hint", 0, 0 },
     /* OP_READ_SYSTEM_REGISTER          */ { "read_system_register", 1, F_DEST | F_SIDE_EFFECTS },
     /* OP_WRITE_SYSTEM_REGISTER         */ { "write_system_register", 2, F_SIDE_EFFECTS },
+    /* OP_READ_REGISTER_INDEXED         */ { "read_register_indexed", 3, F_DEST },
+    /* OP_WRITE_REGISTER_INDEXED        */ { "write_register_indexed", 3, F_SIDE_EFFECTS },
     /* OP_HELPER                        */ { "helper", 3, F_DEST | F_SIDE_EFFECTS },
     /* OP_UNDEFINED                     */ { "undefined", 0, F_SIDE_EFFECTS },
 };

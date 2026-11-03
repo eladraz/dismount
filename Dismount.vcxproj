@@ -57,6 +57,7 @@
     <ClCompile Include="Source\dismount\semantics\SemanticBlock.cpp" />
     <ClCompile Include="Source\dismount\semantics\OpcodeClassification.cpp" />
     <ClCompile Include="Source\dismount\semantics\ArchitectureDescription.cpp" />
+    <ClCompile Include="Source\dismount\semantics\SemanticFloat.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticInterpreter.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticLifter.cpp" />
     <ClCompile Include="Source\dismount\SectionMemoryInterface.cpp" />
@@ -102,6 +103,7 @@
     <ClInclude Include="Include\dismount\semantics\ArchitectureDescription.h" />
     <ClInclude Include="Include\dismount\semantics\OpcodeClassification.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticBlock.h" />
+    <ClInclude Include="Include\dismount\semantics\SemanticFloat.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticInstruction.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticInterpreter.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticLegalizer.h" />

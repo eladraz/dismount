@@ -182,6 +182,9 @@ struct SemanticTemplate {
     uint32 m_flagsRead;
     uint32 m_flagsWritten;
     uint32 m_flagsUndefined;
+    // The x87 status word bits (C0-C3, in fsw bit positions) that the
+    // mnemonic leaves undefined. Trailing: 0 for the other architectures
+    uint32 m_floatStatusUndefined;
 };
 
 #endif // __TBA_DISMOUNT_SEMANTICS_SEMANTICTEMPLATE_H

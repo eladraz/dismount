@@ -246,7 +246,8 @@ public:
         OP_FLOAT_NEGATE,
         // d = s0 with the sign of s1 (RISC-V fsgnj)
         OP_FLOAT_COPY_SIGN,
-        // d = s0 rounded to an integral value (in the floating point format)
+        // d = s0 rounded to an integral value (in the floating point format).
+        // The kind (SemanticInstruction::getKind()) is a FloatRoundKind
         OP_FLOAT_ROUND,
         // d = s0 converted to the floating point format of d
         OP_FLOAT_CONVERT,
@@ -321,7 +322,8 @@ public:
         // vslidedown)
         OP_SLIDE,
         // d = the lanes of s0 then s1, each narrowed to the element of d.
-        // The saturation is an attribute
+        // The source lanes are signed; the saturation attribute is the range
+        // of the result (packsswb: signed, packuswb: unsigned)
         OP_NARROW,
         // d = the active lanes of s0 (mask s1) packed into the low lanes
         // (vpcompress, SVE COMPACT, RVV vcompress)
@@ -410,6 +412,15 @@ public:
         OP_READ_SYSTEM_REGISTER,
         // system register s0 = s1, see OP_READ_SYSTEM_REGISTER
         OP_WRITE_SYSTEM_REGISTER,
+        // d = register (s0 + (s1 mod s2)): s0 is a register operand (the
+        // first register of a group with consecutive ids), s1 an index
+        // value and s2 an immediate count. The type is the register's. For
+        // register files indexed at runtime: the x87 ST(i) is
+        // FPR[(TOP + i) mod 8]
+        OP_READ_REGISTER_INDEXED,
+        // register (d + (s0 mod s1)) = s2: d is the first register of the
+        // group, see OP_READ_REGISTER_INDEXED
+        OP_WRITE_REGISTER_INDEXED,
 
         //////////////////////////////////////////////////////////////////
         // Escape hatch
@@ -558,6 +569,8 @@ public:
         // fcomi):
         //   unordered ZERO = PARITY = CARRY = 1;  less CARRY = 1;
         //   equal ZERO = 1;  greater all 0.  OVERFLOW = SIGN = ADJUST = 0
+        // The kind of the instruction is a FloatCompareKind (comisd and
+        // fcomi signal on a quiet NaN, ucomisd and fucomi don't)
         FLAGS_FLOAT_COMPARE,
         // The flags of a test of the predicate s1 governed by s0 (SVE
         // PTEST): SIGN = the first active lane is set, ZERO = no active lane
@@ -661,6 +674,22 @@ public:
         HINT_SEND_EVENT,
         // A branch target, for control flow integrity (endbr32, bti)
         HINT_LANDING_PAD
+    };
+
+    // The kind of FLAGS_FLOAT_COMPARE
+    enum FloatCompareKind {
+        // Only a signaling NaN raises invalid (ucomisd, fucomi)
+        FLOAT_COMPARE_QUIET,
+        // Any NaN raises invalid (comisd, fcomi)
+        FLOAT_COMPARE_SIGNALING
+    };
+
+    // The kind of OP_FLOAT_ROUND
+    enum FloatRoundKind {
+        // Raise inexact when the value changes (frndint, ARM frintx)
+        FLOAT_ROUND_SIGNAL_INEXACT,
+        // Never raise inexact (roundss with imm8 bit 3, ARM frintz)
+        FLOAT_ROUND_SUPPRESS_INEXACT
     };
 
     // The memory ordering of OP_FENCE and of the memory operations

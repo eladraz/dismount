@@ -18,6 +18,7 @@
 #include "dismount/semantics/SemanticInstruction.h"
 #include "dismount/semantics/SemanticBlock.h"
 #include "dismount/semantics/ArchitectureDescription.h"
+#include "dismount/semantics/SemanticFloat.h"
 #include "dismount/semantics/SemanticInterpreter.h"
 
 /////////////////////////////////////////////////////////////////////////////
@@ -276,6 +277,97 @@ void carrylessMultiply64(uint64 a, uint64 b, uint64& high, uint64& low)
         if (i != 0)
             high ^= a >> (64 - i);
     }
+}
+
+// Multiply two numbers of GF(2^8) modulo x^8 + x^4 + x^3 + x + 1 (AES)
+uint8 aesMultiply(uint8 a, uint8 b)
+{
+    uint8 result = 0;
+    for (uint i = 0; i < 8; i++)
+    {
+        if ((b & 1) != 0)
+            result ^= a;
+        const bool isCarry = (a & 0x80) != 0;
+        a = (uint8)(a << 1);
+        if (isCarry)
+            a ^= 0x1B;
+        b >>= 1;
+    }
+    return result;
+}
+
+// The multiplicative inverse in GF(2^8), 0 for 0 (a^254)
+uint8 aesInvert(uint8 a)
+{
+    uint8 result = 1;
+    for (uint i = 0; i < 254; i++)
+        result = aesMultiply(result, a);
+    return (a == 0) ? 0 : result;
+}
+
+uint8 rotateLeft8(uint8 value, uint count)
+{
+    return (uint8)((value << count) | (value >> (8 - count)));
+}
+
+// SubBytes of one byte: the inverse in GF(2^8) then the affine transform
+uint8 aesSubstitute(uint8 value)
+{
+    const uint8 b = aesInvert(value);
+    return (uint8)(b ^ rotateLeft8(b, 1) ^ rotateLeft8(b, 2) ^
+                   rotateLeft8(b, 3) ^ rotateLeft8(b, 4) ^ 0x63);
+}
+
+// InvSubBytes of one byte: the inverse affine transform then the inverse
+uint8 aesInverseSubstitute(uint8 value)
+{
+    const uint8 b = (uint8)(rotateLeft8(value, 1) ^ rotateLeft8(value, 3) ^
+                            rotateLeft8(value, 6) ^ 0x05);
+    return aesInvert(b);
+}
+
+/*
+ * The AES steps on a 128 bit state. The state is the sixteen bytes of the
+ * value, byte r + 4 * c is the row r of column c.
+ *
+ * isInverse - InvSubBytes with InvShiftRows (they commute), or InvMixColumns
+ * isMix     - MixColumns, or SubBytes with ShiftRows
+ */
+void aesStep(const SemanticValue& source, bool isInverse, bool isMix,
+             SemanticValue& result)
+{
+    uint8 state[16];
+    uint8 output[16];
+    for (uint i = 0; i < 16; i++)
+        state[i] = (uint8)source.getBits(i * 8, 8);
+    for (uint column = 0; column < 4; column++)
+    {
+        for (uint row = 0; row < 4; row++)
+        {
+            if (!isMix)
+            {
+                // Row r moves left by r columns (right for the inverse)
+                const uint from = isInverse ? ((column + 4 - row) % 4) :
+                                              ((column + row) % 4);
+                const uint8 value = state[row + 4 * from];
+                output[row + 4 * column] = isInverse ?
+                            aesInverseSubstitute(value) : aesSubstitute(value);
+            } else
+            {
+                static const uint8 forward[4] = { 2, 3, 1, 1 };
+                static const uint8 inverse[4] = { 14, 11, 13, 9 };
+                const uint8* factors = isInverse ? inverse : forward;
+                uint8 sum = 0;
+                for (uint k = 0; k < 4; k++)
+                    sum ^= aesMultiply(state[(k) + 4 * column],
+                                       factors[(k + 4 - row) % 4]);
+                output[row + 4 * column] = sum;
+            }
+        }
+    }
+    result = SemanticValue();
+    for (uint i = 0; i < 16; i++)
+        result.setBits(i * 8, 8, output[i]);
 }
 
 // Reverse the order of the bytes of a 'bits' wide value
@@ -621,11 +713,436 @@ EvalStatus evaluateLane(const SemanticInstruction& instruction,
     return EVAL_OK;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// Floating point operations (through SemanticFloat)
+/////////////////////////////////////////////////////////////////////////////
+
+// The floating point environment of an operation and the exceptions it raised
+struct FloatContext {
+    FloatContext() : m_flags(0) {};
+
+    SemanticFloat::Environment m_env;
+    uint32 m_flags;
+};
+
+typedef SemanticFloat::Bits FloatBits;
+
+// Return the number as the bits of a lane
+FloatBits loadFloat(const SemanticValue& value, uint offset,
+                    SemanticType::FloatFormat format)
+{
+    const uint total = SemanticFloat::getTotalBits(format);
+    FloatBits bits;
+    bits.m_low = value.getBits(offset, (total > 64) ? 64 : total);
+    if (total > 64)
+        bits.m_high = value.getBits(offset + 64, total - 64);
+    return bits;
+}
+
+void storeFloat(SemanticValue& value, uint offset,
+                SemanticType::FloatFormat format, const FloatBits& bits)
+{
+    const uint total = SemanticFloat::getTotalBits(format);
+    value.setBits(offset, (total > 64) ? 64 : total, bits.m_low);
+    if (total > 64)
+        value.setBits(offset + 64, total - 64, bits.m_high);
+}
+
+bool isFloatType(const SemanticType& type)
+{
+    return type.getKind() == SemanticType::KIND_FLOAT;
+}
+
+// The floating point type of the operation: its type or its destination's
+SemanticType getFloatType(const SemanticInstruction& instruction)
+{
+    if (isFloatType(instruction.getType()))
+        return instruction.getType();
+    return instruction.getDestination().getType();
+}
+
+// The floating point type of the source 'index'
+SemanticType getFloatSourceType(const SemanticInstruction& instruction,
+                                uint index)
+{
+    const SemanticOperand& operand = instruction.getSource(index);
+    if (operand.isValid() && isFloatType(operand.getType()))
+        return operand.getType();
+    return getFloatType(instruction);
+}
+
+bool isFloatOperation(SemanticOperation::Operation operation)
+{
+    return (operation >= SemanticOperation::OP_FLOAT_ADD) &&
+           (operation <= SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE);
+}
+
+bool isFloatCombine(SemanticOperation::Operation operation)
+{
+    return (operation == SemanticOperation::OP_FLOAT_ADD) ||
+           (operation == SemanticOperation::OP_FLOAT_MINIMUM) ||
+           (operation == SemanticOperation::OP_FLOAT_MAXIMUM);
+}
+
+// Return true if the instruction is computed by SemanticFloat
+bool usesFloat(const SemanticInstruction& instruction)
+{
+    const SemanticOperation::Operation operation = instruction.getOperation();
+    if (isFloatOperation(operation))
+        return true;
+    switch (operation)
+    {
+    case SemanticOperation::OP_COMPARE:
+    case SemanticOperation::OP_PAIRWISE_ADD:
+        return isFloatType(getSourceType(instruction, 0));
+    case SemanticOperation::OP_REDUCE:
+        return isFloatCombine(instruction.getCombineOperation());
+    default:
+        return false;
+    }
+}
+
+// The environment of an operation without a state: the instruction's
+// rounding mode, dynamic is nearest even
+void defaultFloatEnvironment(const SemanticInstruction& instruction,
+                             SemanticFloat::Environment& environment)
+{
+    environment = SemanticFloat::Environment();
+    if (instruction.getRoundingMode() != SemanticOperation::ROUND_DYNAMIC)
+        environment.m_rounding = instruction.getRoundingMode();
+    if ((instruction.getAttributes() &
+         SemanticInstruction::ATTRIBUTE_X87) != 0)
+        environment.m_nanRule = FloatEnvironment::NAN_LARGER_SIGNIFICAND;
+}
+
+// Evaluate the relation of the condition of a float OP_COMPARE
+bool isRelationTrue(SemanticOperation::Condition condition,
+                    SemanticFloat::Relation relation)
+{
+    const bool isUnordered = (relation == SemanticFloat::RELATION_UNORDERED);
+    const bool isLess = (relation == SemanticFloat::RELATION_LESS);
+    const bool isEqual = (relation == SemanticFloat::RELATION_EQUAL);
+    const bool isGreater = (relation == SemanticFloat::RELATION_GREATER);
+    switch (condition)
+    {
+    case SemanticOperation::COND_FLOAT_ORDERED:
+        return !isUnordered;
+    case SemanticOperation::COND_FLOAT_UNORDERED:
+        return isUnordered;
+    case SemanticOperation::COND_FLOAT_EQUAL:
+        return isEqual;
+    case SemanticOperation::COND_FLOAT_NOT_EQUAL:
+        return !isEqual;
+    case SemanticOperation::COND_FLOAT_LESS:
+        return isLess;
+    case SemanticOperation::COND_FLOAT_LESS_EQUAL:
+        return isLess || isEqual;
+    case SemanticOperation::COND_FLOAT_GREATER:
+        return isGreater;
+    case SemanticOperation::COND_FLOAT_GREATER_EQUAL:
+        return isGreater || isEqual;
+    case SemanticOperation::COND_FLOAT_UNORDERED_OR_EQUAL:
+        return isUnordered || isEqual;
+    case SemanticOperation::COND_FLOAT_UNORDERED_OR_LESS:
+        return isUnordered || isLess;
+    case SemanticOperation::COND_FLOAT_UNORDERED_OR_LESS_EQUAL:
+        return isUnordered || isLess || isEqual;
+    case SemanticOperation::COND_ALWAYS:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The conditions which don't signal for a quiet NaN
+bool isQuietCondition(SemanticOperation::Condition condition)
+{
+    return (condition == SemanticOperation::COND_FLOAT_ORDERED) ||
+           (condition == SemanticOperation::COND_FLOAT_UNORDERED) ||
+           (condition == SemanticOperation::COND_FLOAT_EQUAL) ||
+           (condition == SemanticOperation::COND_FLOAT_NOT_EQUAL) ||
+           (condition == SemanticOperation::COND_FLOAT_UNORDERED_OR_EQUAL);
+}
+
+// The flags of FLAGS_FLOAT_COMPARE
+uint32 floatCompareFlags(SemanticFloat::Relation relation)
+{
+    switch (relation)
+    {
+    case SemanticFloat::RELATION_UNORDERED:
+        return SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_PARITY |
+               SemanticFlags::FLAG_CARRY;
+    case SemanticFloat::RELATION_LESS:
+        return SemanticFlags::FLAG_CARRY;
+    case SemanticFloat::RELATION_EQUAL:
+        return SemanticFlags::FLAG_ZERO;
+    default:
+        return 0;
+    }
+}
+
+// Combine two float lanes with the combine operation of OP_REDUCE
+FloatBits combineFloat(SemanticOperation::Operation operation,
+                       SemanticType::FloatFormat format,
+                       const SemanticFloat::Environment& environment,
+                       SemanticOperation::Behavior behavior,
+                       const FloatBits& a, const FloatBits& b, uint32& flags)
+{
+    if (operation == SemanticOperation::OP_FLOAT_ADD)
+        return SemanticFloat::add(format, environment, a, b, flags);
+    return SemanticFloat::minimumMaximum(
+            format, environment,
+            operation == SemanticOperation::OP_FLOAT_MAXIMUM, behavior,
+            a, b, flags);
+}
+
+// Evaluate the floating point operations, lane by lane
+EvalStatus evaluateFloat(const SemanticInstruction& instruction,
+                         const SemanticValue* sources, SemanticValue& result,
+                         FloatContext& context)
+{
+    typedef SemanticFloat SF;
+    const SemanticOperation::Operation operation = instruction.getOperation();
+    const SF::Environment& env = context.m_env;
+    uint32& flags = context.m_flags;
+    SemanticValue value;
+
+    switch (operation)
+    {
+    case SemanticOperation::OP_COMPARE:
+    {
+        const SemanticType sourceType = getSourceType(instruction, 0);
+        const SemanticType::FloatFormat format = sourceType.getFloatFormat();
+        if (!SF::isSupported(format))
+            return EVAL_UNDEFINED;
+        const SemanticOperation::Condition condition =
+                                                instruction.getCondition();
+        for (uint lane = 0; lane < sourceType.getLanes(); lane++)
+        {
+            const uint offset = lane * sourceType.getElementBits();
+            const SF::Relation relation = SF::compare(
+                    format, env, loadFloat(sources[0], offset, format),
+                    loadFloat(sources[1], offset, format),
+                    !isQuietCondition(condition), flags);
+            value.setBits(lane, 1,
+                          isRelationTrue(condition, relation) ? 1 : 0);
+        }
+        result = value;
+        return EVAL_OK;
+    }
+    case SemanticOperation::OP_REDUCE:
+    {
+        const SemanticType sourceType = getSourceType(instruction, 0);
+        const SemanticType::FloatFormat format = sourceType.getFloatFormat();
+        if (!SF::isSupported(format))
+            return EVAL_UNDEFINED;
+        const uint stride = sourceType.getElementBits();
+        const uint lanes = sourceType.getLanes();
+        cArray<FloatBits> items(lanes);
+        for (uint lane = 0; lane < lanes; lane++)
+            items[lane] = loadFloat(sources[0], lane * stride, format);
+        uint count = lanes;
+        const SemanticOperation::Operation combine =
+                                        instruction.getCombineOperation();
+        if (instruction.getBehavior() ==
+            SemanticOperation::BEHAVIOR_REDUCE_PAIRWISE)
+        {
+            while (count > 1)
+            {
+                uint next = 0;
+                for (uint i = 0; i + 1 < count; i += 2)
+                    items[next++] = combineFloat(combine, format, env,
+                                    instruction.getBehavior(), items[i],
+                                    items[i + 1], flags);
+                if ((count % 2) != 0)
+                    items[next++] = items[count - 1];
+                count = next;
+            }
+        } else
+        {
+            for (uint i = 1; i < count; i++)
+                items[0] = combineFloat(combine, format, env,
+                                instruction.getBehavior(), items[0], items[i],
+                                flags);
+        }
+        storeFloat(value, 0, format, items[0]);
+        result = value;
+        return EVAL_OK;
+    }
+    case SemanticOperation::OP_PAIRWISE_ADD:
+    {
+        const SemanticType type = getFloatType(instruction);
+        const SemanticType::FloatFormat format = type.getFloatFormat();
+        if (!SF::isSupported(format))
+            return EVAL_UNDEFINED;
+        const uint stride = type.getElementBits();
+        const uint half = type.getLanes() / 2;
+        for (uint i = 0; i < type.getLanes(); i++)
+        {
+            const SemanticValue& source = (i < half) ? sources[0] : sources[1];
+            const uint j = (i < half) ? i : (i - half);
+            storeFloat(value, i * stride, format,
+                SF::add(format, env,
+                        loadFloat(source, 2 * j * stride, format),
+                        loadFloat(source, (2 * j + 1) * stride, format),
+                        flags));
+        }
+        result = value;
+        return EVAL_OK;
+    }
+    case SemanticOperation::OP_FLOAT_RECIPROCAL_ESTIMATE:
+    case SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE:
+        // The estimate tables of the processors are not interpreted
+        return EVAL_UNDEFINED;
+    default:
+        break;
+    }
+
+    // The conversions have different source and destination types
+    if (operation == SemanticOperation::OP_FLOAT_CONVERT)
+    {
+        const SemanticType toType = getFloatType(instruction);
+        const SemanticType fromType = getFloatSourceType(instruction, 0);
+        if (!SF::isSupported(toType.getFloatFormat()) ||
+            !SF::isSupported(fromType.getFloatFormat()))
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < toType.getLanes(); lane++)
+            storeFloat(value, lane * toType.getElementBits(),
+                toType.getFloatFormat(),
+                SF::convert(fromType.getFloatFormat(), toType.getFloatFormat(),
+                    env, loadFloat(sources[0],
+                                   lane * fromType.getElementBits(),
+                                   fromType.getFloatFormat()), flags));
+        result = value;
+        return EVAL_OK;
+    }
+    if ((operation == SemanticOperation::OP_SIGNED_TO_FLOAT) ||
+        (operation == SemanticOperation::OP_UNSIGNED_TO_FLOAT))
+    {
+        const SemanticType toType = getFloatType(instruction);
+        const SemanticOperand& operand = instruction.getSource(0);
+        uint integerBits = toType.getElementBits();
+        if (operand.isValid() &&
+            (operand.getType().getKind() == SemanticType::KIND_INTEGER))
+            integerBits = operand.getType().getElementBits();
+        if (!SF::isSupported(toType.getFloatFormat()) || (integerBits > 64))
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < toType.getLanes(); lane++)
+            storeFloat(value, lane * toType.getElementBits(),
+                toType.getFloatFormat(),
+                SF::fromInteger(toType.getFloatFormat(), env,
+                    sources[0].getBits(lane * integerBits, integerBits),
+                    integerBits,
+                    operation == SemanticOperation::OP_SIGNED_TO_FLOAT,
+                    flags));
+        result = value;
+        return EVAL_OK;
+    }
+    if ((operation == SemanticOperation::OP_FLOAT_TO_SIGNED) ||
+        (operation == SemanticOperation::OP_FLOAT_TO_UNSIGNED) ||
+        (operation == SemanticOperation::OP_FLOAT_CLASSIFY))
+    {
+        SemanticType fromType = getFloatSourceType(instruction, 0);
+        // The integer type: the type of the operation or the destination
+        SemanticType toType = instruction.getType();
+        if (toType.getKind() != SemanticType::KIND_INTEGER)
+            toType = instruction.getDestination().getType();
+        const uint integerBits = toType.getElementBits();
+        if (!SF::isSupported(fromType.getFloatFormat()) ||
+            (integerBits < 1) || (integerBits > 64))
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < fromType.getLanes(); lane++)
+        {
+            const FloatBits a = loadFloat(sources[0],
+                    lane * fromType.getElementBits(), fromType.getFloatFormat());
+            uint64 r;
+            if (operation == SemanticOperation::OP_FLOAT_CLASSIFY)
+                r = SF::classify(fromType.getFloatFormat(), a);
+            else
+                r = SF::toInteger(fromType.getFloatFormat(), env, a,
+                        integerBits,
+                        operation == SemanticOperation::OP_FLOAT_TO_SIGNED,
+                        instruction.getBehavior(), flags);
+            value.setBits(lane * integerBits, integerBits, r);
+        }
+        result = value;
+        return EVAL_OK;
+    }
+
+    // The operations with the type of the operation
+    const SemanticType type = getFloatType(instruction);
+    const SemanticType::FloatFormat format = type.getFloatFormat();
+    if (!SF::isSupported(format))
+        return EVAL_UNDEFINED;
+    const uint stride = type.getElementBits();
+    for (uint lane = 0; lane < type.getLanes(); lane++)
+    {
+        const uint offset = lane * stride;
+        const FloatBits a = loadFloat(sources[0], offset, format);
+        const FloatBits b = loadFloat(sources[1], offset, format);
+        const FloatBits c = loadFloat(sources[2], offset, format);
+        FloatBits r;
+        switch (operation)
+        {
+        case SemanticOperation::OP_FLOAT_ADD:
+            r = SF::add(format, env, a, b, flags); break;
+        case SemanticOperation::OP_FLOAT_SUBTRACT:
+            r = SF::subtract(format, env, a, b, flags); break;
+        case SemanticOperation::OP_FLOAT_MULTIPLY:
+            r = SF::multiply(format, env, a, b, flags); break;
+        case SemanticOperation::OP_FLOAT_DIVIDE:
+            r = SF::divide(format, env, a, b, flags); break;
+        case SemanticOperation::OP_FLOAT_MULTIPLY_ADD:
+            r = SF::multiplyAdd(format, env, a, b, c, flags); break;
+        case SemanticOperation::OP_FLOAT_SQUARE_ROOT:
+            r = SF::squareRoot(format, env, a, flags); break;
+        case SemanticOperation::OP_FLOAT_MINIMUM:
+        case SemanticOperation::OP_FLOAT_MAXIMUM:
+            r = SF::minimumMaximum(format, env,
+                    operation == SemanticOperation::OP_FLOAT_MAXIMUM,
+                    instruction.getBehavior(), a, b, flags);
+            break;
+        case SemanticOperation::OP_FLOAT_ABSOLUTE:
+            r = SF::absolute(format, a); break;
+        case SemanticOperation::OP_FLOAT_NEGATE:
+            r = SF::negate(format, a); break;
+        case SemanticOperation::OP_FLOAT_COPY_SIGN:
+            r = SF::copySign(format, a, b); break;
+        case SemanticOperation::OP_FLOAT_ROUND:
+            r = SF::roundToIntegral(format, env, a,
+                    instruction.getKind() ==
+                        SemanticOperation::FLOAT_ROUND_SIGNAL_INEXACT,
+                    flags);
+            break;
+        case SemanticOperation::OP_FLOAT_SCALE:
+            r = SF::scale(format, env, a, b, flags); break;
+        case SemanticOperation::OP_FLOAT_GET_EXPONENT:
+            r = SF::getExponent(format, env, a, flags); break;
+        default:
+            return EVAL_UNDEFINED;
+        }
+        storeFloat(value, offset, format, r);
+    }
+    result = value;
+    return EVAL_OK;
+}
+
 // Evaluate an operation over values. See SemanticInterpreter::evaluate()
 EvalStatus evaluateOperation(const SemanticInstruction& instruction,
                              const SemanticValue* sources,
-                             SemanticValue& result)
+                             SemanticValue& result,
+                             FloatContext* context = NULL)
 {
+    if (usesFloat(instruction))
+    {
+        FloatContext local;
+        if (context == NULL)
+        {
+            context = &local;
+            defaultFloatEnvironment(instruction, local.m_env);
+        }
+        return evaluateFloat(instruction, sources, result, *context);
+    }
     const SemanticOperation::Operation operation = instruction.getOperation();
     const SemanticType type = instruction.getType();
     const uint totalBits = type.getTotalBits();
@@ -646,11 +1163,32 @@ EvalStatus evaluateOperation(const SemanticInstruction& instruction,
         value = sources[0];
         break;
     case SemanticOperation::OP_ZERO_EXTEND:
-        value = sources[0];
-        value.truncate(getSourceType(instruction, 0).getTotalBits());
-        break;
     case SemanticOperation::OP_SIGN_EXTEND:
     {
+        const SemanticType extendFrom = getSourceType(instruction, 0);
+        if (type.isVector() && extendFrom.isVector() &&
+            (extendFrom.getLanes() == type.getLanes()) &&
+            (extendFrom.getElementBits() < type.getElementBits()) &&
+            (type.getElementBits() <= 64))
+        {
+            // pmovzx / pmovsx: each lane is extended
+            const uint from = extendFrom.getElementBits();
+            const uint to = type.getElementBits();
+            for (uint lane = 0; lane < type.getLanes(); lane++)
+            {
+                uint64 v = sources[0].getBits(lane * from, from);
+                if (operation == SemanticOperation::OP_SIGN_EXTEND)
+                    v = (uint64)signExtend(v, from);
+                value.setBits(lane * to, to, v);
+            }
+            break;
+        }
+        if (operation == SemanticOperation::OP_ZERO_EXTEND)
+        {
+            value = sources[0];
+            value.truncate(extendFrom.getTotalBits());
+            break;
+        }
         const uint sourceBits = getSourceType(instruction, 0).getTotalBits();
         value = sources[0];
         value.truncate(sourceBits);
@@ -789,6 +1327,228 @@ EvalStatus evaluateOperation(const SemanticInstruction& instruction,
                 return status;
         }
         value.setWord(0, accumulator);
+        break;
+    }
+
+    //////////////////////////////////////////////////////////////////
+    // Lane permutations and the vector reductions
+    //////////////////////////////////////////////////////////////////
+    case SemanticOperation::OP_SHUFFLE:
+    {
+        const uint bits = type.getElementBits();
+        const uint lanes = type.getLanes();
+        uint indexBits = getSourceType(instruction, 2).getElementBits();
+        if ((indexBits < 1) || (indexBits > 64))
+            indexBits = 64;
+        for (uint lane = 0; lane < lanes; lane++)
+        {
+            uint64 index = sources[2].getBits(lane * indexBits, indexBits);
+            if (index >= 2 * (uint64)lanes)
+            {
+                if (instruction.getBehavior() ==
+                    SemanticOperation::BEHAVIOR_SHUFFLE_ZERO)
+                    continue;
+                index %= 2 * (uint64)lanes;
+            }
+            const SemanticValue& source =
+                            (index < lanes) ? sources[0] : sources[1];
+            copyBits(value, lane * bits, source,
+                     (uint)(index % lanes) * bits, bits);
+        }
+        break;
+    }
+    case SemanticOperation::OP_INTERLEAVE:
+    {
+        const uint bits = type.getElementBits();
+        const uint lanes = type.getLanes();
+        const uint start = (uint)sources[2].getWord(0);
+        for (uint k = 0; k < lanes / 2; k++)
+        {
+            if (start + k >= lanes)
+                break;
+            copyBits(value, 2 * k * bits, sources[0], (start + k) * bits, bits);
+            copyBits(value, (2 * k + 1) * bits, sources[1], (start + k) * bits,
+                     bits);
+        }
+        break;
+    }
+    case SemanticOperation::OP_SLIDE:
+    {
+        const uint bits = type.getElementBits();
+        const uint lanes = type.getLanes();
+        const uint64 start = sources[2].getWord(0);
+        for (uint lane = 0; lane < lanes; lane++)
+        {
+            const uint64 index = start + lane;
+            if (index >= 2 * (uint64)lanes)
+                continue;
+            if (index < lanes)
+                copyBits(value, lane * bits, sources[0], (uint)index * bits,
+                         bits);
+            else
+                copyBits(value, lane * bits, sources[1],
+                         (uint)(index - lanes) * bits, bits);
+        }
+        break;
+    }
+    case SemanticOperation::OP_NARROW:
+    {
+        const uint bits = type.getElementBits();
+        if (bits > 64)
+            return EVAL_UNDEFINED;
+        SemanticType sourceType = getSourceType(instruction, 0);
+        uint sourceBits = sourceType.getElementBits();
+        uint sourceLanes = sourceType.getLanes();
+        if (sourceBits <= bits)
+        {
+            // The operand has no type: the elements are twice as wide
+            sourceBits = bits * 2;
+            sourceLanes = type.getLanes() / 2;
+        }
+        if (sourceBits > 64)
+            return EVAL_UNDEFINED;
+        const uint attributes = instruction.getAttributes();
+        for (uint lane = 0; lane < sourceLanes * 2; lane++)
+        {
+            const SemanticValue& source = (lane < sourceLanes) ? sources[0]
+                                                               : sources[1];
+            const uint index = (lane < sourceLanes) ? lane
+                                                    : (lane - sourceLanes);
+            // The source elements are signed numbers
+            int64 v = signExtend(source.getBits(index * sourceBits,
+                                                sourceBits), sourceBits);
+            if ((attributes &
+                 SemanticInstruction::ATTRIBUTE_SATURATE_SIGNED) != 0)
+            {
+                const int64 high = (int64)(maskOf(bits) >> 1);
+                const int64 low = -high - 1;
+                v = (v > high) ? high : ((v < low) ? low : v);
+            } else if ((attributes &
+                        SemanticInstruction::ATTRIBUTE_SATURATE_UNSIGNED) != 0)
+            {
+                const int64 high = (bits >= 63) ? (int64)(maskOf(63))
+                                                : (int64)maskOf(bits);
+                v = (v > high) ? high : ((v < 0) ? 0 : v);
+            }
+            value.setBits(lane * bits, bits, (uint64)v);
+        }
+        break;
+    }
+    case SemanticOperation::OP_PAIRWISE_ADD:
+    {
+        const uint bits = type.getElementBits();
+        if (bits > 64)
+            return EVAL_UNDEFINED;
+        const uint half = type.getLanes() / 2;
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+        {
+            const SemanticValue& source = (lane < half) ? sources[0]
+                                                        : sources[1];
+            const uint j = (lane < half) ? lane : (lane - half);
+            value.setBits(lane * bits, bits,
+                          source.getBits(2 * j * bits, bits) +
+                          source.getBits((2 * j + 1) * bits, bits));
+        }
+        break;
+    }
+    case SemanticOperation::OP_DOT_PRODUCT:
+    {
+        const uint bits = type.getElementBits();
+        if (bits > 64)
+            return EVAL_UNDEFINED;
+        uint sourceBits = getSourceType(instruction, 0).getElementBits();
+        if ((sourceBits >= bits) || (sourceBits < 1))
+            sourceBits = bits / 2;
+        const uint ratio = bits / sourceBits;
+        const SemanticOperation::Behavior behavior = instruction.getBehavior();
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+        {
+            uint64 sum = sources[2].getBits(lane * bits, bits);
+            for (uint j = 0; j < ratio; j++)
+            {
+                const uint offset = (lane * ratio + j) * sourceBits;
+                uint64 a = sources[0].getBits(offset, sourceBits);
+                uint64 b = sources[1].getBits(offset, sourceBits);
+                if (behavior != SemanticOperation::BEHAVIOR_UNSIGNED)
+                {
+                    if (behavior == SemanticOperation::BEHAVIOR_SIGNED)
+                        a = (uint64)signExtend(a, sourceBits);
+                    b = (uint64)signExtend(b, sourceBits);
+                }
+                sum += a * b;
+            }
+            value.setBits(lane * bits, bits, sum);
+        }
+        break;
+    }
+    case SemanticOperation::OP_COMPRESS:
+    case SemanticOperation::OP_EXPAND:
+    {
+        const uint bits = type.getElementBits();
+        uint next = 0;
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+        {
+            if (sources[1].getBits(lane, 1) == 0)
+                continue;
+            if (operation == SemanticOperation::OP_COMPRESS)
+                copyBits(value, next * bits, sources[0], lane * bits, bits);
+            else
+                copyBits(value, lane * bits, sources[0], next * bits, bits);
+            next++;
+        }
+        break;
+    }
+    case SemanticOperation::OP_LANE_INDEX:
+    {
+        const uint bits = type.getElementBits();
+        if (bits > 64)
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+            value.setBits(lane * bits, bits,
+                          sources[0].getWord(0) +
+                          (uint64)lane * sources[1].getWord(0));
+        break;
+    }
+    case SemanticOperation::OP_ACTIVE_LANE_MASK:
+    {
+        uint sourceBits = getSourceType(instruction, 0).getTotalBits();
+        if ((sourceBits < 1) || (sourceBits > 64))
+            sourceBits = 64;
+        const uint64 first = sources[0].getBits(0, sourceBits);
+        const uint64 limit = sources[1].getBits(0, sourceBits);
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+            value.setBits(lane, 1, ((first + lane) < limit) ? 1 : 0);
+        break;
+    }
+    case SemanticOperation::OP_AES_SUB_SHIFT:
+    case SemanticOperation::OP_AES_INVERSE_SUB_SHIFT:
+    case SemanticOperation::OP_AES_MIX_COLUMNS:
+    case SemanticOperation::OP_AES_INVERSE_MIX_COLUMNS:
+        if (totalBits != 128)
+            return EVAL_UNDEFINED;
+        aesStep(sources[0],
+                (operation == SemanticOperation::OP_AES_INVERSE_SUB_SHIFT) ||
+                (operation == SemanticOperation::OP_AES_INVERSE_MIX_COLUMNS),
+                (operation == SemanticOperation::OP_AES_MIX_COLUMNS) ||
+                (operation == SemanticOperation::OP_AES_INVERSE_MIX_COLUMNS),
+                value);
+        break;
+    case SemanticOperation::OP_MASK_COUNT:
+    case SemanticOperation::OP_MASK_FIRST:
+    {
+        const uint lanes = getSourceType(instruction, 0).getTotalBits();
+        uint count = 0;
+        int64 first = -1;
+        for (uint lane = 0; lane < lanes; lane++)
+        {
+            if (sources[0].getBits(lane, 1) == 0)
+                continue;
+            if (first < 0)
+                first = lane;
+            count++;
+        }
+        value.setWord(0, (operation == SemanticOperation::OP_MASK_COUNT) ?
+                                (uint64)count : (uint64)first);
         break;
     }
 
@@ -981,6 +1741,17 @@ uint32 SemanticInterpreter::evaluateFlags(SemanticOperation::FlagRecipe recipe,
                                           const SemanticValue& s1,
                                           const SemanticValue& s2)
 {
+    if ((recipe == SemanticOperation::FLAGS_FLOAT_COMPARE) &&
+        isFloatType(type) &&
+        SemanticFloat::isSupported(type.getFloatFormat()))
+    {
+        // A quiet compare in the default environment
+        uint32 ignored = 0;
+        return floatCompareFlags(SemanticFloat::compare(
+                type.getFloatFormat(), SemanticFloat::Environment(),
+                loadFloat(s0, 0, type.getFloatFormat()),
+                loadFloat(s1, 0, type.getFloatFormat()), false, ignored));
+    }
     const uint n = type.getTotalBits();
     CHECK((n >= 1) && (n <= 64));
     const uint64 mask = maskOf(n);
@@ -1245,6 +2016,107 @@ uint64 SemanticInterpreter::getGuestAddress(uint index) const
     return address;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// Floating point environment
+/////////////////////////////////////////////////////////////////////////////
+
+void SemanticInterpreter::buildFloatEnvironment(
+                            const SemanticInstruction& instruction,
+                            SemanticFloat::Environment& environment) const
+{
+    defaultFloatEnvironment(instruction, environment);
+    FloatEnvironment guest;
+    if (!m_architecture->getFloatEnvironment(instruction.getAttributes(),
+                                             guest))
+        return;
+    const uint64 control = getRegister(guest.m_controlRegister).getWord(0);
+    if (instruction.getRoundingMode() == SemanticOperation::ROUND_DYNAMIC)
+    {
+        if (guest.m_roundingOffset != FloatEnvironment::NO_FIELD)
+            environment.m_rounding = (SemanticOperation::RoundingMode)
+                guest.m_roundingModes[(control >> guest.m_roundingOffset) & 3];
+    }
+    if (guest.m_precisionOffset != FloatEnvironment::NO_FIELD)
+    {
+        const uint field = (uint)((control >> guest.m_precisionOffset) & 3);
+        environment.m_precision = (field == 0) ? 24 : ((field == 2) ? 53 : 64);
+    }
+    if (guest.m_flushToZeroOffset != FloatEnvironment::NO_FIELD)
+        environment.m_flushToZero =
+                ((control >> guest.m_flushToZeroOffset) & 1) != 0;
+    if (guest.m_denormalsAreZeroOffset != FloatEnvironment::NO_FIELD)
+        environment.m_denormalsAreZero =
+                ((control >> guest.m_denormalsAreZeroOffset) & 1) != 0;
+    environment.m_nanRule = guest.m_nanRule;
+    environment.m_isDefaultNanNegative = guest.m_isDefaultNanNegative;
+    // The underflow mask
+    const uint underflow = 4;
+    const bool maskBit =
+        ((control >> guest.m_maskOffsets[underflow]) & 1) != 0;
+    environment.m_isUnderflowUnmasked =
+        (guest.m_trapMode != FloatEnvironment::TRAP_NONE) &&
+        (guest.m_isMaskSetDisabled ? !maskBit : maskBit);
+}
+
+SemanticInterpreter::FloatCommit SemanticInterpreter::commitFloatFlags(
+                            const SemanticInstruction& instruction,
+                            uint32 flags, uint index)
+{
+    FloatEnvironment guest;
+    if (((instruction.getAttributes() &
+          SemanticInstruction::ATTRIBUTE_FLOAT_EXCEPTIONS) == 0) ||
+        (flags == 0) ||
+        !m_architecture->getFloatEnvironment(instruction.getAttributes(),
+                                             guest))
+        return FLOAT_COMMIT_OK;
+
+    SemanticValue status = getRegister(guest.m_statusRegister);
+    const uint64 control = getRegister(guest.m_controlRegister).getWord(0);
+    uint32 unmasked = 0;
+    for (uint i = 0; i < SemanticFloatFlags::FLOAT_FLAGS_COUNT; i++)
+    {
+        if ((flags & ((uint32)1 << i)) == 0)
+            continue;
+        status.setBits(guest.m_flagOffsets[i], 1, 1);
+        const bool maskBit = ((control >> guest.m_maskOffsets[i]) & 1) != 0;
+        const bool isMasked = guest.m_isMaskSetDisabled ? maskBit : !maskBit;
+        if (!isMasked)
+            unmasked |= (uint32)1 << i;
+    }
+    if ((unmasked != 0) && (guest.m_trapMode == FloatEnvironment::TRAP_DEFERRED))
+    {
+        if (guest.m_summaryOffset != FloatEnvironment::NO_FIELD)
+            status.setBits(guest.m_summaryOffset, 1, 1);
+        if (guest.m_busyOffset != FloatEnvironment::NO_FIELD)
+            status.setBits(guest.m_busyOffset, 1, 1);
+    }
+    setRegister(guest.m_statusRegister, status);
+    if (unmasked == 0)
+        return FLOAT_COMMIT_OK;
+    if (guest.m_trapMode == FloatEnvironment::TRAP_IMMEDIATE)
+    {
+        m_trapKind = SemanticOperation::TRAP_FAULT;
+        m_trapNumber = guest.m_trapNumber;
+        m_nextAddress = getGuestAddress(index);
+        return FLOAT_COMMIT_TRAP;
+    }
+    if (guest.m_trapMode == FloatEnvironment::TRAP_DEFERRED)
+    {
+        // x87: the invalid operation, denormal operand and zero divide
+        // exceptions are faults, the instruction doesn't write its result. The
+        // overflow, underflow and precision exceptions are traps: the result
+        // is written (the masked response, not the scaled result of the
+        // processor for an unmasked overflow or underflow)
+        const uint32 faults = SemanticFloatFlags::FLOAT_INVALID |
+                              SemanticFloatFlags::FLOAT_DENORMAL |
+                              SemanticFloatFlags::FLOAT_DIVIDE_BY_ZERO;
+        if ((unmasked & faults) != 0)
+            return FLOAT_COMMIT_SUPPRESS;
+    }
+    return FLOAT_COMMIT_OK;
+}
+
+
 SemanticInterpreter::ExitReason SemanticInterpreter::run(
                                             const SemanticBlock& block,
                                             uint maxSteps)
@@ -1462,6 +2334,78 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
             break;
         }
 
+        case SemanticOperation::OP_LOAD_MASKED:
+        case SemanticOperation::OP_STORE_MASKED:
+        {
+            // The lanes of the mask are accessed, the others don't fault
+            const bool isLoad =
+                        (operation == SemanticOperation::OP_LOAD_MASKED);
+            const uint64 address = read(instruction.getSource(0)).getWord(0);
+            const SemanticType vectorType = isLoad ?
+                    ((instruction.getType().isVoid()) ?
+                        destination.getType() : instruction.getType()) :
+                    getSourceType(instruction, 1);
+            const SemanticValue mask =
+                    read(instruction.getSource(isLoad ? 1 : 2));
+            const SemanticValue stored = isLoad ? SemanticValue() :
+                                         read(instruction.getSource(1));
+            const uint laneBits = vectorType.getElementBits();
+            CHECK((laneBits >= 8) && ((laneBits % 8) == 0));
+            const uint laneBytes = laneBits / 8;
+            SemanticValue loaded;
+            // The old bytes of the written lanes, to undo a partial store
+            cList<uint> written;
+            cArray<SemanticValue> olds(vectorType.getLanes());
+            bool isFailed = false;
+            uint64 failedAddress = address;
+            for (uint lane = 0; (lane < vectorType.getLanes()) && !isFailed;
+                 lane++)
+            {
+                if (mask.getBits(lane, 1) == 0)
+                    continue;
+                const uint64 laneAddress = address + (uint64)lane * laneBytes;
+                SemanticValue old;
+                if (!readMemory(m_memory, isLittleEndian, laneAddress,
+                                laneBits, old))
+                {
+                    isFailed = true;
+                    failedAddress = laneAddress;
+                    break;
+                }
+                if (isLoad)
+                {
+                    copyBits(loaded, lane * laneBits, old, 0, laneBits);
+                    continue;
+                }
+                SemanticValue laneValue;
+                copyBits(laneValue, 0, stored, lane * laneBits, laneBits);
+                if (!writeMemory(m_memory, isLittleEndian, laneAddress,
+                                 laneBits, laneValue))
+                {
+                    isFailed = true;
+                    failedAddress = laneAddress;
+                    break;
+                }
+                olds[lane] = old;
+                written.append(lane);
+            }
+            if (isFailed)
+            {
+                // Undo the lanes already written
+                for (cList<uint>::iterator i = written.begin();
+                     i != written.end(); i++)
+                    writeMemory(m_memory, isLittleEndian,
+                                address + (uint64)(*i) * laneBytes, laneBits,
+                                olds[*i]);
+                m_faultAddress = failedAddress;
+                m_nextAddress = getGuestAddress(index);
+                return EXIT_MEMORY_FAULT;
+            }
+            if (isLoad && destination.isValid())
+                write(destination, loaded, attributes);
+            break;
+        }
+
         //////////////////////////////////////////////////////////////////
         // Flags and system registers
         //////////////////////////////////////////////////////////////////
@@ -1470,9 +2414,15 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
             const SemanticOperation::FlagRecipe recipe =
                                                 instruction.getFlagRecipe();
             const uint bits = instruction.getType().getTotalBits();
-            if ((recipe == SemanticOperation::FLAGS_FLOAT_COMPARE) ||
-                (recipe == SemanticOperation::FLAGS_PREDICATE_TEST) ||
-                (bits < 1) || (bits > 64))
+            const bool isFloatCompare =
+                (recipe == SemanticOperation::FLAGS_FLOAT_COMPARE) &&
+                isFloatType(instruction.getType()) &&
+                SemanticFloat::isSupported(
+                            instruction.getType().getFloatFormat());
+            if (!isFloatCompare &&
+                ((recipe == SemanticOperation::FLAGS_FLOAT_COMPARE) ||
+                 (recipe == SemanticOperation::FLAGS_PREDICATE_TEST) ||
+                 (bits < 1) || (bits > 64)))
             {
                 m_nextAddress = getGuestAddress(index);
                 return EXIT_UNDEFINED;
@@ -1484,6 +2434,28 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
             {
                 // The condition of a conditional compare failed
                 flags = instruction.getFalseFlags();
+            } else if (isFloatCompare)
+            {
+                // Kind 1: a signaling compare (comisd, fcomi) raises
+                // FLOAT_INVALID for a quiet NaN too
+                SemanticFloat::Environment environment;
+                buildFloatEnvironment(instruction, environment);
+                uint32 floatFlags = 0;
+                const SemanticType::FloatFormat format =
+                                    instruction.getType().getFloatFormat();
+                flags = floatCompareFlags(SemanticFloat::compare(
+                    format, environment,
+                    loadFloat(read(instruction.getSource(0)), 0, format),
+                    loadFloat(read(instruction.getSource(1)), 0, format),
+                    instruction.getKind() ==
+                        SemanticOperation::FLOAT_COMPARE_SIGNALING,
+                    floatFlags));
+                const FloatCommit commit = commitFloatFlags(
+                                        instruction, floatFlags, index);
+                if (commit == FLOAT_COMMIT_TRAP)
+                    return EXIT_TRAP;
+                if (commit == FLOAT_COMMIT_SUPPRESS)
+                    break;
             } else
             {
                 flags = evaluateFlags(recipe, instruction.getType(),
@@ -1525,6 +2497,29 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
             setRegister((uint)instruction.getSource(0).getValue(),
                         read(instruction.getSource(1)));
             break;
+        case SemanticOperation::OP_READ_REGISTER_INDEXED:
+        {
+            // register (s0 + (s1 mod s2))
+            const uint count = (uint)read(instruction.getSource(2)).getWord(0);
+            CHECK(count != 0);
+            const uint index =
+                (uint)(read(instruction.getSource(1)).getWord(0) % count);
+            write(destination,
+                  getRegister(instruction.getSource(0).getIndex() + index),
+                  attributes);
+            break;
+        }
+        case SemanticOperation::OP_WRITE_REGISTER_INDEXED:
+        {
+            // register (d + (s0 mod s1)) = s2
+            const uint count = (uint)read(instruction.getSource(1)).getWord(0);
+            CHECK(count != 0);
+            const uint index =
+                (uint)(read(instruction.getSource(0)).getWord(0) % count);
+            setRegister(destination.getIndex() + index,
+                        read(instruction.getSource(2)));
+            break;
+        }
 
         //////////////////////////////////////////////////////////////////
         // The operations which compute a value
@@ -1538,8 +2533,12 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
                 sources[i] = read(instruction.getSource(i));
 
             SemanticValue result;
-            const EvalStatus status =
-                            evaluateOperation(instruction, sources, result);
+            FloatContext floatContext;
+            const bool isFloat = usesFloat(instruction);
+            if (isFloat)
+                buildFloatEnvironment(instruction, floatContext.m_env);
+            const EvalStatus status = evaluateOperation(instruction, sources,
+                        result, isFloat ? &floatContext : NULL);
             if (status == EVAL_FAULT)
             {
                 // The divide error exception
@@ -1552,6 +2551,19 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
             {
                 m_nextAddress = getGuestAddress(index);
                 return EXIT_UNDEFINED;
+            }
+            if (isFloat)
+            {
+                if ((attributes & SemanticInstruction::ATTRIBUTE_IGNORE_DENORMAL)
+                    != 0)
+                    floatContext.m_flags &= ~(uint32)
+                                SemanticFloatFlags::FLOAT_DENORMAL;
+                const FloatCommit commit = commitFloatFlags(
+                                instruction, floatContext.m_flags, index);
+                if (commit == FLOAT_COMMIT_TRAP)
+                    return EXIT_TRAP;
+                if (commit == FLOAT_COMMIT_SUPPRESS)
+                    break;
             }
             if (SemanticOperation::hasDestination(operation) &&
                 destination.isValid())

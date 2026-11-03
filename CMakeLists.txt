@@ -63,6 +63,7 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/semantics/SemanticBlock.cpp
 	Source/dismount/semantics/OpcodeClassification.cpp
 	Source/dismount/semantics/ArchitectureDescription.cpp
+	Source/dismount/semantics/SemanticFloat.cpp
 	Source/dismount/semantics/SemanticInterpreter.cpp
 	Source/dismount/semantics/SemanticLifter.cpp
 	Source/dismount/proc/ia32/IA32Architecture.cpp
@@ -115,6 +116,7 @@ if(DISMOUNT_BUILD_TESTS)
 	add_executable(test_dismount
 		tests/TestIA32AssemblerDisassembler.cpp
 		tests/TestSemantics.cpp
+		tests/TestSemanticFloat.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)
 	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
 endif()

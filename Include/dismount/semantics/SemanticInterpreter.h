@@ -18,6 +18,7 @@
 #include "dismount/semantics/SemanticInstruction.h"
 #include "dismount/semantics/SemanticBlock.h"
 #include "dismount/semantics/ArchitectureDescription.h"
+#include "dismount/semantics/SemanticFloat.h"
 
 /*
  * A value of the interpreter: up to MAX_BITS bits, stored as little endian
@@ -233,6 +234,30 @@ public:
                                   uint32 flags);
 
 private:
+    // What commitFloatFlags() decided
+    enum FloatCommit {
+        // Write the result
+        FLOAT_COMMIT_OK,
+        // An unmasked exception with a deferred trap (x87): don't write
+        FLOAT_COMMIT_SUPPRESS,
+        // An unmasked exception which traps now: EXIT_TRAP
+        FLOAT_COMMIT_TRAP
+    };
+
+    // Build the floating point environment of an instruction: the rounding
+    // mode, the precision control, FTZ and DAZ come from the guest control
+    // register for ROUND_DYNAMIC
+    void buildFloatEnvironment(const SemanticInstruction& instruction,
+                               SemanticFloat::Environment& environment) const;
+    /*
+     * Record the exceptions an operation raised (with
+     * ATTRIBUTE_FLOAT_EXCEPTIONS) in the status register, and trap on an
+     * unmasked one. For FLOAT_COMMIT_TRAP the trap is set up, with the
+     * address of the instruction at 'index'
+     */
+    FloatCommit commitFloatFlags(const SemanticInstruction& instruction,
+                                 uint32 flags, uint index);
+
     // Execute from instruction 'index' of m_block
     ExitReason execute(uint index);
     // Read an operand
