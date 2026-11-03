@@ -92,15 +92,6 @@
 // {"ud0", 0xFF, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_WORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 //  [base]           0F FF /r               UD0 r32, r/m32
 // {"ud0", 0xFF, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-// ---- [i386] ----
-//  [i386]           0F B4 /r               LFS r16, m16
-// {"lfs", 0xB4, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_WORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [i386]           0F B4 /r               LFS r32, m32
-// {"lfs", 0xB4, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [i386]           0F B5 /r               LGS r16, m16
-// {"lgs", 0xB5, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_WORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [i386]           0F B5 /r               LGS r32, m32
-// {"lgs", 0xB5, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 // ---- [i486] ----
 //  [i486]           0F 08                  INVD
 // {"invd", 0x08, 0xFF, OPND_NO_OPERAND, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
@@ -242,100 +233,6 @@
 //  [mmx]            0F 52 /r               PMAGW mm, mm/m64
 // {"pmagw", 0x52, 0xFF, OPND_MMX_MODRM, OPND_MMX_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 // ---- [sse] ----
-//  [sse]            F3 0F 10 /r            MOVSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 10 /r               MOVUPS xmm, xmm/m128
-// {"movups", 0x10, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 11 /r            MOVSS xmm/m32, xmm
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 11 /r               MOVUPS xmm/m128, xmm
-// {"movups", 0x11, 0xFF, OPND_SIMD_RM, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 12 /r               MOVHLPS xmm, xmm
-// {"movhlps", 0x12, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 12 /r               MOVLPS xmm, m64
-// {"movlps", 0x12, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 13 /r               MOVLPS m64, xmm
-// {"movlps", 0x13, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 14 /r               UNPCKLPS xmm, xmm/m128
-// {"unpcklps", 0x14, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 15 /r               UNPCKHPS xmm, xmm/m128
-// {"unpckhps", 0x15, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 16 /r               MOVHPS xmm, m64
-// {"movhps", 0x16, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 16 /r               MOVLHPS xmm, xmm
-// {"movlhps", 0x16, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 17 /r               MOVHPS m64, xmm
-// {"movhps", 0x17, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 18 /1               PREFETCHT0 m8
-// {"prefetcht0", 0x18, 0xFF, OPND_MODRM_BYTEPTR, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_001, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 18 /2               PREFETCHT1 m8
-// {"prefetcht1", 0x18, 0xFF, OPND_MODRM_BYTEPTR, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_010, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 18 /3               PREFETCHT2 m8
-// {"prefetcht2", 0x18, 0xFF, OPND_MODRM_BYTEPTR, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 2A /r               CVTPI2PS xmm, mm/m64
-// {"cvtpi2ps", 0x2A, 0xFF, OPND_SIMD_MODRM, OPND_MMX_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 2A /r            CVTSI2SS xmm, r/m32
-// {"cvtsi2ss", 0x2A, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse]            0F 2C /r               CVTTPS2PI mm, xmm/m64
-// {"cvttps2pi", 0x2C, 0xFF, OPND_MMX_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 2C /r            CVTTSS2SI r32, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 2D /r               CVTPS2PI mm, xmm/m64
-// {"cvtps2pi", 0x2D, 0xFF, OPND_MMX_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 2D /r            CVTSS2SI r32, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 2E /r               UCOMISS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 2F /r               COMISS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 37                  GETSEC
-// {"getsec", 0x37, 0xFF, OPND_NO_OPERAND, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_NO_MODRM, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 50 /r               MOVMSKPS r32, xmm
-// {"movmskps", 0x50, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 51 /r               SQRTPS xmm, xmm/m128
-// {"sqrtps", 0x51, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 51 /r            SQRTSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 52 /r               RSQRTPS xmm, xmm/m128
-// {"rsqrtps", 0x52, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 52 /r            RSQRTSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 53 /r               RCPPS xmm, xmm/m128
-// {"rcpps", 0x53, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 53 /r            RCPSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 54 /r               ANDPS xmm, xmm/m128
-// {"andps", 0x54, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 55 /r               ANDNPS xmm, xmm/m128
-// {"andnps", 0x55, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 56 /r               ORPS xmm, xmm/m128
-// {"orps", 0x56, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F 58 /r               ADDPS xmm, xmm/m128
-// {"addps", 0x58, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 58 /r            ADDSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 59 /r               MULPS xmm, xmm/m128
-// {"mulps", 0x59, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 59 /r            MULSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 5C /r               SUBPS xmm, xmm/m128
-// {"subps", 0x5C, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 5C /r            SUBSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 5D /r               MINPS xmm, xmm/m128
-// {"minps", 0x5D, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 5D /r            MINSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 5E /r               DIVPS xmm, xmm/m128
-// {"divps", 0x5E, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 5E /r            DIVSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 5F /r               MAXPS xmm, xmm/m128
-// {"maxps", 0x5F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F 5F /r            MAXSS xmm, xmm/m32
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F 70 /r               PSHUFW mm, mm/m64, imm
-// {"pshufw", 0x70, 0xFF, OPND_MMX_MODRM, OPND_MMX_RM, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 //  [sse]            0F C2 /r               CMPEQPS xmm, xmm/m128
 // {"cmpeqps", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 //  [sse]            F3 0F C2 /r            CMPEQSS xmm, xmm/m32
@@ -364,143 +261,11 @@
 // {"cmpordps", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 //  [sse]            F3 0F C2 /r            CMPORDSS xmm, xmm/m32
 //      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F C2 /r               CMPPS xmm, xmm/m128, imm8
-// {"cmpps", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            F3 0F C2 /r            CMPSS xmm, xmm/m32, imm8
-//      needs operand type: scalar xmm/m32 operand (no OperandType yet)
 //  [sse]            0F C2 /r               CMPUNORDPS xmm, xmm/m128
 // {"cmpunordps", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 //  [sse]            F3 0F C2 /r            CMPUNORDSS xmm, xmm/m32
 //      needs operand type: scalar xmm/m32 operand (no OperandType yet)
-//  [sse]            0F C4 /r               PINSRW mm, m, imm
-// {"pinsrw", 0xC4, 0xFF, OPND_MMX_MODRM, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F C4 /r               PINSRW mm, r/m16, imm
-// {"pinsrw", 0xC4, 0xFF, OPND_MMX_MODRM, OPND_MODRM_WORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F C5 /r               PEXTRW r32, mm, imm
-// {"pextrw", 0xC5, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F C6 /r               SHUFPS xmm, xmm/m128, imm8
-// {"shufps", 0xC6, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F D7 /r               PMOVMSKB r32, mm
-// {"pmovmskb", 0xD7, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F E7 /r               MOVNTQ m, mm
-// {"movntq", 0xE7, 0xFF, OPND_MODRM_dWORDPTR, OPND_MMX_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse]            0F F7 /r               MASKMOVQ mm, mm
-// {"maskmovq", 0xF7, 0xFF, OPND_MMX_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
 // ---- [sse2] ----
-//  [sse2]           66 0F 10 /r            MOVUPD xmm, xmm/m128
-// {"movupd", 0x10, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 11 /r            MOVUPD xmm/m128, xmm
-// {"movupd", 0x11, 0xFF, OPND_SIMD_RM, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 12 /r            MOVLPD xmm, m64
-// {"movlpd", 0x12, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 13 /r            MOVLPD m64, xmm
-// {"movlpd", 0x13, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 14 /r            UNPCKLPD xmm, xmm/m128
-// {"unpcklpd", 0x14, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 15 /r            UNPCKHPD xmm, xmm/m128
-// {"unpckhpd", 0x15, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 16 /r            MOVHPD xmm, m64
-// {"movhpd", 0x16, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 17 /r            MOVHPD m64, xmm
-// {"movhpd", 0x17, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 28 /r            MOVAPD xmm, xmm/m128
-// {"movapd", 0x28, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 29 /r            MOVAPD xmm/m128, xmm
-// {"movapd", 0x29, 0xFF, OPND_SIMD_RM, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 2A /r            CVTPI2PD xmm, mm/m64
-// {"cvtpi2pd", 0x2A, 0xFF, OPND_SIMD_MODRM, OPND_MMX_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 2A /r            CVTSI2SD xmm, r/m32
-// {"cvtsi2sd", 0x2A, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 2B /r            MOVNTPD m, xmm
-// {"movntpd", 0x2B, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 2C /r            CVTTPD2PI mm, xmm/m128
-// {"cvttpd2pi", 0x2C, 0xFF, OPND_MMX_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 2C /r            CVTTSD2SI r32, xmm/m64
-// {"cvttsd2si", 0x2C, 0xFF, OPND_GP_16_32BIT, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 2D /r            CVTPD2PI mm, xmm/m128
-// {"cvtpd2pi", 0x2D, 0xFF, OPND_MMX_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 2D /r            CVTSD2SI r32, xmm/m64
-// {"cvtsd2si", 0x2D, 0xFF, OPND_GP_16_32BIT, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 2E /r            UCOMISD xmm, xmm/m64
-// {"ucomisd", 0x2E, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 2F /r            COMISD xmm, xmm/m64
-// {"comisd", 0x2F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 50 /r            MOVMSKPD r32, xmm
-// {"movmskpd", 0x50, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 51 /r            SQRTPD xmm, xmm/m128
-// {"sqrtpd", 0x51, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 51 /r            SQRTSD xmm, xmm/m64
-// {"sqrtsd", 0x51, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 54 /r            ANDPD xmm, xmm/m128
-// {"andpd", 0x54, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 55 /r            ANDNPD xmm, xmm/m128
-// {"andnpd", 0x55, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 56 /r            ORPD xmm, xmm/m128
-// {"orpd", 0x56, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 57 /r            XORPD xmm, xmm/m128
-// {"xorpd", 0x57, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 58 /r            ADDPD xmm, xmm/m128
-// {"addpd", 0x58, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 58 /r            ADDSD xmm, xmm/m128
-// {"addsd", 0x58, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 59 /r            MULPD xmm, xmm/m128
-// {"mulpd", 0x59, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 59 /r            MULSD xmm, xmm/m64
-// {"mulsd", 0x59, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 5A /r            CVTPD2PS xmm, xmm/m128
-// {"cvtpd2ps", 0x5A, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           0F 5A /r               CVTPS2PD xmm, xmm/m128
-// {"cvtps2pd", 0x5A, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse2]           F2 0F 5A /r            CVTSD2SS xmm, xmm/m64
-// {"cvtsd2ss", 0x5A, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           F3 0F 5A /r            CVTSS2SD xmm, xmm/m128
-// {"cvtss2sd", 0x5A, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           0F 5B /r               CVTDQ2PS xmm, xmm/m128
-// {"cvtdq2ps", 0x5B, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER},
-//  [sse2]           66 0F 5B /r            CVTPS2DQ xmm, xmm/m128
-// {"cvtps2dq", 0x5B, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F3 0F 5B /r            CVTTPS2DQ xmm, xmm/m128
-// {"cvttps2dq", 0x5B, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           66 0F 5C /r            SUBPD xmm, xmm/m128
-// {"subpd", 0x5C, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 5C /r            SUBSD xmm, xmm/m64
-// {"subsd", 0x5C, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM_QWORD, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 5D /r            MINPD xmm, xmm/m128
-// {"minpd", 0x5D, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 5D /r            MINSD xmm, xmm/m128
-// {"minsd", 0x5D, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 5E /r            DIVPD xmm, xmm/m128
-// {"divpd", 0x5E, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 5E /r            DIVSD xmm, xmm/m128
-// {"divsd", 0x5E, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 5F /r            MAXPD xmm, xmm/m128
-// {"maxpd", 0x5F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F 5F /r            MAXSD xmm, xmm/m128
-// {"maxsd", 0x5F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 6C /r            PUNPCKLQDQ xmm, xmm/m128
-// {"punpcklqdq", 0x6C, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 6D /r            PUNPCKHQDQ xmm, xmm/m128
-// {"punpckhqdq", 0x6D, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 6F /r            MOVDQA xmm, xmm/m128
-// {"movdqa", 0x6F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F3 0F 6F /r            MOVDQU xmm, xmm/m128
-// {"movdqu", 0x6F, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           66 0F 70 /r            PSHUFD xmm, xmm, imm
-// {"pshufd", 0x70, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F3 0F 70 /r            PSHUFHW xmm, xmm, imm
-// {"pshufhw", 0x70, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           F2 0F 70 /r            PSHUFLW xmm, xmm, imm
-// {"pshuflw", 0x70, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F 73 /3            PSRLDQ xmm, imm
-// {"psrldq", 0x73, 0xFF, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_011, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 73 /7            PSLLDQ xmm, imm
-// {"pslldq", 0x73, 0xFF, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F 7F /r            MOVDQA xmm/m128, xmm
-// {"movdqa", 0x7F, 0xFF, OPND_SIMD_RM, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F3 0F 7F /r            MOVDQU xmm/m128, xmm
-// {"movdqu", 0x7F, 0xFF, OPND_SIMD_RM, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           0F AE /7               CLFLUSH m
-// {"clflush", 0xAE, 0xFF, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, OPND_NO_OPERAND, MODRM_MOD_MEM11 | MODRM_MOD_111, true, Opcode::FLOW_NO_ALTER},
 //  [sse2]           66 0F C2 /r            CMPEQPD xmm, xmm/m128
 // {"cmpeqpd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
 //  [sse2]           F2 0F C2 /r            CMPEQSD xmm, xmm/m128
@@ -529,36 +294,10 @@
 // {"cmpordpd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
 //  [sse2]           F2 0F C2 /r            CMPORDSD xmm, xmm/m128
 // {"cmpordsd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F C2 /r            CMPPD xmm, xmm/m128, imm8
-// {"cmppd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
 //  [sse2]           66 0F C2 /r            CMPUNORDPD xmm, xmm/m128
 // {"cmpunordpd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
 //  [sse2]           F2 0F C2 /r            CMPUNORDSD xmm, xmm/m128
 // {"cmpunordsd", 0xC2, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F C4 /r            PINSRW xmm, r16, imm
-// {"pinsrw", 0xC4, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_WORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F C4 /r            PINSRW xmm, m, imm
-// {"pinsrw", 0xC4, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F C5 /r            PEXTRW r32, xmm, imm
-// {"pextrw", 0xC5, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_IMMEDIATE_DS, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F C6 /r            SHUFPD xmm, xmm/m128, imm8
-// {"shufpd", 0xC6, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F2 0F D6 /r            MOVDQ2Q mm, xmm
-// {"movdq2q", 0xD6, 0xFF, OPND_MMX_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           F3 0F D6 /r            MOVQ2DQ xmm, mm
-// {"movq2dq", 0xD6, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           66 0F D7 /r            PMOVMSKB r32, xmm
-// {"pmovmskb", 0xD7, 0xFF, OPND_GP_16_32BIT, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           F3 0F E6 /r            CVTDQ2PD xmm, xmm/m128
-// {"cvtdq2pd", 0xE6, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F3},
-//  [sse2]           F2 0F E6 /r            CVTPD2DQ xmm, xmm/m128
-// {"cvtpd2dq", 0xE6, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_F2},
-//  [sse2]           66 0F E6 /r            CVTTPD2DQ xmm, xmm/m128
-// {"cvttpd2dq", 0xE6, 0xFF, OPND_SIMD_MODRM, OPND_SIMD_RM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F E7 /r            MOVNTDQ m, xmm
-// {"movntdq", 0xE7, 0xFF, OPND_MODRM_dWORDPTR, OPND_SIMD_MODRM, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
-//  [sse2]           66 0F F7 /r            MASKMOVDQU xmm, xmm
-// {"maskmovdqu", 0xF7, 0xFF, OPND_SIMD_MODRM, OPND_MODRM_dWORDPTR, OPND_NO_OPERAND, MODRM_ALL_FILTER, true, Opcode::FLOW_NO_ALTER, MANDATORY_66},
 // ---- [pni] ----
 //  [pni]            0F 01 C8               MONITOR
 //      needs exact fixed ModRM/immediate byte match C8
@@ -924,12 +663,6 @@
 //  [sse4_2]  F2 0F 38 F1 /r                     CRC32 r32, r/m32
 //  [sse4_2]  F2 0F 38 F1 /r                     CRC32 r64, r/m16
 //  [sse4_2]  F2 0F 38 F1 /r                     CRC32 r64, r/m32
-// ---- [aes] ----
-//  [aes]  66 0F 38 DB /r                     AESIMC xmm, xmm/m128
-//  [aes]  66 0F 38 DC /r                     AESENC xmm, xmm/m128
-//  [aes]  66 0F 38 DD /r                     AESENCLAST xmm, xmm/m128
-//  [aes]  66 0F 38 DE /r                     AESDEC xmm, xmm/m128
-//  [aes]  66 0F 38 DF /r                     AESDECLAST xmm, xmm/m128
 // ---- [sha_ni] ----
 //  [sha_ni]  0F 38 C8 /r                        SHA1NEXTE xmm, xmm/m128
 //  [sha_ni]  0F 38 C9 /r                        SHA1MSG1 xmm, xmm/m128
@@ -1021,9 +754,6 @@
 //  [aes]  66 0F 3A 44 /r                     PCLMULHQLQDQ xmm, xmm/m128
 //  [aes]  66 0F 3A 44 /r                     PCLMULLQHQDQ xmm, xmm/m128
 //  [aes]  66 0F 3A 44 /r                     PCLMULLQLQDQ xmm, xmm/m128
-//  [aes]  66 0F 3A DF /r                     AESKEYGENASSIST xmm, xmm/m128, imm8
-// ---- [pclmulqdq] ----
-//  [pclmulqdq]  66 0F 3A 44 /r                     PCLMULQDQ xmm, xmm/m128, imm8
 // ---- [sha_ni] ----
 //  [sha_ni]  0F 3A CC /r                        SHA1RNDS4 xmm, xmm/m128, imm8
 // ---- [gfni] ----

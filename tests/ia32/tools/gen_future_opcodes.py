@@ -200,6 +200,7 @@ MODRM_NAMES = {
     "MODRM_MOD_010": 16, "MODRM_MOD_011": 32, "MODRM_MOD_100": 64,
     "MODRM_MOD_101": 128, "MODRM_MOD_110": 256, "MODRM_MOD_111": 512,
     "MODRM_ALL_FILTER": 0xFFFF,
+    "MODRM_MEMORY_ONLY": 0xFFFD, "MODRM_REGISTERS_ONLY": 0xFFFE,
 }
 MODRM_DIGIT_BIT = {d: (4 << d) for d in range(8)}
 
@@ -681,7 +682,7 @@ def name_ok(table_name, mnem):
 
 def implemented(form, tables):
     """True when dismount's tables already decode this form."""
-    if form["kind"] or form["map"] in ("0F38", "0F3A"):
+    if form["kind"]:
         return False
     tail = form["tail"]
     op = form["op"]
@@ -699,8 +700,10 @@ def implemented(form, tables):
         if tail[0] == "d":
             return any(e.modrm & MODRM_DIGIT_BIT[tail[1]] or e.modrm == 0xFFFF for e in ents)
         return True  # fixed trailing byte in the one-byte map (e.g. AAM): accept
-    if form["map"] == "0F":
-        ents = [e for e in tables["gIa32TwoBytesOpcodeTable"] if not e.invalid and covers_byte(e, op)
+    if form["map"] in ("0F", "0F38", "0F3A"):
+        two = {"0F": "gIa32TwoBytesOpcodeTable", "0F38": "gIa32ThreeBytes38OpcodeTable",
+               "0F3A": "gIa32ThreeBytes3AOpcodeTable"}[form["map"]]
+        ents = [e for e in tables[two] if not e.invalid and covers_byte(e, op)
                 and name_ok(e.name, form["mnem"]) and e.mandatory == want_mandatory]
         if not ents:
             return False

@@ -259,6 +259,15 @@ typedef enum {
     // The operand is encode at the modrm bytes, an SSE register or a qword
     // memory reference (movq, movsd)
     OPND_SIMD_RM_QWORD,
+    // The operand is encode at the modrm bytes, an SSE register or a dword
+    // memory reference (movss, addss)
+    OPND_SIMD_RM_DWORD,
+    // The operand is a 32 bit register stored at modrm reg/opcode (cvttss2si,
+    // pextrw, movmskps), regardless of the operand-size prefix
+    OPND_GP_32BIT_MODRM,
+    // The operand is encode at the modrm bytes, a 32 bit register or a word
+    // memory reference (pinsrw)
+    OPND_MODRM_R32_WORDPTR,
 
     // The operand is ST(0), the top of the FPU stack
     OPND_FPU_ST0,
@@ -296,6 +305,10 @@ typedef enum {
 
     // Indicate that the opcode is valid for all possible combinations..
     MODRM_ALL_FILTER    = 0xFFFF,
+    // Indicate that the opcode is valid only for a memory reference (movntps)
+    // or only for registers (movmskps)
+    MODRM_MEMORY_ONLY   = MODRM_ALL_FILTER & ~MODRM_MOD_REGISTERS,
+    MODRM_REGISTERS_ONLY = MODRM_ALL_FILTER & ~MODRM_MOD_MEMORY,
 
     // Indicate that only the modrm byte at bits 16..23 is valid (FPU opcodes
     // such as fchs, D9 E0). See MODRM_EXACT
@@ -383,8 +396,14 @@ extern const OpcodeEntry gIa32OneByteOpcodeTable[];
 extern const OpcodeEntry gIa32TwoBytesOpcodeTable[];
 // FPU opcode table
 extern const OpcodeEntry gIa32FPUOpcodeTable[];
+// Three-bytes opcode tables, 0F 38 xx and 0F 3A xx
+extern const OpcodeEntry gIa32ThreeBytes38OpcodeTable[];
+extern const OpcodeEntry gIa32ThreeBytes3AOpcodeTable[];
 // Two-bytes opcode escape
 extern const uint8 gIa32TwoByteEscapeCharacter;
+// Three-bytes opcode escapes, the byte which follows the two-bytes escape
+extern const uint8 gIa32ThreeBytes38EscapeCharacter;
+extern const uint8 gIa32ThreeBytes3AEscapeCharacter;
 // FPU opcode escape range
 extern const uint8 gIa32FPUStartEscapeCharacter;
 extern const uint8 gIa32FPUEndEscapeCharacter;

@@ -125,6 +125,18 @@ OpcodePtr IA32StreamDisassembler::next()
             m_stream->streamReadUint8(nextByte);
             appendByte(nextByte);
             opcodeLength = 2;
+            // The three-bytes opcodes: 0F 38 xx and 0F 3A xx
+            if ((nextByte == ia32dis::gIa32ThreeBytes38EscapeCharacter) ||
+                (nextByte == ia32dis::gIa32ThreeBytes3AEscapeCharacter))
+            {
+                table = (nextByte == ia32dis::gIa32ThreeBytes38EscapeCharacter) ?
+                    ia32dis::gIa32ThreeBytes38OpcodeTable :
+                    ia32dis::gIa32ThreeBytes3AOpcodeTable;
+                testEOS();
+                m_stream->streamReadUint8(nextByte);
+                appendByte(nextByte);
+                opcodeLength = 3;
+            }
         }
         // Scan FPU opcode table
         else if ((nextByte >= ia32dis::gIa32FPUStartEscapeCharacter) &&

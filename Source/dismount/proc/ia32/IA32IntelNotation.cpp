@@ -550,10 +550,20 @@ cString IA32IntelNotation::stringOperand(ia32dis::OperandType type) const
         return cString("qword ptr ") + getModrmString(ia32dis::OPND_MODRM_MEM);
     case ia32dis::OPND_SIMD_RM:
     case ia32dis::OPND_SIMD_RM_QWORD:
+    case ia32dis::OPND_SIMD_RM_DWORD:
         if (m_opcode->m_modrm.m_bits.m_mod == 3)
             return ia32dis::gIa32SIMDRegisters[m_opcode->m_modrm.m_bits.m_rm].m_name;
-        return cString((type == ia32dis::OPND_SIMD_RM) ? "oword ptr " : "qword ptr ") +
+        return cString((type == ia32dis::OPND_SIMD_RM) ? "oword ptr " :
+                       (type == ia32dis::OPND_SIMD_RM_QWORD) ? "qword ptr " :
+                                                               "dword ptr ") +
                getModrmString(ia32dis::OPND_MODRM_MEM);
+    case ia32dis::OPND_GP_32BIT_MODRM:
+        return ia32dis::gIa32Registers[m_opcode->m_modrm.m_bits.m_regOpcode].
+            m_name;
+    case ia32dis::OPND_MODRM_R32_WORDPTR:
+        if (m_opcode->m_modrm.m_bits.m_mod == 3)
+            return ia32dis::gIa32Registers[m_opcode->m_modrm.m_bits.m_rm].m_name;
+        return cString("word ptr ") + getModrmString(ia32dis::OPND_MODRM_MEM);
 
     case ia32dis::OPND_FPU_ST0:
         return "st0";

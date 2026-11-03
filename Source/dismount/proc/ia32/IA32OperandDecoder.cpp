@@ -344,6 +344,8 @@ IA32DecodedOperand IA32OperandDecoder::decode(const IA32Opcode& instruction,
     case OPND_GP_SEGMENT_MODRM:
         CHECK(modrm.m_bits.m_regOpcode < NUMBER_OF_SEGMENTS_REGISTERS);
         return makeRegister(IA32_REG_ES + modrm.m_bits.m_regOpcode, 16);
+    case OPND_GP_32BIT_MODRM:
+        return makeRegister(getGeneralRegisterId(modrm.m_bits.m_regOpcode, 32), 32);
     case OPND_SIMD_MODRM:
         return makeRegister(IA32_REG_XMM0 + modrm.m_bits.m_regOpcode, 128);
     case OPND_MMX_MODRM:
@@ -432,6 +434,10 @@ IA32DecodedOperand IA32OperandDecoder::decode(const IA32Opcode& instruction,
         return decodeModrm(instruction, 128, 128);
     case OPND_SIMD_RM_QWORD:
         return decodeModrm(instruction, 128, 64);
+    case OPND_SIMD_RM_DWORD:
+        return decodeModrm(instruction, 128, 32);
+    case OPND_MODRM_R32_WORDPTR:
+        return decodeModrm(instruction, 32, 16);
 
     //////////////////////////////////////////////////////////////////
     // Immediates and branch targets

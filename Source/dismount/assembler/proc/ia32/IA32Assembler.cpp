@@ -316,6 +316,38 @@ void IA32AssemblerStream::assembleInstruction(Parser& parser)
 
 //////////////////////////////////////////////////////////////////////////
 
+/*
+ * The nasm pseudo-ops which spell the imm8 of an instruction in the mnemonic:
+ * cmpltps xmm1, xmm2 is cmpps xmm1, xmm2, 1 and pclmulhqlqdq is pclmulqdq
+ * with the imm8 0x01. Return true and the instruction and its imm8.
+ */
+static bool splitPseudoOpcode(const cString& name, cString& base, uint& immediate)
+{
+    static const char* predicates[] = {"eq", "lt", "le", "unord",
+                                       "neq", "nlt", "nle", "ord"};
+    static const char* compares[] = {"ps", "ss", "pd", "sd"};
+    for (uint i = 0; i < sizeof(predicates) / sizeof(predicates[0]); i++)
+        for (uint j = 0; j < sizeof(compares) / sizeof(compares[0]); j++)
+            if (name == cString("cmp") + predicates[i] + compares[j])
+            {
+                base = cString("cmp") + compares[j];
+                immediate = i;
+                return true;
+            }
+
+    static const char* clmuls[] = {"pclmullqlqdq", "pclmulhqlqdq",
+                                   "pclmullqhqdq", "pclmulhqhqdq"};
+    static const uint clmulImmediates[] = {0x00, 0x01, 0x10, 0x11};
+    for (uint i = 0; i < sizeof(clmuls) / sizeof(clmuls[0]); i++)
+        if (name == clmuls[i])
+        {
+            base = "pclmulqdq";
+            immediate = clmulImmediates[i];
+            return true;
+        }
+    return false;
+}
+
 void IA32AssemblerStream::writeOpcode(const cString& name,
                                       const Prefixes& prefixes,
                                       const Operand& first,
@@ -356,6 +388,16 @@ void IA32AssemblerStream::writeOpcode(const cString& name,
         a = Operand::fromText("0x0a");
     if ((name == "ffree") && (a.getKind() == Operand::NO_OPERAND))
         a = Operand::fromText("st1");
+
+    // The predicate or the imm8 which is spelled in the mnemonic
+    uint pseudoImmediate = 0;
+    cString pseudoBase;
+    if (splitPseudoOpcode(name, pseudoBase, pseudoImmediate) && hasB && !hasC)
+    {
+        opName = pseudoBase;
+        c = Operand::fromText(cString((int32)pseudoImmediate));
+        hasC = true;
+    }
 
     // 'loop label, cx' and 'loop label, ecx' select the address size
     bool isLoop = (name == "loop") || (name == "loopz") ||
@@ -470,12 +512,16 @@ bool IA32AssemblerStream::findEncoding(const cString& name,
 
     for (uint pass = 0; (pass < 2) && !found; pass++)
     {
-        for (uint tableIndex = 0; tableIndex < 3; tableIndex++)
+        // The one-byte, two-bytes, FPU, 0F 38 and 0F 3A tables
+        for (uint tableIndex = 0; tableIndex < 5; tableIndex++)
         {
-            const ia32dis::OpcodeEntry* table = (tableIndex == 0) ?
-                ia32dis::gIa32OneByteOpcodeTable :
-                ((tableIndex == 1) ? ia32dis::gIa32TwoBytesOpcodeTable :
-                                     ia32dis::gIa32FPUOpcodeTable);
+            static const ia32dis::OpcodeEntry* const tables[5] = {
+                ia32dis::gIa32OneByteOpcodeTable,
+                ia32dis::gIa32TwoBytesOpcodeTable,
+                ia32dis::gIa32FPUOpcodeTable,
+                ia32dis::gIa32ThreeBytes38OpcodeTable,
+                ia32dis::gIa32ThreeBytes3AOpcodeTable };
+            const ia32dis::OpcodeEntry* table = tables[tableIndex];
             for (const ia32dis::OpcodeEntry* opcode = table;
                  opcode->m_opcodeName != ia32dis::OPCODEEOT; opcode++)
             {
@@ -534,6 +580,11 @@ bool IA32AssemblerStream::findEncoding(const cString& name,
                 if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod == 3) &&
                     ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
                     ((opcode->m_modrm & ia32dis::MODRM_MOD_REGISTERS) == 0))
+                    continue;
+                // and the other way round (movhlps has registers only)
+                if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod != 3) &&
+                    ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
+                    ((opcode->m_modrm & ia32dis::MODRM_MOD_MEMORY) == 0))
                     continue;
 
                 enc.m_length = calculateLength(enc);
@@ -663,7 +714,13 @@ bool IA32AssemblerStream::matchOpcode(const ia32dis::OpcodeEntry* opcode,
 
         if ((operands[i]->getKind() == Operand::MEMORY) &&
             (operands[i]->getSize() == 0) &&
-            (types[i] != ia32dis::OPND_MEMREF_OFFSET_DS))
+            (types[i] != ia32dis::OPND_MEMREF_OFFSET_DS) &&
+            // The xmm and mmx operands have their own size
+            (types[i] != ia32dis::OPND_MMX_RM) &&
+            (types[i] != ia32dis::OPND_SIMD_RM) &&
+            (types[i] != ia32dis::OPND_SIMD_RM_QWORD) &&
+            (types[i] != ia32dis::OPND_SIMD_RM_DWORD) &&
+            (types[i] != ia32dis::OPND_MODRM_R32_WORDPTR))
             hasUnsizedMemory = true;
         if ((operands[i]->getKind() == Operand::IMMEDIATE) ||
             (operands[i]->getKind() == Operand::FAR_POINTER))
@@ -803,6 +860,13 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
             enc.m_modrm.m_bits.m_regOpcode = index;
             enc.m_regFieldSet = true;
             return true;
+        case ia32dis::OPND_GP_32BIT_MODRM:
+            // The register is 32 bit whatever the operand size is
+            if (!is32) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_regOpcode = index;
+            enc.m_regFieldSet = true;
+            return true;
         case ia32dis::OPND_SIMD_MODRM:
             if (!isXmm) return false;
             enc.m_hasModrm = true;
@@ -829,6 +893,7 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
             return true;
         case ia32dis::OPND_SIMD_RM:
         case ia32dis::OPND_SIMD_RM_QWORD:
+        case ia32dis::OPND_SIMD_RM_DWORD:
             if (!isXmm) return false;
             enc.m_hasModrm = true;
             enc.m_modrm.m_bits.m_mod = 3;
@@ -836,6 +901,13 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
             return true;
 
         // The register is the modrm r/m (mod 3)
+        case ia32dis::OPND_MODRM_R32_WORDPTR:
+            // pinsrw takes ax and eax alike, and no operand size prefix
+            if (!(is16 || is32)) return false;
+            enc.m_hasModrm = true;
+            enc.m_modrm.m_bits.m_mod = 3;
+            enc.m_modrm.m_bits.m_rm = index;
+            return true;
         case ia32dis::OPND_MODRM_BYTEPTR:
             if (!is8) return false;
             enc.m_hasModrm = true;
@@ -975,13 +1047,23 @@ bool IA32AssemblerStream::matchMemory(ia32dis::OperandType ia32disType,
             return false;
         break;
     case ia32dis::OPND_MODRM_WORDPTR:
+    case ia32dis::OPND_MODRM_R32_WORDPTR:
         if ((size != 0) && (size != 16))
             return false;
         break;
     case ia32dis::OPND_MODRM_QWORDPTR:
     case ia32dis::OPND_MMX_RM:
-    case ia32dis::OPND_SIMD_RM_QWORD:
         if ((size != 0) && (size != 64))
+            return false;
+        break;
+    // nasm takes any of the xmm sizes for most of the scalar instructions
+    // (addsd xmm0, oword [eax])
+    case ia32dis::OPND_SIMD_RM_QWORD:
+        if ((size != 0) && (size != 64) && (size != 128))
+            return false;
+        break;
+    case ia32dis::OPND_SIMD_RM_DWORD:
+        if ((size != 0) && (size != 32) && (size != 128))
             return false;
         break;
     case ia32dis::OPND_MODRM_TWORDPTR:
@@ -1173,7 +1255,9 @@ uint IA32AssemblerStream::calculateLength(const Encoding& enc) const
         length++;
 
     // Opcode, modrm, sib and displacement
-    if (enc.m_table == 1)
+    if ((enc.m_table == 1) || (enc.m_table == 3) || (enc.m_table == 4))
+        length++;
+    if ((enc.m_table == 3) || (enc.m_table == 4))
         length++;
     length++;
     if (enc.m_hasModrm)
@@ -1271,8 +1355,12 @@ void IA32AssemblerStream::encodeOpcode(const Encoding& enc,
 
     // The table index prefix. Used only for two bytes table (the x87 table
     // has its escape as the opcode prefix)
-    if (enc.m_table == 1)
+    if ((enc.m_table == 1) || (enc.m_table == 3) || (enc.m_table == 4))
         m_binary.appendUint8(ia32dis::gIa32TwoByteEscapeCharacter);
+    if (enc.m_table == 3)
+        m_binary.appendUint8(ia32dis::gIa32ThreeBytes38EscapeCharacter);
+    if (enc.m_table == 4)
+        m_binary.appendUint8(ia32dis::gIa32ThreeBytes3AEscapeCharacter);
 
     // The opcode. The register of a '+r' opcode is added into the opcode
     uint8 opcodeData = enc.m_opcode->m_prefix;

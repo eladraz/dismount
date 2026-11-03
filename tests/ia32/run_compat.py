@@ -86,6 +86,7 @@ def parse_corpus(path):
             info['lines'].append({
                 'no': no, 'text': code,
                 'feature': tag.group(1) if tag else None,
+                'comment': comment,
             })
     for rec in info['lines']:
         if rec['feature'] is None:
@@ -209,6 +210,14 @@ def table_mnemonics():
                     names |= expand_mnemonic(m.group(1))
     except IOError:
         pass
+    # The nasm pseudo-ops which spell an imm8 (cmpltps, pclmulhqlqdq) are
+    # assembled by the assembler onto cmpps/pclmulqdq
+    for sfx in ('ps', 'ss', 'pd', 'sd'):
+        if 'cmp' + sfx in names:
+            names |= {'cmp' + p + sfx for p in
+                      ('eq', 'lt', 'le', 'unord', 'neq', 'nlt', 'nle', 'ord')}
+    if 'pclmulqdq' in names:
+        names |= {'pclmul' + q + 'qdq' for q in ('lql', 'hql', 'lqh', 'hqh')}
     return names
 
 
