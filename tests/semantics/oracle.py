@@ -605,6 +605,11 @@ class RosettaOracle(object):
         if d is None or d[1] != '0f' or d[3] >= len(code):
             raise OracleError('rosetta: not an SSE instruction')
         pre, _, op, at = d
+        # The general purpose opcodes of the 0F map, whose 66 / F3 are the
+        # operand size or a different instruction (shld ax, cx, cl; popcnt)
+        if op < 0x10 or 0x18 <= op <= 0x27 or 0x30 <= op <= 0x4F or \
+                0x80 <= op <= 0xC1 or op == 0xC7 or op >= 0xC8 and op <= 0xCF:
+            raise OracleError('rosetta: not an SSE instruction')
         modrm = code[at]
         if modrm >> 6 != 3:
             raise OracleError('rosetta: memory operand')
