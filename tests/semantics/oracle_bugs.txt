@@ -1,0 +1,17 @@
+# Corpus lines where Unicorn (QEMU) is wrong and dismount follows the Intel SDM,
+# as `<regex>  # <reason>`. The lines are still run: a failing line that matches
+# is ORACLE_BUG instead of FAIL, a passing one is PASS. Each entry needs the
+# evidence, so it can be re-checked when unicorn is upgraded (unicorn 2.1.4).
+
+# neg with lock: QEMU computes SF and PF from the old value. neg 0x096bcd2f is
+# 0xf69432d1 (SF = 1, PF = 1: d1 has 4 bits set); neg gives eflags 0x297,
+# lock neg 0x213 with the same memory
+^lock neg\b  # QEMU lock neg: SF/PF of the old value (SDM: of the result)
+
+# ret imm16: the SDM adds the imm16 to esp zero extended; QEMU sign extends it
+# (ldsw), so ret 0xfffe adds -2
+^ret 0x(8|9|a|b|c|d|e|f)[0-9a-f]{3}$  # QEMU sign-extends ret imm16 >= 0x8000 (SDM: zero-extended)
+
+# lock on a string instruction is #UD (SDM Vol. 2 "LOCK"), QEMU executes it
+^lock rep(e|ne)? (movs|cmps|scas|lods|stos|ins|outs)  # QEMU executes lock with a string instruction (SDM: #UD)
+^lock (movs|cmps|scas|lods|stos|ins|outs)  # QEMU executes lock with a string instruction (SDM: #UD)
