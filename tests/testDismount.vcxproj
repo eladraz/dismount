@@ -161,6 +161,7 @@
     <ClCompile Include="testIA32.cpp" />
     <ClCompile Include="TestIA32AssemblerDisassembler.cpp" />
     <ClCompile Include="TestAMD64Disassembler.cpp" />
+    <ClCompile Include="TestAMD64Assembler.cpp" />
     <ClCompile Include="TestSemantics.cpp" />
     <ClCompile Include="TestAMD64Semantics.cpp" />
     <ClCompile Include="TestSemanticFloat.cpp" />

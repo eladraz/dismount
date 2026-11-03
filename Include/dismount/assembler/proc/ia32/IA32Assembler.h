@@ -64,7 +64,11 @@ private:
  * The syntax is the nasm subset used by the IA-32 compatibility tests
  * (tests/ia32/TEST_PLAN.md): lowercase mnemonics, hex as 0x.., optional 'ptr'
  * after size keywords, memory as [seg:base+index*scale+disp], ';' comments and
- * the prefixes lock/rep/repe/repz/repne/repnz and the segment names.
+ * the prefixes lock/rep/repe/repz/repne/repnz, the segment names and the nasm
+ * prefixes o16/o32/o64 (operand size) and a16/a32/a64 (address size). In 64 bit
+ * mode (IA32eInstructionSet::AMD_64) the registers r8-r15, xmm8-xmm15, cr8, the
+ * rip relative memory [rip+disp] / [rel $+N] and the 64 bit offsets
+ * [qword 0x1122334455667788] are supported too.
  *
  * TODO! Add to this assumption dependency mode.
  *   When the destructor is called all the source code will be assemble and
@@ -172,6 +176,11 @@ private:
          *   [rip+0x10], [rel $+0x10]                    rip relative memory
          *                                              (64 bit mode, see
          *                                              isRipRelative())
+         *   [qword 0x1122334455667788], [a32 0x1234]    the offset forms of
+         *                                              mov al, [offset] (64 bit
+         *                                              or 32 bit offset)
+         *   push word fs                                a size keyword of a
+         *                                              segment register
          *   0x12, -1, 255, 7bh                         immediates
          *   [eax+ecx*4+0x10], dword [..], byte ptr [..] memory, see below
          *   fs:[eax], [fs:eax], word [gs:bx]           memory with segment
@@ -312,6 +321,12 @@ private:
         bool m_lock;
         // 0, or the repeat prefix opcode (0xf2 or 0xf3)
         uint8 m_repeat;
+        // 0, or the operand size which the nasm prefixes o16 / o32 / o64 force
+        // (16, 32 or 64)
+        uint m_operandWidth;
+        // 0, or the address size which the nasm prefixes a16 / a32 / a64 force
+        // (16, 32 or 64)
+        uint m_addressWidth;
     };
 
     /*
@@ -397,6 +412,15 @@ private:
                       bool preferDcForSt0) const;
 
     /*
+     * 64 bit mode: return true if the entry of the IA-32 table (source 0 is
+     * the one-byte table, 1 the two-bytes table) has the same encoding as an
+     * entry of the AMD64 table, which then replaces it (movsxd and arpl,
+     * mov r64, imm64 and mov r32, imm32, ...).
+     */
+    bool isReplacedByAmd64Entry(const ia32dis::OpcodeEntry* opcode,
+                                uint source) const;
+
+    /*
      * Return true if the 66 operand size prefix is written for the encoding
      * (the operand size differs from the default, and no mandatory 66 prefix
      * already carries it).
@@ -408,24 +432,38 @@ private:
      * 'tableName' in the current processor mode. The table names can contain
      * wildcards:
      *   '/'  - 16 bit name / 32 bit name        (cbw/cwde)
+     *          An optional third name is the 64 bit operand size name
+     *                                           (cbw/cwde/cdqe)
      *   '##' - 'w' in 16 bit, 'd' in 32 bit     (movsw/movsd)
      *   '#d' - 'd' in 32 bit, nothing in 16 bit (pusha/pushad)
      *   '#e' - 'e' in 32 bit, nothing in 16 bit (jcxz/jecxz)
+     * In 64 bit mode all the names of the entry are valid, 'q' is the 64 bit
+     * operand size of '##' and '#d' (movsq, pushfq) and 'r' is the 64 bit
+     * address size of '#e' (jrcxz). The names of the 16 bit address size are
+     * not valid.
      *
-     * operandSizeFlip - Set if 'name' is the other size of the table entry,
-     *                   the operand size prefix must be changed
-     * addressSizeFlip - The same for the address size (jcxz in 32 bit mode)
+     * operandWidth    - The operand size (16, 32 or 64) which the spelling of
+     *                   'name' selects, 0 for the default. In 16 and 32 bit
+     *                   mode it is set only if 'name' is the other size of the
+     *                   table entry (the operand size prefix must be changed)
+     * addressSizeFlip - Set if 'name' is the other size of the address size
+     *                   (jcxz in 32 bit mode, jecxz in 64 bit mode)
      */
     bool matchMnemonic(const char* tableName, const cString& name,
-                       bool& operandSizeFlip, bool& addressSizeFlip) const;
+                       uint& operandWidth, bool& addressSizeFlip) const;
 
     /*
      * Match an opcode into entry of opcode table
      *
      * opcode               - The opcode entry
      * first, second, third - The operand description
-     * relaxed              - When true, 8 bit immediates may be 0x80..0xff
-     *                        (the sign-extended forms are preferred otherwise)
+     * relaxed              - 0: the immediates are the sign-extended forms
+     *                        1: 8 bit immediates may be 0x80..0xff, and the
+     *                           immediate of a 64 bit operand may be bigger
+     *                           than 32 bits (its low dword is used)
+     *                        2: 8 bit immediates are the low byte of any value
+     *                           (nasm truncates them)
+     *                        The levels are tried one after the other
      * enc                  - Will be filled with the encoding if matched
      *
      * Return true if the opcode is match
@@ -435,7 +473,7 @@ private:
                      const Operand& first,
                      const Operand& second,
                      const Operand& third,
-                     bool relaxed,
+                     uint relaxed,
                      Encoding& enc) const;
 
     /*
@@ -452,7 +490,7 @@ private:
      */
     bool matchOperand(ia32dis::OperandType ia32disType,
                       const Operand& compilerOperand,
-                      bool relaxed,
+                      uint relaxed,
                       Encoding& enc) const;
 
     /*
@@ -464,17 +502,51 @@ private:
                      Encoding& enc) const;
 
     /*
-     * Fix the operand width (8/16/32 bits) of the instruction. Return false
-     * if the operands disagree on the width.
+     * Fix the operand width (16/32/64 bits) of the instruction. Return false
+     * if the operands disagree on the width, or if the table entry has no such
+     * operand size in the processor mode (a 32 bit 'push' in 64 bit mode, a
+     * 64 bit 'in').
      */
     bool setOperandWidth(uint width, Encoding& enc) const;
+
+    /*
+     * Return true if the table entry can have the operand size 'width' (see
+     * ia32dis::Mode64)
+     */
+    bool isWidthAllowed(uint width, const Encoding& enc) const;
+
+    /*
+     * 64 bit mode: record the use of a register. The bit 3 of the index is
+     * the REX extension bit (B for the r/m, the SIB base and the register of
+     * the opcode, R for the reg field), spl..dil need a REX prefix and
+     * ah..bh can't be encoded with one.
+     *
+     * isReg - True if the register is in the reg field, false for the
+     *         r/m field or the register of the opcode
+     */
+    static void useRegister(Operand::RegisterClass regClass, uint index,
+                            bool isReg, Encoding& enc);
+
+    /*
+     * Put the register into the reg field / the r/m field (mod 11) of the modrm
+     * byte, see useRegister()
+     */
+    static void setRegField(const Operand& reg, Encoding& enc);
+    static void setRmRegister(const Operand& reg, Encoding& enc);
+
+    /*
+     * 64 bit mode: complete the REX prefix once the operand size is known (the
+     * W bit). Return false if the instruction can't be encoded (ah..bh with a
+     * REX prefix).
+     */
+    bool finishRex(Encoding& enc) const;
 
     /*
      * Return true if the immediate value fits the table operand type.
      */
     bool checkImmediate(ia32dis::OperandType ia32disType,
                         const Operand& compilerOperand,
-                        bool relaxed,
+                        uint relaxed,
                         const Encoding& enc) const;
 
     /*
@@ -515,6 +587,12 @@ private:
                       const Operand& third) const;
 
     /*
+     * Return the displacement of the rip relative memory reference, once the
+     * length of the instruction is known (see Operand::isRipRelative())
+     */
+    int64 getRipDisplacement(const Operand& memory, const Encoding& enc) const;
+
+    /*
      * Return the size in bytes of an immediate, offset or far pointer in the
      * encoded instruction.
      */
@@ -548,8 +626,13 @@ private:
     // in 64 bit mode)
     uint getDefaultOperandWidth() const;
 
-    // Return the operand width used by the encoding (16, 32 or 64)
+    // Return the operand width used by the encoding (16, 32 or 64): the
+    // width of the operands, or the default of the table entry (32, 64 for the
+    // 64 bit mode entries with a default operand size of 64 bits)
     uint getEncodingWidth(const Encoding& enc) const;
+
+    // Return the default address size of the processor mode (16, 32 or 64)
+    uint getDefaultAddressWidth() const;
 
     // Return the byte opcode of the segment prefix (from the table)
     static uint8 getSegmentPrefix(uint segment);

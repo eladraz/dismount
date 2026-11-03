@@ -21,6 +21,10 @@ AssemblerInterfacePtr AssemblingFactory::generateAssembler(
         return AssemblerInterfacePtr(new IA32Assembler(
                                                 binary,
                                                 IA32eInstructionSet::INTEL_32));
+    case OpcodeSubsystems::DISASSEMBLER_AMD_64:
+        return AssemblerInterfacePtr(new IA32Assembler(
+                                                binary,
+                                                IA32eInstructionSet::AMD_64));
     default:
         // Not ready yet...
         CHECK_FAIL();

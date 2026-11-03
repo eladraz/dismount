@@ -121,6 +121,7 @@ if(DISMOUNT_BUILD_TESTS)
 	add_executable(test_dismount
 		tests/TestIA32AssemblerDisassembler.cpp
 		tests/TestAMD64Disassembler.cpp
+		tests/TestAMD64Assembler.cpp
 		tests/TestSemantics.cpp
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp
