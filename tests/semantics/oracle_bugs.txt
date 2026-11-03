@@ -142,7 +142,7 @@
 # SSE encodings "Bits 7:3 of the immediate is ignored" (the predicate is imm8[2:0]);
 # QEMU raises #UD (target/i386/translate.c: `if (val >= 8) goto unknown_op`).
 # cmpps xmm1, xmm2, 0x12 gives trap:6 in Unicorn; dismount does the predicate 2
-^cmp(ps|pd|ss|sd) xmm[0-7], [^,]+, (0x(0[89a-f]|[1-9a-f][0-9a-f])|[89]|[1-9][0-9]+|-[0-9]+)$  # QEMU #UD for cmpps/cmppd/cmpss/cmpsd imm8 >= 8 (SDM: bits 7:3 of the legacy immediate are ignored)
+^cmp(ps|pd|ss|sd) xmm([0-9]|1[0-5]), [^,]+, (0x(0[89a-f]|[1-9a-f][0-9a-f])|[89]|[1-9][0-9]+|-[0-9]+)$  # QEMU #UD for cmpps/cmppd/cmpss/cmpsd imm8 >= 8 (SDM: bits 7:3 of the legacy immediate are ignored)
 
 # add / sub / mul / div with a NaN in both operands of a lane (the lines of sse_edge.asm on xmm3,
 # xmm4): the SDM (Vol. 1, table 4-7, "Rules for handling NaNs") gives the first source operand
@@ -184,3 +184,21 @@
 #   SDM (Vol. 1 10.2.3.4) converts a denormal source operand "to a zero with the sign of the
 #   original operand before performing any computations", Bochs' float32_min does the same and
 #   Rosetta returns the zero (flush_to_zero_lanes).
+
+# --- 64 bit mode (QEMU 5.0.1 inside Unicorn 2.1.4)
+
+# shld / shrd with an immediate and a rip relative memory operand: QEMU does not set rip_offset
+# for the imm8 that follows the displacement, so the address is one byte short (the address of a
+# rip relative operand is relative to the end of the instruction, immediate included). Evidence
+# (oracle64.py): 660fa41d1700000012 (shld [rip+0x17], bx, 0x12) at rip 0x1000000 stores at
+# 0x100001f..0x1000020, the SDM address is 0x1000000 + 9 + 0x17 = 0x1000020; the cl forms
+# (0fa51d16000000) and the other immediates (bt [rip+..], imm8) are right
+[64] ^sh[lr]d (?:byte |word |dword |qword )?\[rel [^\]]*\], \w+, (?:0x[0-9a-f]+|-?[0-9]+)$  # QEMU: the rip relative address of shld / shrd imm8 is one byte short
+
+# bt / bts / btr / btc whose bit offset register is the register of the address ([r9+rcx*2+0x10],
+# r9): the offset moves the address by up to 2^60 bytes, out of the 52 bit address space of Unicorn
+[64] ^bt[crs]? (?:\w+ )?\[(r\d+)\b[^\]]*\], \1[dw]?$  # the bit offset is the base register: the address leaves the 52 bit space of Unicorn
+
+# A negative absolute address ([-0x80000000] is 0xffffffff80000000): Unicorn maps 52 bit addresses and
+# reports the access at 0x000fffff80000000 (the high bits are cut), see oracle64.py
+[64] \[(?:byte |word |dword |qword )?-0x[0-9a-f]+\]  # Unicorn cuts the address of a negative absolute operand to 52 bits

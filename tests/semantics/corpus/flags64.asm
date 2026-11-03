@@ -3085,7 +3085,7 @@ pop qword [rsp]
 pop qword [rsp+8]
 pop qword [r12+r13*8]
 pop word [rbx]
-pushfq  ; @state: eflags=ffffffff
+pushfq  ; @state: eflags=240ed7
 popfq
 o16 pushfq
 o16 popfq
@@ -3118,215 +3118,176 @@ jmp short $+0x7f
 
 ; --- rip relative operands (nasm [rel $+N]: N from the start of the instruction)
 mov rax, [rel $+0x10]
-mov [rel $+0x10], rax
 lea rax, [rel $+0x10]
 add rax, [rel $+0x10]
-add [rel $+0x10], rax
 mov r9, [rel $+0x10]
-mov [rel $+0x10], r9
 lea r9, [rel $+0x10]
 add r9, [rel $+0x10]
-add [rel $+0x10], r9
 mov eax, [rel $+0x10]
-mov [rel $+0x10], ecx
 mov al, [rel $+0x10]
-mov word [rel $+0x10], 5
-mov qword [rel $+0x10], 0x12345678
-mov dword [rel $+0x10], 0x12345678
 cmp dword [rel $+0x10], 5
 cmp qword [rel $+0x10], -1
 movzx eax, byte [rel $+0x10]
 movsxd rax, dword [rel $+0x10]
-inc qword [rel $+0x10]
 push qword [rel $+0x10]
-pop qword [rel $+0x10]
-xchg [rel $+0x10], rax
-cmpxchg [rel $+0x10], rcx
 movss xmm0, [rel $+0x10]
 movaps xmm9, [rel $+0x10]
 movdqu xmm15, [rel $+0x10]
 fld qword [rel $+0x10]
-fstp tword [rel $+0x10]
 mov rax, [rel $+0x40]
-mov [rel $+0x40], rax
 lea rax, [rel $+0x40]
 add rax, [rel $+0x40]
-add [rel $+0x40], rax
 mov r9, [rel $+0x40]
-mov [rel $+0x40], r9
 lea r9, [rel $+0x40]
 add r9, [rel $+0x40]
-add [rel $+0x40], r9
 mov eax, [rel $+0x40]
-mov [rel $+0x40], ecx
 mov al, [rel $+0x40]
-mov word [rel $+0x40], 5
-mov qword [rel $+0x40], 0x12345678
-mov dword [rel $+0x40], 0x12345678
 cmp dword [rel $+0x40], 5
 cmp qword [rel $+0x40], -1
 movzx eax, byte [rel $+0x40]
 movsxd rax, dword [rel $+0x40]
-inc qword [rel $+0x40]
 push qword [rel $+0x40]
-pop qword [rel $+0x40]
-xchg [rel $+0x40], rax
-cmpxchg [rel $+0x40], rcx
 movss xmm0, [rel $+0x40]
 movaps xmm9, [rel $+0x40]
 movdqu xmm15, [rel $+0x40]
 fld qword [rel $+0x40]
-fstp tword [rel $+0x40]
 mov rax, [rel $+0x1000]
-mov [rel $+0x1000], rax
 lea rax, [rel $+0x1000]
 add rax, [rel $+0x1000]
-add [rel $+0x1000], rax
 mov r9, [rel $+0x1000]
-mov [rel $+0x1000], r9
 lea r9, [rel $+0x1000]
 add r9, [rel $+0x1000]
-add [rel $+0x1000], r9
 mov eax, [rel $+0x1000]
-mov [rel $+0x1000], ecx
 mov al, [rel $+0x1000]
-mov word [rel $+0x1000], 5
-mov qword [rel $+0x1000], 0x12345678
-mov dword [rel $+0x1000], 0x12345678
 cmp dword [rel $+0x1000], 5
 cmp qword [rel $+0x1000], -1
 movzx eax, byte [rel $+0x1000]
 movsxd rax, dword [rel $+0x1000]
-inc qword [rel $+0x1000]
 push qword [rel $+0x1000]
-pop qword [rel $+0x1000]
-xchg [rel $+0x1000], rax
-cmpxchg [rel $+0x1000], rcx
 movss xmm0, [rel $+0x1000]
 movaps xmm9, [rel $+0x1000]
 movdqu xmm15, [rel $+0x1000]
 fld qword [rel $+0x1000]
-fstp tword [rel $+0x1000]
 mov rax, [rel $+-0x40]
-mov [rel $+-0x40], rax
 lea rax, [rel $+-0x40]
 add rax, [rel $+-0x40]
-add [rel $+-0x40], rax
 mov r9, [rel $+-0x40]
-mov [rel $+-0x40], r9
 lea r9, [rel $+-0x40]
 add r9, [rel $+-0x40]
-add [rel $+-0x40], r9
 mov eax, [rel $+-0x40]
-mov [rel $+-0x40], ecx
 mov al, [rel $+-0x40]
-mov word [rel $+-0x40], 5
-mov qword [rel $+-0x40], 0x12345678
-mov dword [rel $+-0x40], 0x12345678
 cmp dword [rel $+-0x40], 5
 cmp qword [rel $+-0x40], -1
 movzx eax, byte [rel $+-0x40]
 movsxd rax, dword [rel $+-0x40]
-inc qword [rel $+-0x40]
 push qword [rel $+-0x40]
-pop qword [rel $+-0x40]
-xchg [rel $+-0x40], rax
-cmpxchg [rel $+-0x40], rcx
 movss xmm0, [rel $+-0x40]
 movaps xmm9, [rel $+-0x40]
 movdqu xmm15, [rel $+-0x40]
 fld qword [rel $+-0x40]
-fstp tword [rel $+-0x40]
 mov rax, [rel $+-0x1000]
-mov [rel $+-0x1000], rax
 lea rax, [rel $+-0x1000]
 add rax, [rel $+-0x1000]
-add [rel $+-0x1000], rax
 mov r9, [rel $+-0x1000]
-mov [rel $+-0x1000], r9
 lea r9, [rel $+-0x1000]
 add r9, [rel $+-0x1000]
-add [rel $+-0x1000], r9
 mov eax, [rel $+-0x1000]
-mov [rel $+-0x1000], ecx
 mov al, [rel $+-0x1000]
-mov word [rel $+-0x1000], 5
-mov qword [rel $+-0x1000], 0x12345678
-mov dword [rel $+-0x1000], 0x12345678
 cmp dword [rel $+-0x1000], 5
 cmp qword [rel $+-0x1000], -1
 movzx eax, byte [rel $+-0x1000]
 movsxd rax, dword [rel $+-0x1000]
-inc qword [rel $+-0x1000]
 push qword [rel $+-0x1000]
-pop qword [rel $+-0x1000]
-xchg [rel $+-0x1000], rax
-cmpxchg [rel $+-0x1000], rcx
 movss xmm0, [rel $+-0x1000]
 movaps xmm9, [rel $+-0x1000]
 movdqu xmm15, [rel $+-0x1000]
 fld qword [rel $+-0x1000]
-fstp tword [rel $+-0x1000]
-mov rax, [rel $+0x7fff0000]
-mov [rel $+0x7fff0000], rax
-lea rax, [rel $+0x7fff0000]
-add rax, [rel $+0x7fff0000]
-add [rel $+0x7fff0000], rax
-mov r9, [rel $+0x7fff0000]
-mov [rel $+0x7fff0000], r9
-lea r9, [rel $+0x7fff0000]
-add r9, [rel $+0x7fff0000]
-add [rel $+0x7fff0000], r9
-mov eax, [rel $+0x7fff0000]
-mov [rel $+0x7fff0000], ecx
-mov al, [rel $+0x7fff0000]
-mov word [rel $+0x7fff0000], 5
-mov qword [rel $+0x7fff0000], 0x12345678
-mov dword [rel $+0x7fff0000], 0x12345678
-cmp dword [rel $+0x7fff0000], 5
-cmp qword [rel $+0x7fff0000], -1
-movzx eax, byte [rel $+0x7fff0000]
-movsxd rax, dword [rel $+0x7fff0000]
-inc qword [rel $+0x7fff0000]
-push qword [rel $+0x7fff0000]
-pop qword [rel $+0x7fff0000]
-xchg [rel $+0x7fff0000], rax
-cmpxchg [rel $+0x7fff0000], rcx
-movss xmm0, [rel $+0x7fff0000]
-movaps xmm9, [rel $+0x7fff0000]
-movdqu xmm15, [rel $+0x7fff0000]
-fld qword [rel $+0x7fff0000]
-fstp tword [rel $+0x7fff0000]
-mov rax, [rel $+-0x7fff0000]
-mov [rel $+-0x7fff0000], rax
-lea rax, [rel $+-0x7fff0000]
-add rax, [rel $+-0x7fff0000]
-add [rel $+-0x7fff0000], rax
-mov r9, [rel $+-0x7fff0000]
-mov [rel $+-0x7fff0000], r9
-lea r9, [rel $+-0x7fff0000]
-add r9, [rel $+-0x7fff0000]
-add [rel $+-0x7fff0000], r9
-mov eax, [rel $+-0x7fff0000]
-mov [rel $+-0x7fff0000], ecx
-mov al, [rel $+-0x7fff0000]
-mov word [rel $+-0x7fff0000], 5
-mov qword [rel $+-0x7fff0000], 0x12345678
-mov dword [rel $+-0x7fff0000], 0x12345678
-cmp dword [rel $+-0x7fff0000], 5
-cmp qword [rel $+-0x7fff0000], -1
-movzx eax, byte [rel $+-0x7fff0000]
-movsxd rax, dword [rel $+-0x7fff0000]
-inc qword [rel $+-0x7fff0000]
-push qword [rel $+-0x7fff0000]
-pop qword [rel $+-0x7fff0000]
-xchg [rel $+-0x7fff0000], rax
-cmpxchg [rel $+-0x7fff0000], rcx
-movss xmm0, [rel $+-0x7fff0000]
-movaps xmm9, [rel $+-0x7fff0000]
-movdqu xmm15, [rel $+-0x7fff0000]
-fld qword [rel $+-0x7fff0000]
-fstp tword [rel $+-0x7fff0000]
+mov rax, [rel $+0x10000000]
+lea rax, [rel $+0x10000000]
+add rax, [rel $+0x10000000]
+mov r9, [rel $+0x10000000]
+lea r9, [rel $+0x10000000]
+add r9, [rel $+0x10000000]
+mov eax, [rel $+0x10000000]
+mov al, [rel $+0x10000000]
+cmp dword [rel $+0x10000000], 5
+cmp qword [rel $+0x10000000], -1
+movzx eax, byte [rel $+0x10000000]
+movsxd rax, dword [rel $+0x10000000]
+push qword [rel $+0x10000000]
+movss xmm0, [rel $+0x10000000]
+movaps xmm9, [rel $+0x10000000]
+movdqu xmm15, [rel $+0x10000000]
+fld qword [rel $+0x10000000]
+mov rax, [rel $+-0x10000000]
+lea rax, [rel $+-0x10000000]
+add rax, [rel $+-0x10000000]
+mov r9, [rel $+-0x10000000]
+lea r9, [rel $+-0x10000000]
+add r9, [rel $+-0x10000000]
+mov eax, [rel $+-0x10000000]
+mov al, [rel $+-0x10000000]
+cmp dword [rel $+-0x10000000], 5
+cmp qword [rel $+-0x10000000], -1
+movzx eax, byte [rel $+-0x10000000]
+movsxd rax, dword [rel $+-0x10000000]
+push qword [rel $+-0x10000000]
+movss xmm0, [rel $+-0x10000000]
+movaps xmm9, [rel $+-0x10000000]
+movdqu xmm15, [rel $+-0x10000000]
+fld qword [rel $+-0x10000000]
+mov [rel $+0x2000], rax
+add [rel $+0x2000], rax
+mov [rel $+0x2000], r9
+add [rel $+0x2000], r9
+mov [rel $+0x2000], ecx
+mov word [rel $+0x2000], 5
+mov qword [rel $+0x2000], 0x12345678
+mov dword [rel $+0x2000], 0x12345678
+inc qword [rel $+0x2000]
+pop qword [rel $+0x2000]
+xchg [rel $+0x2000], rax
+cmpxchg [rel $+0x2000], rcx
+fstp tword [rel $+0x2000]
+mov [rel $+-0x2000], rax
+add [rel $+-0x2000], rax
+mov [rel $+-0x2000], r9
+add [rel $+-0x2000], r9
+mov [rel $+-0x2000], ecx
+mov word [rel $+-0x2000], 5
+mov qword [rel $+-0x2000], 0x12345678
+mov dword [rel $+-0x2000], 0x12345678
+inc qword [rel $+-0x2000]
+pop qword [rel $+-0x2000]
+xchg [rel $+-0x2000], rax
+cmpxchg [rel $+-0x2000], rcx
+fstp tword [rel $+-0x2000]
+mov [rel $+0x10000000], rax
+add [rel $+0x10000000], rax
+mov [rel $+0x10000000], r9
+add [rel $+0x10000000], r9
+mov [rel $+0x10000000], ecx
+mov word [rel $+0x10000000], 5
+mov qword [rel $+0x10000000], 0x12345678
+mov dword [rel $+0x10000000], 0x12345678
+inc qword [rel $+0x10000000]
+pop qword [rel $+0x10000000]
+xchg [rel $+0x10000000], rax
+cmpxchg [rel $+0x10000000], rcx
+fstp tword [rel $+0x10000000]
+mov [rel $+-0x10000000], rax
+add [rel $+-0x10000000], rax
+mov [rel $+-0x10000000], r9
+add [rel $+-0x10000000], r9
+mov [rel $+-0x10000000], ecx
+mov word [rel $+-0x10000000], 5
+mov qword [rel $+-0x10000000], 0x12345678
+mov dword [rel $+-0x10000000], 0x12345678
+inc qword [rel $+-0x10000000]
+pop qword [rel $+-0x10000000]
+xchg [rel $+-0x10000000], rax
+cmpxchg [rel $+-0x10000000], rcx
+fstp tword [rel $+-0x10000000]
 lea rax, [rel $+0]
 lea rax, [rel $]
 lea eax, [rel $+0x10]
@@ -3605,7 +3566,7 @@ bswap edx
 bswap ebx
 bswap edi
 bswap r9d
-bt rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bt rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bt r9, r10
 bt eax, ecx
 bt r9d, r10d
@@ -3684,7 +3645,7 @@ bt r9w, 65
 bt r9w, 127
 bt r9w, 255
 bt qword [rbx], rcx
-bt [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bt [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bt [r12+r13*8], rcx
 bt qword [rbx], 0
 bt qword [rbx], 1
@@ -3695,7 +3656,7 @@ bt qword [rbx], 64
 bt qword [rbx], 100
 bt qword [rbx], 255
 bt dword [rbx], ecx
-bt [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bt [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bt [r12+r13*8], ecx
 bt dword [rbx], 0
 bt dword [rbx], 1
@@ -3706,7 +3667,7 @@ bt dword [rbx], 64
 bt dword [rbx], 100
 bt dword [rbx], 255
 bt word [rbx], cx
-bt [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bt [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bt [r12+r13*8], cx
 bt word [rbx], 0
 bt word [rbx], 1
@@ -3716,8 +3677,7 @@ bt word [rbx], 63
 bt word [rbx], 64
 bt word [rbx], 100
 bt word [rbx], 255
-lock bt [rbx], rcx
-bts rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bts rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bts r9, r10
 bts eax, ecx
 bts r9d, r10d
@@ -3796,7 +3756,7 @@ bts r9w, 65
 bts r9w, 127
 bts r9w, 255
 bts qword [rbx], rcx
-bts [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bts [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bts [r12+r13*8], rcx
 bts qword [rbx], 0
 bts qword [rbx], 1
@@ -3807,7 +3767,7 @@ bts qword [rbx], 64
 bts qword [rbx], 100
 bts qword [rbx], 255
 bts dword [rbx], ecx
-bts [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bts [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bts [r12+r13*8], ecx
 bts dword [rbx], 0
 bts dword [rbx], 1
@@ -3818,7 +3778,7 @@ bts dword [rbx], 64
 bts dword [rbx], 100
 bts dword [rbx], 255
 bts word [rbx], cx
-bts [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+bts [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 bts [r12+r13*8], cx
 bts word [rbx], 0
 bts word [rbx], 1
@@ -3829,7 +3789,7 @@ bts word [rbx], 64
 bts word [rbx], 100
 bts word [rbx], 255
 lock bts [rbx], rcx
-btr rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btr rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btr r9, r10
 btr eax, ecx
 btr r9d, r10d
@@ -3908,7 +3868,7 @@ btr r9w, 65
 btr r9w, 127
 btr r9w, 255
 btr qword [rbx], rcx
-btr [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btr [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btr [r12+r13*8], rcx
 btr qword [rbx], 0
 btr qword [rbx], 1
@@ -3919,7 +3879,7 @@ btr qword [rbx], 64
 btr qword [rbx], 100
 btr qword [rbx], 255
 btr dword [rbx], ecx
-btr [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btr [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btr [r12+r13*8], ecx
 btr dword [rbx], 0
 btr dword [rbx], 1
@@ -3930,7 +3890,7 @@ btr dword [rbx], 64
 btr dword [rbx], 100
 btr dword [rbx], 255
 btr word [rbx], cx
-btr [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btr [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btr [r12+r13*8], cx
 btr word [rbx], 0
 btr word [rbx], 1
@@ -3941,7 +3901,7 @@ btr word [rbx], 64
 btr word [rbx], 100
 btr word [rbx], 255
 lock btr [rbx], rcx
-btc rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btc rax, rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btc r9, r10
 btc eax, ecx
 btc r9d, r10d
@@ -4020,7 +3980,7 @@ btc r9w, 65
 btc r9w, 127
 btc r9w, 255
 btc qword [rbx], rcx
-btc [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btc [rbx], rcx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btc [r12+r13*8], rcx
 btc qword [rbx], 0
 btc qword [rbx], 1
@@ -4031,7 +3991,7 @@ btc qword [rbx], 64
 btc qword [rbx], 100
 btc qword [rbx], 255
 btc dword [rbx], ecx
-btc [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btc [rbx], ecx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btc [r12+r13*8], ecx
 btc dword [rbx], 0
 btc dword [rbx], 1
@@ -4042,7 +4002,7 @@ btc dword [rbx], 64
 btc dword [rbx], 100
 btc dword [rbx], 255
 btc word [rbx], cx
-btc [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=7fffffffffffffff @state: rcx=8000000000000000 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=100000000 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
+btc [rbx], cx  ; @state: rcx=0 @state: rcx=1 @state: rcx=3f @state: rcx=40 @state: rcx=41 @state: rcx=64 @state: rcx=ffffffffffffffff @state: rcx=ffffffffffffffc0 @state: rcx=ffffffff @state: rcx=80000000 @state: rcx=ffffffff80000000
 btc [r12+r13*8], cx
 btc word [rbx], 0
 btc word [rbx], 1

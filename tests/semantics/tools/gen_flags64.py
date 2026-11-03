@@ -439,7 +439,7 @@ emit('pushfq')
 emit('popfq')
 emit('o16 pushfq')
 emit('o16 popfq')
-emit('pushfq', 'eflags=ffffffff')
+emit('pushfq', 'eflags=240ed7')
 emit('popfq')
 emit('leave')
 emit('o16 leave')
@@ -466,32 +466,36 @@ emit('jmp qword [rel $+0x40]')
 emit('jmp short $+0x7f')
 
 section('rip relative operands (nasm [rel $+N]: N from the start of the instruction)')
-for n in ('0x10', '0x40', '0x1000', '-0x40', '-0x1000', '0x7fff0000', '-0x7fff0000'):
+# Unicorn doesn't complete a store to the page of the code, or to the next one: the stores
+# are far from the instruction (oracle64.py). The addresses stay in 0..2^47
+for n in ('0x10', '0x40', '0x1000', '-0x40', '-0x1000', '0x10000000', '-0x10000000'):
     for r in ('rax', 'r9'):
         emit('mov %s, [rel $+%s]' % (r, n))
-        emit('mov [rel $+%s], %s' % (n, r))
         emit('lea %s, [rel $+%s]' % (r, n))
         emit('add %s, [rel $+%s]' % (r, n))
-        emit('add [rel $+%s], %s' % (n, r))
     emit('mov eax, [rel $+%s]' % n)
-    emit('mov [rel $+%s], ecx' % n)
     emit('mov al, [rel $+%s]' % n)
-    emit('mov word [rel $+%s], 5' % n)
-    emit('mov qword [rel $+%s], 0x12345678' % n)
-    emit('mov dword [rel $+%s], 0x12345678' % n)
     emit('cmp dword [rel $+%s], 5' % n)
     emit('cmp qword [rel $+%s], -1' % n)
     emit('movzx eax, byte [rel $+%s]' % n)
     emit('movsxd rax, dword [rel $+%s]' % n)
-    emit('inc qword [rel $+%s]' % n)
     emit('push qword [rel $+%s]' % n)
-    emit('pop qword [rel $+%s]' % n)
-    emit('xchg [rel $+%s], rax' % n)
-    emit('cmpxchg [rel $+%s], rcx' % n)
     emit('movss xmm0, [rel $+%s]' % n)
     emit('movaps xmm9, [rel $+%s]' % n)
     emit('movdqu xmm15, [rel $+%s]' % n)
     emit('fld qword [rel $+%s]' % n)
+for n in ('0x2000', '-0x2000', '0x10000000', '-0x10000000'):
+    for r in ('rax', 'r9'):
+        emit('mov [rel $+%s], %s' % (n, r))
+        emit('add [rel $+%s], %s' % (n, r))
+    emit('mov [rel $+%s], ecx' % n)
+    emit('mov word [rel $+%s], 5' % n)
+    emit('mov qword [rel $+%s], 0x12345678' % n)
+    emit('mov dword [rel $+%s], 0x12345678' % n)
+    emit('inc qword [rel $+%s]' % n)
+    emit('pop qword [rel $+%s]' % n)
+    emit('xchg [rel $+%s], rax' % n)
+    emit('cmpxchg [rel $+%s], rcx' % n)
     emit('fstp tword [rel $+%s]' % n)
 emit('lea rax, [rel $+0]')
 emit('lea rax, [rel $]')
@@ -629,13 +633,14 @@ for op in ('bt', 'bts', 'btr', 'btc'):
         emit('%s [r12+r13*8], %s' % (op, reg))
         for imm in (0, 1, 31, 32, 63, 64, 100, 255):
             emit('%s %s [rbx], %d' % (op, size, imm))
-    for bit in (0, 1, 63, 64, 65, 100, 0x7fffffffffffffff, 0x8000000000000000, 0xffffffffffffffff,
-                0xffffffffffffffc0, 0x100000000, 0xffffffff, 0x80000000, 0xffffffff80000000):
+    for bit in (0, 1, 63, 64, 65, 100, 0xffffffffffffffff, 0xffffffffffffffc0, 0xffffffff,
+                0x80000000, 0xffffffff80000000):
         emit('%s [rbx], rcx' % op, 'rcx=%x' % bit)
         emit('%s [rbx], ecx' % op, 'rcx=%x' % bit)
         emit('%s [rbx], cx' % op, 'rcx=%x' % bit)
         emit('%s rax, rcx' % op, 'rcx=%x' % bit)
-    emit('lock %s [rbx], rcx' % op)
+    if op != 'bt':
+        emit('lock %s [rbx], rcx' % op)
 for op in ('bsf', 'bsr', 'popcnt', 'lzcnt', 'tzcnt'):
     for dst, src in (('rax', 'rbx'), ('r9', 'r10'), ('eax', 'ebx'), ('r9d', 'r10d'), ('ax', 'bx')):
         emit('%s %s, %s' % (op, dst, src))

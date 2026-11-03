@@ -110,6 +110,20 @@ def is_cmpxchg16b(code, rex):
     return (code[d[3]] >> 3) & 7 == 1 and code[d[3]] >> 6 != 3
 
 
+def fix_fxsave(code, state, result):
+    """Unicorn (QEMU) leaves the reserved bytes of the FXSAVE image alone: the opcode and the
+    padding of the registers. The processor writes zeros there, and so does dismount: add the
+    writes to the result of Unicorn (as x87host.fix_unicorn_fxsave in the 32 bit mode)."""
+    stripped, rex = split_rex(code)
+    d = oracle._decode_simd(stripped)
+    if d is None or d[1] != '0f' or d[2] != 0xAE or d[3] >= len(stripped) or \
+            (stripped[d[3]] >> 3) & 7 != 0 or stripped[d[3]] >> 6 == 3:
+        return
+    ea = memory_operand_address(stripped, rex, state, d[3], len(code))
+    for offset in [6, 7] + [32 + 16 * i + k for i in range(8) for k in range(10, 16)]:
+        result['mem'][(ea + offset) & M64] = 0
+
+
 def simd_fault(code, state, v2):
     """True if the SDM raises #GP(0) for the instruction in this state and QEMU 5
     doesn't: a misaligned 128 bit operand, or ldmxcsr with a reserved bit."""
@@ -270,6 +284,8 @@ class Oracle64(object):
                 steps += 1
                 if steps > oracle.MAX_STEPS:
                     raise OracleError('rep iteration limit')
+                mapped = len(self.pages)
+                written = len(self.writes)
                 try:
                     uc.emu_start(rip, 0, count=1)
                 except UcError as e:
@@ -281,6 +297,16 @@ class Oracle64(object):
                     break
                 if uc.reg_read(X.UC_X86_REG_RIP) != rip:
                     break
+                if not rep and len(self.writes) != written:
+                    # The instruction wrote and Unicorn did not retire it: it
+                    # retranslates the code after a store near the code it
+                    # executes and restarts the instruction (a second run would
+                    # repeat a read-modify-write)
+                    raise OracleError('store near the code: Unicorn does not retire the instruction')
+                if len(self.pages) != mapped and steps <= 16:
+                    # Unicorn restarts the instruction after it maps a page (the
+                    # hook ran before any write was done): run it again
+                    continue
                 code_page = rip & ~(PAGE - 1)
                 touched = any(((a + i) & M64) & ~(PAGE - 1) == code_page
                               for a, s in self.writes for i in range(s))
@@ -317,6 +343,8 @@ class Oracle64(object):
                 'mem': mem,
             }
             res['seg'] = {n: uc.reg_read(UC_SEG[n]) for n in SEGS}
+            if exit_ == 'fall':
+                fix_fxsave(code, state, res)
             res['fs_base'] = uc.reg_read(X.UC_X86_REG_FS_BASE)
             res['gs_base'] = uc.reg_read(X.UC_X86_REG_GS_BASE)
             res['kernel_gs_base'] = uc.msr_read(KERNEL_GS_BASE_MSR)

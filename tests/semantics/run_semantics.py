@@ -60,6 +60,9 @@ DEFAULT_IA32_FILES = ['00_addressing32', '01_addressing16', '02_prefixes', '03_i
                       '04_branches', '05_bits16', 'i386', 'i486', 'pentium', 'p6', 'x87',
                       'mmx', 'sse', 'sse2']
 
+DEFAULT_AMD64_FILES = ['00_addressing64', '02_prefixes64', '03_immediates64', '04_branches64', 'i386',
+                       'i486', 'pentium', 'p6', 'x87', 'mmx', 'sse', 'sse2']
+
 REGS = oracle.REGS
 EDGE = [0, 0, 1, 0x7f, 0x80, 0xff, 0x7fff, 0x8000, 0xffff, 0x7fffffff, 0x80000000, 0xffffffff]
 FLAG_BITS = [0x1, 0x4, 0x10, 0x40, 0x80, 0x800, 0x400]     # CF PF AF ZF SF OF DF
@@ -408,7 +411,12 @@ def corpus_paths(wanted):
         p = os.path.join(IA32_CORPUS, name + '.asm')
         if os.path.exists(p):
             paths.append(p)
-    paths += sorted(glob.glob(os.path.join(AMD64_CORPUS, '*.asm')))
+    # The 64 bit mode corpus: the same areas as the default list above
+    for name in (DEFAULT_AMD64_FILES if not wanted else
+                 [os.path.basename(p)[:-4] for p in sorted(glob.glob(os.path.join(AMD64_CORPUS, '*.asm')))]):
+        p = os.path.join(AMD64_CORPUS, name + '.asm')
+        if os.path.exists(p):
+            paths.append(p)
     paths += sorted(glob.glob(os.path.join(SEM_CORPUS, '*.asm')))
     if wanted:
         paths = [p for p in paths if os.path.basename(p) in wanted]

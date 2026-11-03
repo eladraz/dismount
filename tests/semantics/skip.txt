@@ -5,7 +5,14 @@
 # descriptors, privilege levels, I/O, the host), not for failures.
 
 # --- system calls
-\b(sysenter|sysexit|syscall|sysret)\b  # needs MSRs
+\b(sysenter|sysexit)\b  # needs MSRs
+[16,32] \b(syscall|sysret)\b  # needs MSRs
+[64] \bsysret\b  # privileged (CPL 0, EFER.SCE): Unicorn raises #UD
+
+[16,32] \bswapgs\b  # 64 bit mode only
+[64] \[(qword )?0x[0-9a-f]{12,}\]  # an absolute 64 bit address (moffs64): Unicorn maps 52 bit addresses
+[64] \[qword -[0-9a-fx]+\]  # a negative absolute 64 bit address (moffs64): Unicorn maps 52 bit addresses
+[64] \[rel \$\+0x[1-7]\]  # the address is in the bytes of the instruction itself (self-modifying): Unicorn can't retire it
 
 # --- privileged / system instructions
 \b(lgdt|lidt|lldt|ltr|sgdt|sidt|sldt|str|lmsw|smsw|clts|invd|wbinvd|invlpg|rsm)\b  # descriptor tables, control registers and caches: not modelled
@@ -14,4 +21,4 @@
 \b(lar|lsl|verr|verw|arpl)\b  # depend on the descriptor tables
 \b(in|out|ins|insb|insw|insd|outs|outsb|outsw|outsd)\b  # port I/O: no device model (Unicorn ignores the access)
 \b(hlt|cli|sti|monitor|mwait)\b  # halt / interrupt flag: privileged; monitor/mwait need a monitored address range
-^(lock |rep |repe |repne )?(vmcall|vmlaunch|vmresume|vmxoff|vmxon|vmread|vmwrite|vmptrld|vmptrst|vmclear|invept|invvpid|vmrun|vmmcall|vmload|vmsave|stgi|clgi|skinit|invlpga|rdmsrlist|wrmsrlist|swapgs|encls|enclu|enclv|getsec|rdpkru|wrpkru|ud0|ud1|xtest|xbegin|xend|xabort|hreset)\b  # virtualization / SGX / TSX / vendor instructions
+^(lock |rep |repe |repne )?(vmcall|vmlaunch|vmresume|vmxoff|vmxon|vmread|vmwrite|vmptrld|vmptrst|vmclear|invept|invvpid|vmrun|vmmcall|vmload|vmsave|stgi|clgi|skinit|invlpga|rdmsrlist|wrmsrlist|encls|enclu|enclv|getsec|rdpkru|wrpkru|ud0|ud1|xtest|xbegin|xend|xabort|hreset)\b  # virtualization / SGX / TSX / vendor instructions

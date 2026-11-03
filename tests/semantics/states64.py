@@ -43,9 +43,15 @@ for i, n in enumerate(oracle64.REGS64):
     else:
         REG32[n + 'd'] = n
 ADDRESS_REGS = set(oracle64.REGS64) | set(REG32)
-STACK_MNEMONICS = {'push', 'pop', 'call', 'ret', 'retn', 'retf', 'enter', 'leave', 'pushf',
-                   'popf', 'pushfq', 'popfq', 'int', 'int3', 'into', 'iret', 'iretq', 'iretd',
-                   'iretw', 'push', 'pusha', 'popa'}
+# The registers of any size by name -> the 64 bit register
+REG_BY_NAME = dict((n, n) for n in oracle64.REGS64)
+REG_BY_NAME.update(REG32)
+for i, n in enumerate(oracle64.REGS64):
+    REG_BY_NAME[['ax', 'cx', 'dx', 'bx', 'sp', 'bp', 'si', 'di'][i] if i < 8 else n + 'w'] = n
+BIT_TEST = ('bt', 'bts', 'btr', 'btc')
+STACK_MNEMONICS = set(base + suffix for base in ('push', 'pop', 'call', 'ret', 'retn', 'retf', 'enter',
+                                                 'leave', 'pushf', 'popf', 'iret', 'int', 'int3', 'into')
+                      for suffix in ('', 'w', 'd', 'q'))
 STRING_PREFIX = re.compile(r'^(movs|cmps|scas|stos|lods|ins|outs)[bwdq]?$')
 NO_ACCESS = {'lea', 'nop', 'prefetcht0', 'prefetcht1', 'prefetcht2', 'prefetchnta',
              'prefetchw', 'prefetch'}
@@ -153,22 +159,21 @@ def solve_address(info, state, target):
     if info is None or info['rip']:
         return False
     base_value = state.get(info['seg'] + '_base', 0) if info['seg'] else 0
+    mask = M32 if info['addr32'] else M64
     for sign, reg, scale in info['terms']:
         full = REG32.get(reg, reg)
-        # the address without this term
-        mine = sign * (state[full] & (M32 if reg in REG32 else M64)) * scale
-        rest = effective_address(info, state) - base_value - mine
-        # sign * value * scale == target - rest (mod 2^64 / 2^32)
-        mask = M32 if info['addr32'] else M64
-        need = (target - rest) & mask
-        if sign < 0:
-            need = (-need) & mask
-        if scale != 1:
-            if need % scale:
-                continue
-            need //= scale
-        if sum(1 for t in info['terms'] if REG32.get(t[1], t[1]) == full) > 1:
+        # the coefficient of the register in the address (it can be used twice: [rax+rax*2])
+        coefficient = sum(t[0] * t[2] for t in info['terms'] if REG32.get(t[1], t[1]) == full)
+        if coefficient == 0:
             continue
+        # the address without the register
+        mine = sum(t[0] * (state[full] & (M32 if t[1] in REG32 else M64)) * t[2]
+                   for t in info['terms'] if REG32.get(t[1], t[1]) == full)
+        rest = effective_address(info, state) - base_value - mine
+        # coefficient * value == target - rest (mod 2^64 / 2^32): a value near the target
+        need = ((target - rest) & mask) // abs(coefficient)
+        if coefficient < 0:
+            need = (-need) & mask
         state[full] = need if reg not in REG32 else (need & M32)
         return True
     return False
@@ -231,8 +236,9 @@ def separate_rip_relative(rng, info, state, length):
     for off in offsets:
         rip = base | off
         address = (rip + disp) & M64
+        # (Unicorn reads 15 bytes ahead of the code: the page after the code is the code's too)
         if (address >> 12) != (rip >> 12) and ((address + 15) >> 12) != (rip >> 12) and \
-                (address >> 12) != ((rip + length - 1) >> 12):
+                (address >> 12) != ((rip + length - 1) >> 12) and (rip & 0xfff) <= 0xff0:
             state['rip'] = rip
             return True
     return False
@@ -270,15 +276,38 @@ def make_states(text, code, count, overrides):
             st[reg] = data_address(rng, st['rip'])
         st.update(overrides)
         if info is not None and info['terms']:
-            solve_address(info, st, data_address(rng, st['rip']))
-        elif info is not None and info['rip']:
+            target = data_address(rng, st['rip'])
+            if any(REG32.get(t[1], t[1]) in implicit for t in info['terms']):
+                # [rsp + rax*2 + disp32] of push / pop: the stack pointer stays positive, the
+                # other registers are small
+                target += 0x90000000
+                for t in info['terms']:
+                    if REG32.get(t[1], t[1]) not in implicit:
+                        st[REG32.get(t[1], t[1])] = rng.randrange(0, 0x10000)
+            solve_address(info, st, target)
+        if (mnemonic in BIT_TEST) and (info is not None):
+            # The bit offset of a register moves the address by whole operands: keep it
+            # small, the address stays in the range of the two engines
+            m = re.search(r',\s*([a-z0-9]+)\s*$', text)
+            if m and m.group(1) in REG_BY_NAME:
+                full = REG_BY_NAME[m.group(1)]
+                if all(REG32.get(t[1], t[1]) != full for t in info['terms']):
+                    st[full] = rng.choice([0, 1, 63, 64, 65, M64, M64 - 63, M64 - 64]) \
+                        if rng.random() < 0.5 else (rng.randrange(-(1 << 20), 1 << 20) & M64)
+                    # far from 0 and from 2^47, the offset (up to 2^31 bits) moves the address
+                    solve_address(info, st, 0x30000000 + rng.randrange(0x100000, 0x70000000000))
+            if m and m.group(1) in REG_BY_NAME and info['rip'] and not info['terms']:
+                st['rip'] = 0x30000000 + rng.randrange(0x100000, 0x70000000000)
+        if info is not None and info['rip'] and not info['terms']:
             # rip relative: move the code if the address is out of the range, then
             # to another page than the operand
             address = effective_address(info, st)
             if not 0x1000 <= address < 0x7fff00000000:
-                rip = (address_pool(rng) - info['disp']) & M64
-                if 0x1000 <= rip < 0x7fff00000000:
-                    st['rip'] = rip
+                for _ in range(20):
+                    rip = (address_pool(rng) - info['disp']) & M64
+                    if 0x1000 <= rip < 0x7fff00000000:
+                        st['rip'] = rip
+                        break
             separate_rip_relative(rng, info, st, len(code))
         states.append(st)
     return states
@@ -331,7 +360,7 @@ def add_fp(text, code, states):
     rng = random.Random(zlib.crc32(('v2:64:%s' % text).encode('utf-8')))
     mnemonic = text.split()[0] if text.split() else ''
     uses_fp = re.match(r'^(lock |rep[a-z]* )?f[a-z0-9]+$', mnemonic) or \
-        re.search(r'\b(xmm\d+|mm[0-7]|mxcsr)\b', text) or mnemonic in ('emms', 'fxsave', 'fxrstor')
+        re.search(r'\b(xmm\d+|mm[0-7]|mxcsr)\b', text) or mnemonic in ('emms', 'fxsave', 'fxrstor', 'fxsave64', 'fxrstor64')
     if not uses_fp:
         return
     info = parse_memory_operand(text)

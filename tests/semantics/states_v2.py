@@ -273,6 +273,8 @@ def x87_adjust(rng, text, st, host=False, ea=None, mask=M32, align=None):
     if ea is None:
         ea = effective_address
     mnemonic = text.split()[0]
+    # fxsave64 and fxrstor64 (64 bit mode) have the image of fxsave and fxrstor
+    image = mnemonic[:-2] if mnemonic in ('fxsave64', 'fxrstor64') else mnemonic
     lo, hi = x87_needs(text)
     n = rng.randint(lo, hi)
     if not host:
@@ -295,7 +297,7 @@ def x87_adjust(rng, text, st, host=False, ea=None, mask=M32, align=None):
             for offset, value in ((0, sane_control_word(rng)), (fsw_offset, fsw)):
                 for i in range(2):
                     mem[(addr + offset + i) & mask] = (value >> (8 * i)) & 0xff
-    if mnemonic in ('fxsave', 'fxrstor'):
+    if image in ('fxsave', 'fxrstor'):
         # The area must be 16 byte aligned (#GP otherwise, in QEMU too). The register form is
         # aligned through ebx, the absolute form of the corpus stays unaligned (a #GP test)
         addr = ea(text, st)
@@ -305,14 +307,14 @@ def x87_adjust(rng, text, st, host=False, ea=None, mask=M32, align=None):
         elif addr is not None and 'ebx' in text:
             st['ebx'] = (st['ebx'] + ((-addr) & 0xf)) & mask
             addr = ea(text, st)
-        if addr is not None and mnemonic == 'fxrstor' and not host:
+        if addr is not None and image == 'fxrstor' and not host:
             # see fldenv: a plain control word and a status word without exception flags
             fsw = (rng.randrange(8) << 11) | (rng.getrandbits(1) << 8) | (rng.getrandbits(1) << 9) | \
                 (rng.getrandbits(1) << 10) | (rng.getrandbits(1) << 14)
             for offset, value in ((0, sane_control_word(rng)), (2, fsw)):
                 for i in range(2):
                     mem[(addr + offset + i) & mask] = (value >> (8 * i)) & 0xff
-        if addr is not None and mnemonic == 'fxrstor':
+        if addr is not None and image == 'fxrstor':
             # a valid MXCSR (QEMU does not #GP a reserved bit, the SDM does)
             mxcsr = 0x1f80 | (rng.randrange(4) << 13) | (rng.getrandbits(1) << 15) | (rng.getrandbits(1) << 6)
             for i in range(4):

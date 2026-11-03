@@ -364,3 +364,27 @@ states keep every memory operand in 0..2^47 (below).
 
 The comparison is State v2's, with `rax..r15`, `rip`, `fs_base`, `gs_base`, `kernel_gs_base` and xmm0-15.
 `skip.txt` and `oracle_bugs.txt` lines starting with `[64] ` (or `[16,32] `) are for those modes only.
+
+**What is lifted in 64 bit mode.** Everything the 32 bit lifter lifts, on the 64 bit registers and operands
+(`IA32LiftContext`: rsp stack, 64 bit addresses, `[rip + disp]`, the REX registers), plus `IA32SemanticTableAMD64.cpp`
+(movsxd, cmpxchg16b, swapgs, syscall as a `TRAP_SYSTEM_CALL` printed as `trap:256`, rdtscp as a helper). Details of the
+64 bit semantics that the tests check:
+- A 32 bit write clears the upper half of the register, also for a shift or rotate whose count is masked to zero, and
+  not for cmpxchg / cmpxchg8b / cmpxchg16b when they leave the accumulator alone.
+- The shifts and rotates of a 64 bit operand mask the count to 6 bits; rcl / rcr / shld / shrd of 64 bits are done with
+  64 bit shifts (the interpreter evaluates the flags recipes up to 64 bits); `div` / `idiv` of 64 bits divide a 128 bit
+  number (the interpreter has a 128 bit division).
+- fxsave / fxrstor have 16 xmm registers.
+
+**UNLIFTED in 64 bit mode, and why.** The same as in 32 bit mode (crc32, movbe, popcnt, lzcnt, tzcnt, cmovcc, the 3DNow!
+instructions, rcpps and rsqrtps (helpers), the new instruction sets of the decoder), and the segment forms: the loads of
+a segment register (mov / pop / lds..lgs with a segment register destination), the far jmp and call, retf and iret
+(iretq): the long mode descriptors are not modeled. sysret is skipped (Unicorn raises #UD).
+
+**The oracle bugs of 64 bit mode** (`oracle_bugs.txt`, `[64]` lines and the generic ones): the shld / shrd imm8 with a rip
+relative operand is one byte short in QEMU (the address is relative to the end of the instruction, immediate included);
+the negative absolute addresses; the bit offset register that is the base register of the address; and the 32 bit bugs
+(`lock neg`, `ret imm16` >= 0x8000, cmpps imm8 >= 8 on xmm8-15, fprem).
+Unicorn can't be compared when the instruction stores near the code it executes (the page of the code, or the page
+after it when the code is within 15 bytes of the end of its page): it doesn't retire the instruction. The states
+move rip so that rip relative operands are on another page; `oracle64.py` reports the others as ORACLE_ERR.
