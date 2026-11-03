@@ -47,3 +47,23 @@ mov eax, 99999999999999999999999999
 push eax,
 add eax, ebx,
 imul eax, ebx, 4,
+mov rax, rbx
+mov r8d, eax
+mov spl, al
+mov eax, [rip+8]
+mov eax, [rel $+8]
+movsxd eax, ecx
+swapgs
+cdqe
+cqo
+movsq
+iretq
+jrcxz $+5
+push rax
+mov cr8, eax
+movq xmm0, rax
+cmpxchg16b [eax]
+mov eax, [rax]
+mov xmm8, eax
+paddq xmm8, xmm9
+mov eax, r9d

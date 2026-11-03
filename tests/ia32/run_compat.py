@@ -390,24 +390,33 @@ def selftest():
 selftest()
 
 
-ASM_ERRORS = os.path.join(TESTS_DIR, 'asm_errors.txt')
+# The lines which the assembler must reject in 32 bit mode (the malformed
+# lines, and the 64 bit instructions) and in 64 bit mode (the instructions that
+# are invalid in 64 bit mode, the registers that REX can't reach, ...)
+ASM_ERRORS = [(os.path.join(TESTS_DIR, 'asm_errors.txt'), 32),
+              (os.path.join(TESTS_DIR, 'asm_errors64.txt'), 64)]
 
 
 def check_asm_errors(cli):
-    """Every malformed line of asm_errors.txt must be rejected with 'ERR <message>'
-    and the CLI must survive all of them. Returns the number of lines checked."""
-    with open(ASM_ERRORS) as f:
-        lines = [line.rstrip('\n') for line in f if line.strip()]
-    outputs = run_cli(cli, 'asm', 32, lines)
-    bad = []
-    if len(outputs) != len(lines):
-        bad.append('expected %d outputs, got %d' % (len(lines), len(outputs)))
-    for line, out in zip(lines, outputs):
-        ok = out.startswith('ERR ') and out[4:].strip() != '' and 'CLI aborted' not in out
-        if not ok:
-            bad.append('%r -> %r' % (line[:80], out[:120]))
-    assert not bad, 'asm_errors.txt: %d line(s) not rejected:\n  %s' % (len(bad), '\n  '.join(bad))
-    return len(lines)
+    """Every malformed line of asm_errors.txt (asm_errors64.txt in 64 bit mode)
+    must be rejected with 'ERR <message>' and the CLI must survive all of
+    them. Returns the number of lines checked."""
+    total = 0
+    for path, bits in ASM_ERRORS:
+        with open(path) as f:
+            lines = [line.rstrip('\n') for line in f if line.strip()]
+        outputs = run_cli(cli, 'asm', bits, lines)
+        bad = []
+        if len(outputs) != len(lines):
+            bad.append('expected %d outputs, got %d' % (len(lines), len(outputs)))
+        for line, out in zip(lines, outputs):
+            ok = out.startswith('ERR ') and out[4:].strip() != '' and 'CLI aborted' not in out
+            if not ok:
+                bad.append('%r -> %r' % (line[:80], out[:120]))
+        assert not bad, '%s: %d line(s) not rejected:\n  %s' % (
+            os.path.basename(path), len(bad), '\n  '.join(bad))
+        total += len(lines)
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +498,8 @@ def check_file(info, args, ctx, tmp):
                'nasm_hex': hexb, 'nasm_error': err,
                'asm': {'status': None, 'hex': None, 'error': None},
                'dis': {'status': None, 'len': None, 'text': None, 'error': None},
-               'text': {'status': 'NA'}}
+               'text': {'status': 'NA'},
+               'rt': {'status': None, 'hex': None, 'error': None}}
         if err is not None:
             rec['asm']['status'] = 'ERROR'
             rec['asm']['error'] = 'nasm: ' + err
@@ -574,6 +584,26 @@ def check_file(info, args, ctx, tmp):
     for rec in recs:
         if rec['dis']['status'] == 'PENDING':
             rec['dis']['status'] = 'ERROR'
+
+    # RT (round trip): dismount assembles its own disassembly of nasm's bytes
+    # (the same text nasm got for REASM), and must write nasm's bytes again.
+    # Only the lines with DIS=PASS take part: for them nasm's bytes are the
+    # reference of the text, too
+    rt_recs = [rec for rec in dis_recs if rec['dis']['status'] == 'PASS']
+    if rt_recs:
+        rt_out = run_cli(ctx['cli'], 'asm', bits,
+                         [reasm_text(r['dis']['text']) for r in rt_recs])
+        for rec, out in zip(rt_recs, rt_out):
+            if out.startswith('OK '):
+                rec['rt']['hex'] = out[3:].strip()
+                if rec['rt']['hex'] == rec['nasm_hex']:
+                    rec['rt']['status'] = 'PASS'
+                else:
+                    rec['rt']['status'] = 'MISMATCH'
+                    rec['rt']['error'] = 'bytes differ'
+            else:
+                rec['rt']['status'] = 'ERROR'
+                rec['rt']['error'] = out[4:] if out.startswith('ERR ') else out
     return recs
 
 
@@ -585,6 +615,8 @@ def summarize_and_write(recs, out_dir, args, host_source, files):
         rec_feature = rec['feature'] + (' [64]' if rec['file'].startswith('corpus64/') else '')
         totals['asm:' + rec['asm']['status']] += 1
         totals['dis:' + (rec['dis']['status'] or 'NONE')] += 1
+        if rec['rt']['status']:
+            totals['rt:' + rec['rt']['status']] += 1
         if rec['text']['status'] in ('SAME', 'DIFF'):
             totals['text:' + rec['text']['status']] += 1
         s = feat_stats.setdefault(rec_feature, collections.Counter())
@@ -619,6 +651,16 @@ def summarize_and_write(recs, out_dir, args, host_source, files):
             f.write('%s:%d | %s | nasm=%s | dismount=%s / %s | ASM=%s DIS=%s | %s\n' % (
                 rec['file'], rec['line'], rec['source'], rec['nasm_hex'],
                 rec['asm']['hex'] or '-', dis_part, a, d, reason))
+
+    # rt_failures.txt: the round trip (dismount's text -> dismount's bytes)
+    with open(os.path.join(out_dir, 'rt_failures.txt'), 'w') as f:
+        for rec in recs:
+            if rec['rt']['status'] in (None, 'PASS'):
+                continue
+            f.write('%s:%d | %s | nasm=%s | dismount text: %s | dismount=%s | RT=%s | %s\n' % (
+                rec['file'], rec['line'], rec['source'], rec['nasm_hex'],
+                rec['dis']['text'], rec['rt']['hex'] or '-', rec['rt']['status'],
+                rec['rt']['error'] or ''))
 
     # summary.md
     cols = ['asm:PASS', 'asm:ALT', 'asm:MISMATCH', 'asm:ERROR', 'asm:UNSUPPORTED',
@@ -676,9 +718,9 @@ def main():
     ap.add_argument('--selftest', action='store_true', help='run the normalization asserts and exit')
     ap.add_argument('--strict', action='store_true',
                     help='exit 1 if a line that dismount implements is not ASM PASS and DIS PASS '
-                         '(for the 64 bit corpus: not DIS PASS, see --strict-asm64)')
+                         '(and RT PASS for the 64 bit corpus)')
     ap.add_argument('--strict-asm64', action='store_true',
-                    help='--strict checks the assembler of the 64 bit corpus too')
+                    help='no effect: --strict checks the assembler of the 64 bit corpus')
     args = ap.parse_args()
     if args.selftest:
         if not os.path.exists(args.cli):
@@ -739,18 +781,20 @@ def main():
     for kind, sts in rows:
         print('  %s: ' % kind + '  '.join('%s=%d' % (s, totals.get('%s:%s' % (kind.lower(), s), 0))
                                          for s in sts))
+    print('  RT (round trip: dismount text -> dismount bytes == nasm bytes): PASS=%d  MISMATCH=%d  ERROR=%d' % (
+        totals.get('rt:PASS', 0), totals.get('rt:MISMATCH', 0), totals.get('rt:ERROR', 0)))
     print('  TEXT: SAME=%d DIFF=%d' % (totals.get('text:SAME', 0), totals.get('text:DIFF', 0)))
     print('  fully compatible (ASM=PASS and DIS=PASS): %d' % sum(
         1 for r in all_recs if r['asm']['status'] == 'PASS' and r['dis']['status'] == 'PASS'))
-    print('reports: %s/{report.json,summary.md,failures.txt}' % out_dir)
+    print('reports: %s/{report.json,summary.md,failures.txt,rt_failures.txt}' % out_dir)
     if args.strict:
         # UNSUPPORTED lines are not implemented yet; every other line must be
-        # exact. The assembler of the 64 bit corpus is checked with
-        # --strict-asm64 only
+        # exact, and the round trip of the lines of the 64 bit corpus too
         failed = [r for r in all_recs
-                  if ((r['asm']['status'] not in ('PASS', 'UNSUPPORTED')) and
-                      (args.strict_asm64 or not r['file'].startswith('corpus64/'))) or
-                  r['dis']['status'] not in ('PASS', 'UNSUPPORTED')]
+                  if r['asm']['status'] not in ('PASS', 'UNSUPPORTED') or
+                  r['dis']['status'] not in ('PASS', 'UNSUPPORTED') or
+                  (r['file'].startswith('corpus64/') and
+                   r['rt']['status'] not in (None, 'PASS'))]
         if failed:
             print('strict: %d lines failed, see %s/failures.txt' % (len(failed), out_dir))
             return 1

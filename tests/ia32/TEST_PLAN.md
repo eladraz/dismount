@@ -32,11 +32,15 @@ tests/ia32/
   opcodeTableFuture.inc   generated, comment-only inventory of the opcodes not implemented
   run_compat.py           the driver: nasm <-> dismount comparison + report
   tools/fuzz_lengths.py   random byte sequences: dismount vs ndisasm lengths and errors
+  tools/fuzz_roundtrip.py random byte sequences: dismount decoder -> assembler -> decoder
+  asm_errors.txt          lines the 32-bit assembler must reject
+  asm_errors64.txt        lines the 64-bit assembler must reject
 ```
 
 Build: `cmake -DDISMOUNT_BUILD_TESTS=ON ..` adds `dismount_cli` and `test_dismount`
 (the existing xStl-harness unit test, with `tests/TestAMD64Disassembler.cpp`: the
-directed decode cases of 64-bit mode) to the CMake build.
+directed decode cases of 64-bit mode, and `tests/TestAMD64Assembler.cpp`: the 64-bit
+assembler, see "The assembler in 64-bit mode") to the CMake build.
 
 ## Corpus format
 
@@ -98,8 +102,8 @@ python3 tests/ia32/tools/gen_corpus.py --only 64                # regenerate cor
 python3 tests/ia32/tools/fuzz_lengths.py --bits 64 --count 50000
 ```
 
-`--strict` checks the DIS column of `corpus64/` only, because the assembler does
-not implement 64-bit mode in every build: `--strict-asm64` checks ASM too.
+`--strict` checks ASM, DIS and RT of `corpus64/` (`--strict-asm64` is an old name,
+it has no effect any more).
 
 Files: `00_addressing64.asm` (every base / index / scale / displacement with the
 REX registers r8-r15, rsp / r12 and rbp / r13, no base, absolute, rip relative and
@@ -182,6 +186,102 @@ the length and the structured operands) and by `fuzz_lengths.py --bits 64`, whic
 compares the instruction lengths with `ndisasm -b 64` for random bytes (REX
 prefixes alone, `d5` REX2 and `rex.*` lines of ndisasm are skipped).
 
+### The assembler in 64-bit mode
+
+`dismount_cli asm --bits 64`, `AssemblingFactory::generateAssembler(binary,
+DISASSEMBLER_AMD_64)` and `IA32AssemblerStream` with `IA32eInstructionSet::AMD_64`
+assemble the nasm subset above in 64-bit mode. Every line of `corpus64/` which
+dismount decodes (DIS=PASS) is also ASM=PASS (the same bytes as nasm 3.02, no
+ALT is needed) and RT=PASS: the text dismount prints for nasm's bytes is assembled
+to nasm's bytes again. The lines that are ASM=ERROR are the DIS=INVALID ones
+(`pextrw word [mem], xmm, imm` and `rdmsr r64, imm32`: the encodings are not in the
+opcode table).
+
+How the encoder follows the table (`Mode64` of `opcodeTable.h`):
+
+- The table rows are `MODE64_INVALID` in 64-bit mode and `MODE64_ONLY` in the other
+  modes: the rows are skipped. The AMD64 tables are searched too; an AMD64 row replaces
+  the IA-32 row which has the same opcode, mandatory prefix and a common modrm
+  (`movsxd`/`arpl`, `mov r64, imm64`, `mov cr0, rax`, `cdqe`, ...), the copies of the
+  IA-32 rows (`MODE64_LEGACY`) do not.
+- The operand size is REX.W (64), 0x66 (16) or the default (32). `MODE64_DEFAULT_64`
+  rows (push, pop, call/jmp r/m, ret, leave, ...) are 64 bits without REX.W and 16 bits
+  with 0x66 (a 32-bit operand is rejected); `MODE64_FORCE_64` rows (the relative
+  branches) have no operand size; `MODE64_NO_REXW` rows (in, out, ins, outs, syscall,
+  the FPU memory operands) reject a 64-bit operand.
+- The prefix order is the one of nasm: segment, 0x67, lock, 0x66, rep, the
+  mandatory prefix (66, F2, F3) and the REX prefix right before the opcode.
+- REX.R / X / B come from the registers 8-15 in the reg field, the SIB index and the
+  r/m, SIB base or opcode register. spl..dil force a REX prefix and ah..bh in the same
+  instruction (or with r8-r15) is rejected.
+- Memory: rsp / r12 as base need a SIB, rbp / r13 as base without displacement
+  need disp8 0, `[rax*2]` is `[rax+rax]`, `[rax+rsp]` is `[rsp+rax]` (esp / rsp can't
+  be an index; r12 can), `[rax*4]` has no base and a disp32. `[rip + N]` is mod 00,
+  rm 101 with `N` the displacement from the end of the instruction, nasm's
+  `[rel $+N]` (and `[rel N]`) is `N - length`; 32-bit address registers write
+  0x67 and `a32`. 16-bit address registers are rejected.
+- The address `[0x1234]` is a SIB byte with no base and no index (7 bytes with the
+  disp32, which is sign extended); the `A0-A3` offset forms are used only for
+  `[qword 0x1122334455667788]` (and the `[a32 0x12345678]` of the 32-bit offset), as
+  in nasm. A displacement or an address which does not fit in 32 bits is truncated
+  (nasm warns about it).
+- `rel8` or `rel32` for the branches (`rel32` is the only near form), `short` and
+  `near` pick one. `jrcxz` has the 64-bit count register, `jecxz` is 0x67, `jcxz` is
+  rejected; `loop target, ecx` / `a32 loop target` select 0x67.
+
+Decisions where nasm's choice is one of several valid encodings (the assembler
+writes what nasm writes):
+
+- `mov r64, imm`: a value of 0..0xffffffff is `mov r32, imm32` (`mov rax, 1` is `b8
+  01 00 00 00`, the register is zero extended), -0x80000000..-1 is the sign extended
+  `REX.W C7 /0 imm32` (7 bytes), anything else is `REX.W B8+r imm64`.
+- The immediate of the other 64-bit instructions is the sign extended imm32, or the
+  sign extended imm8 when it fits (`add rax, 0x80` is `48 05 80 00 00 00`); a bigger
+  value is truncated to the low dword (`test rax, 0x1122334455667788`), as nasm does
+  (with a warning). Where an instruction has an imm8 and an imm32 form and neither
+  fits the signed range the imm32 is tried before the low byte of the imm8.
+- `xchg rax, rax` is `48 90`, `xchg ax, ax` is `66 90`, `xchg eax, eax` is `87 C0`
+  (`90` is the nop), `xchg r8, rax` and `xchg rax, r8` are both `49 90`.
+- `movsx rax, eax` and `movsxd rax, eax` are `cdqe` (`48 98`), the other `movsx r64,
+  r/m32` are `movsxd` (`48 63 /r`).
+- `movq xmm1, [mem]` and `movq xmm1, xmm2` are `F3 0F 7E` (not `66 REX.W 0F 6E`).
+- `cvttss2si rax, xmm0`, `movmskps rax, xmm0`, `movq` and `cvtsi2sd xmm, r64` have
+  REX.W; `pextrw rax, xmm0, 1` has none (nasm treats rax as eax).
+- `jmp far [mem]` and `jmp far qword [mem]` are `REX.W FF /5` (m16:64), `jmp far dword
+  [mem]` is `FF /5` and `jmp far word [mem]` has 0x66.
+- `mov eax, ds` and `mov rax, ds` are `8C D8`, `mov ax, ds` is `66 8C D8`, `mov ds, ax`,
+  `mov ds, eax` and `mov ds, rax` are `8E D8`.
+- `lgdt [mem]` / `lgdt word [mem]` (the 0x66 form) and the other descriptor table
+  instructions take no REX.W.
+- `push qword fs` is `0F A0` (the size keyword of a segment register sets the operand
+  size: `push word fs` is `66 0F A0`, nasm writes `0F A0` for it).
+
+Decisions of the assembler (nasm accepts more): a repeated prefix is rejected
+(`lock lock add`, `rep rep movsb`, see `asm_errors.txt`; nasm writes it once),
+the size suffixes `w d q` are accepted only for `ret retf iret leave enter pushf popf
+pusha popa` (`retw`, `iretq`), not for the other mnemonics (`pslldq` is not `pslld`
+with a `q`), and the register names of 64-bit mode (and rip relative addressing)
+are rejected in 16 and 32-bit mode. The `strict` keyword of nasm is not supported.
+
+Checks of the 64-bit assembler:
+
+```
+python3 tests/ia32/run_compat.py --corpus 64                      # ASM and RT columns
+python3 tests/ia32/run_compat.py --selftest                       # asm_errors*.txt are rejected
+python3 tests/ia32/tools/fuzz_roundtrip.py --bits 64 --count 60000 --seed 1
+out/bin/test_dismount                                             # tests/TestAMD64Assembler.cpp
+```
+
+`fuzz_roundtrip.py` decodes random bytes with the dismount decoder, assembles the
+text which the decoder printed and decodes the new bytes: the text must be the same.
+Random bytes decode to texts which are not instructions (the decoder is more
+lenient than the processors: `lea rbx, r11`, `mov dr1, [rax]`, `jmp far edx`); nasm
+judges such lines: a text which nasm rejects is not counted, and a text which was
+assembled to other bytes than nasm's is a bug. `tests/TestAMD64Assembler.cpp` is the
+unit test: a table of text, bytes (from nasm) and the disassembler's text, the text
+which must be rejected in 64-bit mode and the 64-bit instructions which must be
+rejected in 32-bit mode.
+
 ## Checks (per line)
 
 `run_compat.py` assembles each corpus file with nasm and takes each line's reference
@@ -191,6 +291,7 @@ bytes from the nasm listing (`-l`). Then it runs these checks on every line:
 |---|---|---|
 | **ASM** | `dismount_cli asm` assembles the line on its own | `PASS`, `ALT` (different bytes, but ndisasm decodes both to the same instruction, i.e. a valid alternative encoding), `MISMATCH`, `ERROR` (exception / unsupported) |
 | **DIS** | `dismount_cli dis` decodes nasm's bytes | `PASS` (decoded length == nasm length, and the normalized text re-assembled by nasm gives identical bytes), `LENGTH`, `REASM_DIFF`, `INVALID` (decoded as an invalid opcode), `ERROR` |
+| **RT** | round trip: `dismount_cli asm` assembles the text which dismount printed for nasm's bytes (the REASM text), and must write nasm's bytes again. Only for the lines with DIS=PASS | `PASS`, `MISMATCH`, `ERROR` (listed in `rt_failures.txt`) |
 | **TEXT** | normalized source vs. normalized dismount disassembly | `SAME` / `DIFF` (informational only) |
 
 A line counts as **fully compatible** when ASM=PASS and DIS=PASS. A line is
@@ -230,14 +331,15 @@ can execute. The report marks every line with `host: yes/no`.
 - Encoding checks do not need the CPU. The host feature set is reported so that
   execution-based checks can be added later.
 - The driver exits 0 when lines fail. With `--strict` (used by CI) it exits 1 if
-  any line that dismount implements is not ASM=PASS and DIS=PASS.
+  any line that dismount implements is not ASM=PASS and DIS=PASS (and RT=PASS in
+  `corpus64/`).
 
 ## Report
 
 `out/compat/report.json` (every line, every check), `out/compat/summary.md` (matrix
 of feature × status, plus the top failure clusters by mnemonic/operand form), and
 `out/compat/failures.txt` (one failure per line: file:line, source, nasm hex,
-dismount hex/text, reason).
+dismount hex/text, reason) and `out/compat/rt_failures.txt` (the round trip failures).
 
 ## Future-expansion opcode inventory
 

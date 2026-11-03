@@ -1,0 +1,68 @@
+push es
+pop ds
+push cs
+pusha
+popa
+pushad
+aaa
+aas
+daa
+das
+aam
+aad
+into
+bound eax, [rax]
+lds eax, [rax]
+les eax, [rax]
+arpl ax, bx
+call 0x1234:0x56789
+jmp 0x1234:0x56789
+mov ah, r8b
+mov spl, ah
+mov ah, [r8]
+mov ah, spl
+add dh, r9b
+push eax
+pop ebx
+push dword [rax]
+pushfd
+popfd
+call eax
+jmp ecx
+mov al, [bx]
+mov eax, [bx+si]
+mov eax, [ax]
+jcxz $+5
+in rax, dx
+out dx, rax
+mov cr0, eax
+mov dr0, ebx
+xchg ah, spl
+mov rax, [eax+rbx]
+lea rax, rbx
+mov eax, [rax*3]
+mov eax, [rsp*2]
+mov eax, [rax+rsp*2]
+mov eax, [rax+rcx+rdx]
+mov eax, [rip+rax]
+mov eax, [rip*2]
+movsxd eax, rcx
+movsxd rax, rcx
+cmpxchg16b rax
+cmpxchg16b eax
+cmpxchg8b [rax*3]
+mov rax, 0x12345678901234567
+movq xmm0, eax
+movd xmm0, rax
+mov r8, r8b
+mov [rax], 5
+xmm8
+mov xmm8, rax
+paddq xmm16, xmm0
+mov eax, ebx, ecx
+add rax
+retd
+leaved
+pushfd
+mov eax, [rax
+nop 5
