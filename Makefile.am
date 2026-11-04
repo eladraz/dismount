@@ -61,6 +61,7 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/arm/ArmOperandCodec.cpp \
                          Source/dismount/proc/arm/ArmOperandCodecA32.cpp \
                          Source/dismount/proc/arm/ArmOperandCodecA64.cpp \
+                         Source/dismount/proc/arm/ArmOperandCodecSimd.cpp \
                          Source/dismount/proc/arm/ArmOperandNames.cpp \
                          Source/dismount/proc/arm/Arm64Names.cpp \
                          Source/dismount/proc/arm/ArmNotation.cpp \

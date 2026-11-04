@@ -34,7 +34,9 @@ def main():
     lines = []
     for path in sorted(glob.glob(os.path.join(CORPUS, '*.s'))):
         name = os.path.basename(path)[:-2]
-        if name in ('simd', 'sve', 'sme'):
+        # The scalar floating point and Advanced SIMD lines are the rows of
+        # tests/TestArm64Simd.cpp (gen_simd_unit_rows.py)
+        if name in ('simd', 'sve', 'sme') or name.startswith('simd-'):
             continue
         for raw in open(path):
             if raw.startswith('//') or not raw.strip():

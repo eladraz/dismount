@@ -13,52 +13,52 @@ LLVM names them), so features that only add such names have no encodings.
 
 | id | LLVM feature | encodings | disassemble | assemble | lift | lift verified | encoding verified | corpus lines passing |
 |---|---|---|---|---|---|---|---|---|
-| 26 | (base) | 471 | yes | yes | - | - | yes | 4290 / 5439 |
-| 27 | aes | 0 | - | - | - | - | - | 0 / 4 |
-| 28 | sha2 | 0 | - | - | - | - | - | 0 / 19 |
-| 29 | sha2 | 0 | - | - | - | - | - | 0 / 19 |
-| 30 | sha3 | 0 | - | - | - | - | - | 0 / 28 |
-| 31 | sha3 | 0 | - | - | - | - | - | 0 / 28 |
-| 32 | sm4 | 0 | - | - | - | - | - | 0 / 44 |
-| 33 | sm4 | 0 | - | - | - | - | - | 0 / 44 |
+| 26 | (base) | 1213 | yes | yes | - | - | yes | 15342 / 15342 |
+| 27 | aes | 6 | yes | yes | - | - | yes | 99 / 99 |
+| 28 | sha2 | 6 | yes | yes | - | - | yes | 179 / 179 |
+| 29 | sha2 | 4 | yes | yes | - | - | yes | 179 / 179 |
+| 30 | sha3 | 4 | yes | yes | - | - | yes | 156 / 156 |
+| 31 | sha3 | 4 | yes | yes | - | - | yes | 156 / 156 |
+| 32 | sm4 | 7 | yes | yes | - | - | yes | 188 / 188 |
+| 33 | sm4 | 2 | yes | yes | - | - | yes | 188 / 188 |
 | 34 | crc | 8 | yes | yes | - | - | yes | 85 / 85 |
 | 35 | lse | 232 | yes | yes | - | - | yes | 2263 / 2263 |
-| 36 | rdm | 0 | - | - | - | - | - | 0 / 12 |
-| 37 | fullfp16 | 0 | - | - | - | - | - | 0 / 90 |
-| 38 | fp16fml | 0 | - | - | - | - | - | 0 / 24 |
-| 39 | dotprod | 0 | - | - | - | - | - | 0 / 12 |
+| 36 | rdm | 8 | yes | yes | - | - | yes | 82 / 82 |
+| 37 | fullfp16 | 172 | yes | yes | - | - | yes | 2778 / 2778 |
+| 38 | fp16fml | 8 | yes | yes | - | - | yes | 152 / 152 |
+| 39 | dotprod | 4 | yes | yes | - | - | yes | 76 / 76 |
 | 40 | ccpp | 0 | - | - | - | - | - | - |
 | 41 | pauth | 35 | yes | yes | - | - | yes | 308 / 311 |
-| 42 | complxnum | 0 | - | - | - | - | - | 0 / 12 |
-| 43 | jsconv | 0 | - | - | - | - | - | - |
+| 42 | complxnum | 3 | yes | yes | - | - | yes | 110 / 110 |
+| 43 | jsconv | 1 | yes | yes | - | - | yes | 16 / 16 |
 | 44 | rcpc | 4 | yes | yes | - | - | yes | 40 / 40 |
 | 45 | rcpc-immo | 13 | yes | yes | - | - | yes | 171 / 171 |
 | 46 | flagm | 4 | yes | yes | - | - | yes | 30 / 30 |
 | 47 | altnzcv | 2 | yes | yes | - | - | yes | 2 / 2 |
-| 48 | fptoint | 0 | - | - | - | - | - | - |
+| 48 | fptoint | 12 | yes | yes | - | - | yes | 183 / 183 |
 | 49 | sb | 1 | yes | yes | - | - | yes | 1 / 1 |
 | 50 | bti | 0 | - | - | - | - | - | - |
 | 51 | mte | 40 | yes | yes | - | - | yes | 387 / 387 |
 | 52 | rand | 0 | - | - | - | - | - | - |
 | 53 | predres | 4 | yes | yes | - | - | yes | - |
-| 54 | i8mm | 0 | - | - | - | - | - | 0 / 60 |
-| 55 | bf16 | 0 | - | - | - | - | - | 0 / 51 |
+| 54 | i8mm | 6 | yes | yes | - | - | yes | 126 / 156 |
+| 55 | bf16 | 10 | yes | yes | - | - | yes | 181 / 211 |
 | 56 | ls64 | 4 | yes | yes | - | - | yes | 15 / 15 |
 | 57 | wfxt | 2 | yes | yes | - | - | yes | 15 / 15 |
 | 58 | mops | 108 | yes | yes | - | - | yes | 667 / 667 |
 | 59 | hbc | 1 | yes | yes | - | - | yes | 16 / 16 |
 | 60 | cssc | 11 | yes | yes | - | - | yes | 132 / 132 |
-| 61 | rcpc3 | 22 | yes | yes | - | - | yes | 233 / 233 |
+| 61 | rcpc3 | 24 | yes | yes | - | - | yes | 265 / 265 |
 | 62 | lse128 | 12 | yes | yes | - | - | yes | 109 / 109 |
 | 63 | d128 | 5 | yes | yes | - | - | yes | 285 / 285 |
 | 64 | gcs | 10 | yes | yes | - | - | yes | 59 / 59 |
 | 65 | cpa | 4 | yes | yes | - | - | yes | 53 / 77 |
-| 66 | fp8 | 0 | - | - | - | - | - | 0 / 20 |
-| 67 | fp8fma | 0 | - | - | - | - | - | 0 / 36 |
-| 68 | fp8dot4 | 0 | - | - | - | - | - | 0 / 2 |
-| 69 | fp8dot2 | 0 | - | - | - | - | - | 0 / 4 |
-| 70 | faminmax | 0 | - | - | - | - | - | 0 / 25 |
-| 71 | lut | 0 | - | - | - | - | - | 0 / 24 |
+| 66 | fp8 | 14 | yes | yes | - | - | yes | 236 / 240 |
+| 67 | fp8fma | 12 | yes | yes | - | - | yes | 228 / 228 |
+| 68 | fp8dot4 | 2 | yes | yes | - | - | yes | 34 / 34 |
+| 69 | fp8dot2 | 2 | yes | yes | - | - | yes | 36 / 36 |
+| 70 | faminmax | 4 | yes | yes | - | - | yes | 69 / 82 |
+| 71 | lut | 4 | yes | yes | - | - | yes | 76 / 88 |
 | 72 | sve | 0 | - | - | - | - | - | 0 / 1560 |
 | 73 | f32mm | 0 | - | - | - | - | - | - |
 | 74 | f64mm | 0 | - | - | - | - | - | 0 / 24 |
@@ -90,6 +90,9 @@ LLVM names them), so features that only add such names have no encodings.
 | 100 | pcdphint | 1 | yes | yes | - | - | yes | 2 / 2 |
 | 101 | poe2 | 8 | yes | yes | - | - | yes | 80 / 80 |
 | 102 | tev | 4 | yes | yes | - | - | yes | 22 / 22 |
+| 103 | f8f32mm | 1 | yes | yes | - | - | yes | 19 / 24 |
+| 104 | f8f16mm | 1 | yes | yes | - | - | yes | 19 / 19 |
+| 105 | fprcvt | 48 | yes | yes | - | - | yes | 762 / 762 |
 
 ## A32
 

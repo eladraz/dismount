@@ -29,6 +29,10 @@ import armlib
 
 CORPUS = os.path.join(armlib.REPO, 'tests', 'arm', 'corpus')
 
+# The features which clang names in "instruction requires:" differently from the
+# -target-feature that enables them
+FEATURE_ALIASES = {'frint3264': 'fptoint'}
+
 # The mnemonics whose last operand can be an address
 _PCREL = re.compile(r'^(b|bl|b\.\w+|bc\.\w+|cbz|cbnz|tbz|tbnz|cb\w+|adr|adrp|ldr|ldrsw|prfm|'
                     r'retaasppc|retabsppc|autiasppc|autibsppc) ')
@@ -84,13 +88,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--arch', default='a64', choices=['a64'])
     parser.add_argument('--per-mnemonic', type=int, default=6)
+    parser.add_argument('--class', dest='only_class', choices=['base', 'simd', 'sve', 'sme'],
+                        help='write only the files of this encoding class (simd: simd.s and '
+                             'simd-<feature>.s) and leave the others alone')
     args = parser.parse_args()
 
     rng = armlib.seeded_rng(20240607)
     rows = armlib.entries(args.arch)
+    # The instantiations of the scalar floating point and Advanced SIMD
+    # encodings have their own random stream, so the lines of the other
+    # classes don't change when that table changes
+    simd_rows = [r for r in rows if armlib.a64_class(r[1]) == 'simd']
+    rows = [r for r in rows if armlib.a64_class(r[1]) != 'simd']
     sources = []        # (word, class)
     for w in candidate_words(rows, rng):
         sources.append(w)
+    simd_table_words = candidate_words(simd_rows, armlib.seeded_rng(20240608), 12)
+    sources.extend(simd_table_words)
     for cls, count in (('base', 40000), ('simd', 60000), ('sve', 60000), ('sme', 60000)):
         sources.extend(random_class_words(rng, cls, count))
     sources = sorted(set(sources))
@@ -99,6 +113,7 @@ def main():
     # Decodable words: the table instantiations all, the random ones capped per
     # mnemonic
     table_words = set(candidate_words(rows, armlib.seeded_rng(20240607)))
+    table_words |= set(simd_table_words)
     seen = collections.Counter()
     chosen = []        # (text relative, class)
     seen_text = set()
@@ -123,6 +138,8 @@ def main():
     files = collections.defaultdict(list)
     dropped = collections.Counter()
     for (line, cls), (status, data) in zip(chosen, results):
+        if args.only_class and cls != args.only_class:
+            continue
         if status == 'ok':
             required = []
         else:
@@ -131,10 +148,14 @@ def main():
                 # Not an instruction clang takes in this form: not a corpus line
                 dropped[data.split(' ')[0] if data else 'error'] += 1
                 continue
-            required = sorted(m.group(1).split())
+            required = sorted(FEATURE_ALIASES.get(f, f) for f in m.group(1).split())
         name = '+'.join(required) if required else 'base'
-        if cls in ('simd', 'sve', 'sme'):
+        if cls in ('sve', 'sme'):
             name = cls
+        elif cls == 'simd':
+            # The scalar floating point and Advanced SIMD of ARMv8.0; the
+            # extensions are in the files simd-<feature>.s
+            name = 'simd-' + name if required else cls
         files[name].append((line, required))
     # Where objdump decodes and clang takes the line with all the features, it
     # was not required: the lines clang refuses are dropped above
@@ -142,8 +163,14 @@ def main():
     out_dir = os.path.join(CORPUS, args.arch)
     os.makedirs(out_dir, exist_ok=True)
     for name in os.listdir(out_dir):
-        if name.endswith('.s'):
-            os.unlink(os.path.join(out_dir, name))
+        if not name.endswith('.s'):
+            continue
+        # With --class only the files of the class are replaced
+        if args.only_class == 'simd' and not (name == 'simd.s' or name.startswith('simd-')):
+            continue
+        if args.only_class in ('base', 'sve', 'sme') and name != args.only_class + '.s':
+            continue
+        os.unlink(os.path.join(out_dir, name))
     total = 0
     for name, lines in sorted(files.items()):
         with open(os.path.join(out_dir, name + '.s'), 'w') as f:

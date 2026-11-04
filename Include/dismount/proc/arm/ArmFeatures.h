@@ -246,6 +246,13 @@ public:
         FEAT_PCDPHINT,
         FEAT_POE2,
         FEAT_TEV,
+        // A64 SIMD: the FP8 matrix multiply of Advanced SIMD (fmmla
+        // v0.4s, v1.16b, v2.16b: FEAT_F8F32MM, v0.8h: FEAT_F8F16MM) and the
+        // conversions between floating point registers without the general
+        // registers (fcvtas s0, d1: FEAT_FPRCVT)
+        FEAT_F8F32MM,
+        FEAT_F8F16MM,
+        FEAT_FPRCVT,
 
         // The number of features. Must be last
         FEATURES_COUNT

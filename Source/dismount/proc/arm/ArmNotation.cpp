@@ -26,7 +26,7 @@ typedef ArmInstructionSet::DisassemblerTypes InstructionSet;
 // The suffix of an arrangement, by Operand::Arrangement
 const char* const gArrangements[] = {
     "", ".8b", ".16b", ".4h", ".8h", ".2s", ".4s", ".1d", ".2d", ".1q",
-    ".b", ".h", ".s", ".d", ".q", ".2h", ".4b"
+    ".b", ".h", ".s", ".d", ".q", ".2h", ".4b", ".2b"
 };
 
 const char* const gShifts[] = {
@@ -63,6 +63,16 @@ cString formatNumber(int64 value, bool isHex)
 cString formatImmediate(const Operand& operand)
 {
     cString text("#");
+    if (operand.m_isUnsigned && operand.m_isExplicit)
+    {
+        // The 64 bit immediate of movi (%#016llx): zero has no prefix
+        cString digits = hexText((uint64)operand.m_immediate);
+        if (operand.m_immediate == 0)
+            return text + cString::dup("0", 16);
+        if (digits.length() < 14)
+            digits = cString::dup("0", 14 - digits.length()) + digits;
+        return text + "0x" + digits;
+    }
     if (operand.m_isUnsigned)
         text += cString("0x") + hexText((uint64)operand.m_immediate);
     else
@@ -361,6 +371,9 @@ cString ArmNotation::formatOperand(ArmInstructionSet::DisassemblerTypes type,
     case Operand::KIND_IMMEDIATE:
         return formatImmediate(operand);
     case Operand::KIND_FLOAT_IMMEDIATE:
+        // The explicit zero of fcmp / fcmeq is written "#0.0"
+        if (operand.m_isExplicit)
+            return cString("#0.0");
         return cString("#") + formatFloat(operand.m_floatImmediate);
     case Operand::KIND_SHIFTED_REGISTER:
     {

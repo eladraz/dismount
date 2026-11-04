@@ -94,10 +94,11 @@ enum ArmOperandKind {
     // of the by element instructions, imm5 of dup / ins / umov, imm4...)
     ARM_KIND_A64_VECTOR_ELEMENT,
     // A64 vector list { vN.<T> - vN+k.<T> }: the first register at
-    // m_position, the count (1-4) in m_flags bits 0-2 (0: from the opcode
-    // field of ld1-ld4 / ld1r-ld4r / tbl), the arrangement from m_extra
-    // (ArmArrangementScheme), with ARM_SPEC_LIST_ELEMENT the element form
-    // {v0.s, v1.s}[1] of the single structure loads
+    // m_position, the count (1-4) in m_flags bits 0-2 (each opcode of ld1-ld4
+    // / ld1r-ld4r / tbl is an entry of its own), the arrangement from
+    // m_extra (ArmArrangementScheme), with ARM_SPEC_LIST_ELEMENT
+    // (ArmOperandCodec.h) the element form {v0.s, v1.s}[1] of the single
+    // structure loads
     ARM_KIND_A64_VECTOR_LIST,
     // AArch32 single precision s register: 4 bits at m_position and the low
     // bit at m_extra (Vd:D)
@@ -303,6 +304,12 @@ enum ArmOperandKind {
     // the special registers of vmrs / vmsr (fpscr, fpexc...); m_extra is an
     // ArmOptionScheme
     ARM_KIND_A32_OPTION,
+
+    // ---- A64 SIMD (ArmOperandCodecSimd.cpp) ------------------------------
+    // The rotation of fcadd (#90 / #270, one bit at m_position) and of fcmla
+    // (#0 / #90 / #180 / #270, two bits at m_position); m_extra is an
+    // ArmRotationScheme. Printed in decimal
+    ARM_KIND_A64_SIMD_ROTATION,
 
     // The number of kinds. Must be last
     ARM_KINDS_COUNT

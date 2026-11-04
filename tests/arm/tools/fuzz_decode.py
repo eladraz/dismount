@@ -8,8 +8,7 @@ bit, so the neighbours of an encoding are reached) and from a random top byte
 
 A bug is: a different text, dismount decodes and objdump says <unknown>, the
 reverse, or a crash. Words of the classes that dismount doesn't implement yet
-(the scalar floating point and Advanced SIMD, SVE and SME) are counted as
-"unimplemented", not as bugs.
+(SVE and SME) are counted as "unimplemented", not as bugs.
 
     fuzz_decode.py --arch a64 --count 200000 --seed 1
 """
@@ -22,10 +21,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import armlib
 
 
-def generate(arch, count, seed, rows):
+# The classes whose words are compared (the others are not implemented yet)
+IMPLEMENTED_CLASSES = ('base', 'simd')
+
+
+def generate(arch, count, seed, rows, only_class=None, tops=None):
+    """Random words. only_class restricts them to an encoding class
+    (armlib.a64_class): 'simd' reaches the scalar floating point and Advanced
+    SIMD space, which is sparse, through the entries of that class."""
     rng = armlib.seeded_rng(seed)
     words = set()
     entries = [r for r in rows if r[4] == 4]
+    if only_class:
+        entries = [r for r in entries if armlib.a64_class(r[1]) == only_class]
     while len(words) < count:
         kind = rng.random()
         if kind < 0.25:
@@ -37,9 +45,14 @@ def generate(arch, count, seed, rows):
             if rng.random() < 0.3:
                 for _ in range(rng.choice((1, 1, 2))):
                     word ^= 1 << rng.randrange(32)
+        elif tops:
+            word = (rng.choice(tops) << 24) | rng.getrandbits(24)
         else:
             word = (rng.getrandbits(8) << 24) | rng.getrandbits(24)
-        words.add(word & 0xffffffff)
+        word &= 0xffffffff
+        if only_class and armlib.a64_class(word) != only_class:
+            continue
+        words.add(word)
     return sorted(words)
 
 
@@ -51,15 +64,20 @@ def main():
     parser.add_argument('--show', type=int, default=3,
                         help='examples per group of mismatches')
     parser.add_argument('--words', help='file of hex words to test instead of random ones')
+    parser.add_argument('--class', dest='only_class', choices=['base', 'simd', 'sve', 'sme'],
+                        help='only the words of this encoding class (armlib.a64_class)')
+    parser.add_argument('--tops', help='comma separated top bytes (hex): the random words '
+                                       'are made of one of them and random low bits')
     args = parser.parse_args()
 
     rows = armlib.entries(args.arch)
     if args.words:
         words = [int(w, 16) for w in open(args.words).read().split()]
     else:
-        words = generate(args.arch, args.count, args.seed, rows)
+        tops = [int(t, 16) for t in args.tops.split(',')] if args.tops else None
+        words = generate(args.arch, args.count, args.seed, rows, args.only_class, tops)
 
-    return compare_and_report(args.arch, words, args.show)
+    return compare_and_report(args.arch, words, args.show, args.only_class)
 
 
 def compare_and_report(arch, words, show=3, only_class=None):
@@ -73,7 +91,7 @@ def compare_and_report(arch, words, show=3, only_class=None):
     groups = collections.defaultdict(list)
     for word, address, theirs, (status, text) in zip(words, addresses, objdump, ours):
         cls = armlib.a64_class(word)
-        if cls != 'base' and only_class is None:
+        if cls not in IMPLEMENTED_CLASSES and only_class is None:
             stats['unimplemented (%s)' % cls] += 1
             continue
         stats['compared'] += 1

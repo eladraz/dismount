@@ -60,6 +60,7 @@
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodec.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA32.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA64.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecSimd.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandNames.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64Names.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmNotation.cpp" />

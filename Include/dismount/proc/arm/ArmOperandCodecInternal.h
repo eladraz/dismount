@@ -35,6 +35,28 @@ bool encodeA64(const ArmOperandSpec& spec,
                const ArmCodecContext& context,
                uint32& encoding);
 
+// ArmOperandCodecSimd.cpp: the kinds of the scalar floating point, Advanced
+// SIMD and cryptographic instructions of A64. isSimdSpec() tells whether a
+// spec is of this area (the vector kinds, the new schemes of the scalar
+// registers and of the memory addressing)
+bool isSimdSpec(const ArmOperandSpec& spec);
+bool decodeSimd(const ArmOperandSpec& spec,
+                uint32 encoding,
+                const ArmCodecContext& context,
+                ArmDecodedOperand& operand);
+bool encodeSimd(const ArmOperandSpec& spec,
+                const ArmDecodedOperand& operand,
+                const ArmCodecContext& context,
+                uint32& encoding);
+// For the assembler, which compares the operands of the text with the ones
+// that its bits decode to: true if the text names the arrangement, the
+// element, the list and the post index that the bits decode to
+bool isSameSimdOperand(const ArmDecodedOperand& parsed,
+                       const ArmDecodedOperand& decoded);
+// True if register id 'next' follows 'previous' in a register list (the
+// registers wrap around: v31, v0)
+bool isConsecutiveRegister(uint previous, uint next);
+
 // ArmOperandCodecA32.cpp: the AArch32 kinds. TODO: only the general purpose
 // registers are implemented
 bool decodeA32(const ArmOperandSpec& spec,

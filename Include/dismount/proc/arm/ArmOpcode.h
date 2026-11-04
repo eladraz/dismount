@@ -93,7 +93,10 @@ struct ArmDecodedOperand {
         ARRANGEMENT_Q,
         // A64 2h / 4b of the dot product by element (sdot v0.4s, v1.16b,
         // v2.4b[0])
-        ARRANGEMENT_2H, ARRANGEMENT_4B
+        ARRANGEMENT_2H, ARRANGEMENT_4B,
+        // A64 2b of the FP8 dot product by element (fdot v0.4h, v1.8b,
+        // v2.2b[3])
+        ARRANGEMENT_2B
     };
 
     // The predicate qualifier
@@ -217,7 +220,10 @@ struct ArmDecodedOperand {
 
     // Printing hints: print the immediate in hexadecimal; the operand was
     // written with an explicit "#0" / ", lsl #0" which the formatter keeps
-    // (A64 register offset memory: the S bit, the amount is printed)
+    // (A64 register offset memory: the S bit, the amount is printed). On a
+    // KIND_FLOAT_IMMEDIATE it prints "#0.0" (fcmp s0, #0.0) and on an
+    // unsigned KIND_IMMEDIATE the 64 bit movi form of LLVM (#0x00000000000001
+    // with 14 digits at least, zero as 16 digits without the prefix)
     bool m_isHex;
     bool m_isExplicit;
     // KIND_IMMEDIATE: m_immediate is an unsigned 64 bit value (the hex

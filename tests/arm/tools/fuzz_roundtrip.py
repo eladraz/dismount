@@ -25,11 +25,16 @@ def main():
     parser.add_argument('--count', type=int, default=20000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--show', type=int, default=3)
+    parser.add_argument('--class', dest='only_class', choices=['base', 'simd', 'sve', 'sme'],
+                        help='only the words of this encoding class (default: the implemented ones)')
     args = parser.parse_args()
 
     rows = armlib.entries(args.arch)
-    words = fuzz_decode.generate(args.arch, args.count, args.seed, rows)
-    words = [w for w in words if armlib.a64_class(w) == 'base']
+    words = fuzz_decode.generate(args.arch, args.count, args.seed, rows, args.only_class)
+    if args.only_class:
+        words = [w for w in words if armlib.a64_class(w) == args.only_class]
+    else:
+        words = [w for w in words if armlib.a64_class(w) in fuzz_decode.IMPLEMENTED_CLASSES]
     addresses = [armlib.BASE + 4 * i for i in range(len(words))]
     decoded = armlib.dis_words(args.arch, words, None, addresses)
 

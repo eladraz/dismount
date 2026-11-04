@@ -92,12 +92,21 @@ double readFloat(Parser& parser, uint64 whole)
     if (isNextChar(parser, '.'))
     {
         parser.readChar();
-        double scale = 0.1;
+        // The value is the integer of all the digits over a power of ten:
+        // one division is rounded correctly, so every number which a double
+        // holds exactly (1.50000000, 31.0) is read exactly
+        uint64 digits = whole;
+        double divisor = 1;
         while (isDigitAhead(parser))
         {
-            value += (parser.readChar() - '0') * scale;
-            scale /= 10;
+            character digit = parser.readChar() - '0';
+            if (digits < (((uint64)1 << 53) / 10))
+            {
+                digits = digits * 10 + digit;
+                divisor *= 10;
+            }
         }
+        value = (double)digits / divisor;
     }
     if (isNextChar(parser, 'e'))
     {
@@ -148,7 +157,8 @@ bool findArrangementName(const cString& name, uint& arrangement)
         { "1q", Operand::ARRANGEMENT_1Q }, { "b", Operand::ARRANGEMENT_B },
         { "h", Operand::ARRANGEMENT_H }, { "s", Operand::ARRANGEMENT_S },
         { "d", Operand::ARRANGEMENT_D }, { "q", Operand::ARRANGEMENT_Q },
-        { "2h", Operand::ARRANGEMENT_2H }, { "4b", Operand::ARRANGEMENT_4B }
+        { "2h", Operand::ARRANGEMENT_2H }, { "4b", Operand::ARRANGEMENT_4B },
+        { "2b", Operand::ARRANGEMENT_2B }
     };
     for (uint i = 0; i < sizeof(names) / sizeof(names[0]); i++)
         if (name == names[i].m_name)
@@ -321,6 +331,13 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
         ASM_CHECK(parseRegister(parser, word, type, item), "register was expected");
         if (count == 0)
             first = item;
+        else
+        {
+            // The registers of a list are consecutive and of one arrangement
+            ASM_CHECK(isConsecutiveRegister(last.m_register, item.m_register) &&
+                      (item.m_arrangement == first.m_arrangement),
+                      "invalid register list");
+        }
         last = item;
         count++;
         skipBlanks(parser);
@@ -579,11 +596,13 @@ bool isSameRegisters(const Operand& parsed, const Operand& decoded)
         return ((decoded.m_kind == Operand::KIND_REGISTER) ||
                 (decoded.m_kind == Operand::KIND_SHIFTED_REGISTER) ||
                 (decoded.m_kind == Operand::KIND_REGISTER_LIST)) &&
-               (parsed.m_register == decoded.m_register);
+               (parsed.m_register == decoded.m_register) &&
+               isSameSimdOperand(parsed, decoded);
     case Operand::KIND_MEMORY:
         return (decoded.m_kind == Operand::KIND_MEMORY) &&
                (parsed.m_base == decoded.m_base) &&
-               (parsed.m_index == decoded.m_index);
+               (parsed.m_index == decoded.m_index) &&
+               isSameSimdOperand(parsed, decoded);
     default:
         return true;
     }
@@ -815,6 +834,32 @@ void assembleText(InstructionSet type,
         }
         if (!isValid || ((encoding & entry->m_mask) != (entry->m_value & entry->m_mask)))
             continue;
+
+        // The operands of the Advanced SIMD instructions share the fields of
+        // the arrangement (Q, size, immh...): the bits have to decode back to
+        // the registers, arrangements and elements of the text (add v0.8b,
+        // v1.16b, v2.8b is not an instruction)
+        {
+            uint usedIndex = 0;
+            for (uint j = 0; isValid && (j < ARM_MAX_OPERAND_SPECS); j++)
+            {
+                const ArmOperandSpec& spec = entry->m_operands[j];
+                if (spec.m_kind == ARM_KIND_NONE)
+                    break;
+                if (ArmOperandCodec::isMnemonicPart(spec) || ArmOperandCodec::isHidden(spec))
+                    continue;
+                const Operand& written = used[usedIndex++];
+                if (!isSimdSpec(spec))
+                    continue;
+                Operand read;
+                isValid = ArmOperandCodec::decode(spec, encoding, context, read) &&
+                          ((read.m_register == written.m_register) ||
+                           (read.m_kind == Operand::KIND_MEMORY)) &&
+                          isSameSimdOperand(written, read);
+            }
+            if (!isValid)
+                continue;
+        }
 
         // The bits have to decode to this instruction, or to an alias of it:
         // the constraints of the entries and the priority of the aliases are

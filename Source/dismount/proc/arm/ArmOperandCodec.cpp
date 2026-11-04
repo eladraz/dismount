@@ -315,6 +315,8 @@ bool ArmOperandCodec::decode(const ArmOperandSpec& spec,
     }
 
     // The kinds of the areas
+    if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))
+        return decodeSimd(spec, encoding, context, operand);
     if (context.m_type == ArmInstructionSet::ARM_A64)
         return decodeA64(spec, encoding, context, operand);
     // TODO: the AArch32, SVE and SME kinds
@@ -326,6 +328,12 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
                              const ArmCodecContext& context,
                              uint32& encoding)
 {
+    // A scalar register has no arrangement and no element (h1.h[4], w10.b[1])
+    if ((context.m_type == ArmInstructionSet::ARM_A64) &&
+        ((spec.m_kind == ARM_KIND_GPR) || (spec.m_kind == ARM_KIND_A64_FPR)) &&
+        ((operand.m_arrangement != ArmDecodedOperand::ARRANGEMENT_NONE) ||
+         (operand.m_elementIndex >= 0)))
+        return false;
     switch (spec.m_kind)
     {
     case ARM_KIND_IMMEDIATE:
@@ -422,6 +430,8 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
         break;
     }
 
+    if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))
+        return encodeSimd(spec, operand, context, encoding);
     if (context.m_type == ArmInstructionSet::ARM_A64)
         return encodeA64(spec, operand, context, encoding);
     return encodeA32(spec, operand, context, encoding);
