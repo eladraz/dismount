@@ -60,10 +60,8 @@ struct Arm64SveSemanticRow {
     const char* m_expected;
 };
 
-#include "arm/Arm64SveSemanticRows.inc"
-
 static const Arm64SveSemanticRow gArm64SveSemanticRows[] = {
-    ARM64_SVE_SEMANTIC_ROWS
+#include "arm/Arm64SveSemanticRows.inc"
     { {0, 0}, 0, NULL, 0, NULL, NULL }
 };
 
