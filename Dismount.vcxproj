@@ -218,6 +218,8 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{AE3F7378-91A7-47FB-8F3D-7FE3F99096E1}</ProjectGuid>
+    <!-- The 64 bit compiler: the 32 bit one runs out of heap space on the big tables -->
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
     <Keyword>Win32Proj</Keyword>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

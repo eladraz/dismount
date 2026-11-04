@@ -31,10 +31,10 @@ typedef SemanticType::FloatFormat Format;
 
 // The operations of the vectors, see gen_arm_float_vectors.py
 enum {
-    AF_ADD, AF_SUB, AF_MUL, AF_DIV, AF_SQRT, AF_FMA, AF_MULX, AF_RECIP_STEP, AF_RSQRT_STEP, AF_RECIP_ESTIMATE,
-    AF_RSQRT_ESTIMATE, AF_RECIP_EXPONENT, AF_ROUND32, AF_ROUND64, AF_SCALE, AF_MAX_NUMBER, AF_MIN_NUMBER, AF_CONVERT,
-    AF_FMA_WIDENING, AF_BFLOAT_DOT, AF_TO_INTEGER, AF_FROM_INTEGER, AF_COMPARE_SIGNALING, AF_ROUND_INEXACT,
-    AF_MAX, AF_MIN
+    AFV_ADD, AFV_SUB, AFV_MUL, AFV_DIV, AFV_SQRT, AFV_FMA, AFV_MULX, AFV_RECIP_STEP, AFV_RSQRT_STEP, AFV_RECIP_ESTIMATE,
+    AFV_RSQRT_ESTIMATE, AFV_RECIP_EXPONENT, AFV_ROUND32, AFV_ROUND64, AFV_SCALE, AFV_MAX_NUMBER, AFV_MIN_NUMBER, AFV_CONVERT,
+    AFV_FMA_WIDENING, AFV_BFLOAT_DOT, AFV_TO_INTEGER, AFV_FROM_INTEGER, AFV_COMPARE_SIGNALING, AFV_ROUND_INEXACT,
+    AFV_MAX, AFV_MIN
 };
 
 struct ArmFloatVector {
@@ -128,34 +128,34 @@ public:
         uint64 result = 0;
         switch (v.m_operation)
         {
-        case AF_ADD: result = SF::add(format, env, a, b, flags).m_low; break;
-        case AF_SUB: result = SF::subtract(format, env, a, b, flags).m_low; break;
-        case AF_MUL: result = SF::multiply(format, env, a, b, flags).m_low; break;
-        case AF_DIV: result = SF::divide(format, env, a, b, flags).m_low; break;
-        case AF_SQRT: result = SF::squareRoot(format, env, a, flags).m_low; break;
-        case AF_FMA: result = SF::multiplyAdd(format, env, a, b, c, flags).m_low; break;
-        case AF_MULX: result = SF::multiplyExtended(format, env, a, b, flags).m_low; break;
-        case AF_RECIP_STEP: result = SF::reciprocalStep(format, env, a, b, false, true, flags).m_low; break;
-        case AF_RSQRT_STEP: result = SF::reciprocalStep(format, env, a, b, true, true, flags).m_low; break;
-        case AF_RECIP_ESTIMATE: result = SF::reciprocalEstimate(format, env, a, flags).m_low; break;
-        case AF_RSQRT_ESTIMATE: result = SF::reciprocalSqrtEstimate(format, env, a, flags).m_low; break;
-        case AF_RECIP_EXPONENT: result = SF::reciprocalExponent(format, env, a, flags).m_low; break;
-        case AF_ROUND32: result = SF::roundToIntegerBounded(format, env, a, 32, flags).m_low; break;
-        case AF_ROUND64: result = SF::roundToIntegerBounded(format, env, a, 64, flags).m_low; break;
-        case AF_SCALE: result = SF::scaleByInteger(format, env, a, v.m_b, 64, flags).m_low; break;
-        case AF_MAX_NUMBER:
+        case AFV_ADD: result = SF::add(format, env, a, b, flags).m_low; break;
+        case AFV_SUB: result = SF::subtract(format, env, a, b, flags).m_low; break;
+        case AFV_MUL: result = SF::multiply(format, env, a, b, flags).m_low; break;
+        case AFV_DIV: result = SF::divide(format, env, a, b, flags).m_low; break;
+        case AFV_SQRT: result = SF::squareRoot(format, env, a, flags).m_low; break;
+        case AFV_FMA: result = SF::multiplyAdd(format, env, a, b, c, flags).m_low; break;
+        case AFV_MULX: result = SF::multiplyExtended(format, env, a, b, flags).m_low; break;
+        case AFV_RECIP_STEP: result = SF::reciprocalStep(format, env, a, b, false, true, flags).m_low; break;
+        case AFV_RSQRT_STEP: result = SF::reciprocalStep(format, env, a, b, true, true, flags).m_low; break;
+        case AFV_RECIP_ESTIMATE: result = SF::reciprocalEstimate(format, env, a, flags).m_low; break;
+        case AFV_RSQRT_ESTIMATE: result = SF::reciprocalSqrtEstimate(format, env, a, flags).m_low; break;
+        case AFV_RECIP_EXPONENT: result = SF::reciprocalExponent(format, env, a, flags).m_low; break;
+        case AFV_ROUND32: result = SF::roundToIntegerBounded(format, env, a, 32, flags).m_low; break;
+        case AFV_ROUND64: result = SF::roundToIntegerBounded(format, env, a, 64, flags).m_low; break;
+        case AFV_SCALE: result = SF::scaleByInteger(format, env, a, v.m_b, 64, flags).m_low; break;
+        case AFV_MAX_NUMBER:
             result = SF::minimumMaximum(format, env, true, SemanticOperation::BEHAVIOR_MINMAX_NUMBER, a, b, flags).m_low;
             break;
-        case AF_MIN_NUMBER:
+        case AFV_MIN_NUMBER:
             result = SF::minimumMaximum(format, env, false, SemanticOperation::BEHAVIOR_MINMAX_NUMBER, a, b, flags).m_low;
             break;
-        case AF_MAX:
+        case AFV_MAX:
             result = SF::minimumMaximum(format, env, true, SemanticOperation::BEHAVIOR_MINMAX_PROPAGATE_NAN, a, b, flags).m_low;
             break;
-        case AF_MIN:
+        case AFV_MIN:
             result = SF::minimumMaximum(format, env, false, SemanticOperation::BEHAVIOR_MINMAX_PROPAGATE_NAN, a, b, flags).m_low;
             break;
-        case AF_CONVERT:
+        case AFV_CONVERT:
         {
             // The conversions don't flush by FZ16 (the half precision operand and result), the
             // alternative half precision is theirs
@@ -166,17 +166,17 @@ public:
             result = SF::convert(format, target, e, a, flags).m_low;
             break;
         }
-        case AF_FMA_WIDENING:
+        case AFV_FMA_WIDENING:
         {
             const Format narrow = formatOf(v.m_format2);
             result = SF::multiplyAddWidening(narrow, format, env, env, a, b, c, flags).m_low;
             break;
         }
-        case AF_BFLOAT_DOT:
+        case AFV_BFLOAT_DOT:
             result = SF::bfloatDotAdd(c, FB(v.m_a & 0xFFFF), FB((v.m_a >> 16) & 0xFFFF),
                                       FB(v.m_b & 0xFFFF), FB((v.m_b >> 16) & 0xFFFF)).m_low;
             break;
-        case AF_TO_INTEGER:
+        case AFV_TO_INTEGER:
         {
             const uint width = bitsOf(v.m_format2);
             result = SF::toInteger(format, env, a, width, (v.m_control & 16) != 0,
@@ -185,11 +185,11 @@ public:
                 result &= (((uint64)1 << width) - 1);
             break;
         }
-        case AF_FROM_INTEGER:
+        case AFV_FROM_INTEGER:
             result = SF::fromInteger(format, env, v.m_a, bitsOf(v.m_format2), (v.m_control & 16) != 0, flags,
                                      (uint)v.m_b).m_low;
             break;
-        case AF_COMPARE_SIGNALING:
+        case AFV_COMPARE_SIGNALING:
         {
             const SF::Relation relation = SF::compare(format, env, a, b, true, flags);
             result = (relation == SF::RELATION_LESS) ? 0 : ((relation == SF::RELATION_EQUAL) ? 1 :
