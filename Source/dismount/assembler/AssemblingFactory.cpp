@@ -10,6 +10,8 @@
 #include "dismount/proc/ia32/IA32eInstructionSet.h"
 #include "dismount/assembler/AssemblingFactory.h"
 #include "dismount/assembler/proc/ia32/IA32Assembler.h"
+#include "dismount/proc/arm/ArmInstructionSet.h"
+#include "dismount/assembler/proc/arm/ArmAssembler.h"
 
 AssemblerInterfacePtr AssemblingFactory::generateAssembler(
                                         FirstPassBinaryPtr binary,
@@ -25,6 +27,12 @@ AssemblerInterfacePtr AssemblingFactory::generateAssembler(
         return AssemblerInterfacePtr(new IA32Assembler(
                                                 binary,
                                                 IA32eInstructionSet::AMD_64));
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_LE:
+    case OpcodeSubsystems::DISASSEMBLER_THUMB_LE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
+        return AssemblerInterfacePtr(new ArmAssembler(
+                                    binary,
+                                    ArmInstructionSet::fromSubsystem(type)));
     default:
         // Not ready yet...
         CHECK_FAIL();

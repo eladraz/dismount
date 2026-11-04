@@ -28,6 +28,25 @@
  *                                        "ERR <message>"
  *   dismount_cli cpuinfo              host x86 feature flags (Linux names)
  *
+ * ARM: --arch a32|t32|a64 (instead of --bits) selects the instruction set and
+ * --mattr <llvm feature list> the features of the target (default: all of
+ * them; "none" resets to the base, "+lse,-sve" adds and removes, see
+ * ArmFeatureSet::parse). See tests/arm/TEST_PLAN.md:
+ *   dismount_cli dis --arch a64       each line: [@<hex address> ]<hex word>
+ *                                     (T32: the hex of the halfwords, "eb01 0002"
+ *                                     or "eb010002", "1888" for 16 bits)
+ *                                     -> "OK <size> <text>" | "INVALID <size>" |
+ *                                        "ERR <message>"
+ *   dismount_cli asm --arch a64       each line: [@<hex address> ]<instruction>
+ *                                     -> "OK <hex bytes>" | "ERR <message>"
+ *   dismount_cli run --arch a64       "ERR unsupported" (the lifter is not
+ *                                     there yet)
+ *   dismount_cli features --arch a64  the support matrix, one line per feature:
+ *                                     "<index> <name> <set> <support hex> <entries>"
+ *   dismount_cli entries --arch a64   the encodings of the tables, one line per
+ *                                     entry: "<mask hex> <value hex> <feature
+ *                                     index> <flags hex> <size> <mnemonic>"
+ *
  * A bad line never stops the process: every line is wrapped in try/catch.
  *
  * Author: Elad Raz <e@eladraz.com>
@@ -51,6 +70,7 @@
 #include "dismount/OpcodeSubsystems.h"
 #include "dismount/InvalidOpcodeByte.h"
 #include "dismount/DisassemblerEndOfStreamException.h"
+#include "dismount/DisassemblerInvalidOpcodeException.h"
 #include "dismount/StreamDisassembler.h"
 #include "dismount/StreamDisassemblerFactory.h"
 #include "dismount/DefaultOpcodeDataFormatter.h"
@@ -62,6 +82,11 @@
 #include "dismount/assembler/FirstPassBinary.h"
 #include "dismount/assembler/StackInterface.h"
 #include "dismount/assembler/proc/ia32/IA32Assembler.h"
+#include "dismount/proc/arm/ArmInstructionSet.h"
+#include "dismount/proc/arm/ArmFeatures.h"
+#include "dismount/proc/arm/ArmEncodingTable.h"
+#include "dismount/proc/arm/ArmStreamDisassembler.h"
+#include "dismount/assembler/proc/arm/ArmAssembler.h"
 
 #include "cpufeatures.h"
 
@@ -1100,9 +1125,259 @@ static int runCpuinfo()
     return 0;
 }
 
+
+/////////////////////////////////////////////////////////////////////////////
+// ARM: --arch a32|t32|a64
+
+// Parses the optional "@<hex address> " prefix of a line. Moves 'text' after
+// it. Returns the address, 0 if there is no prefix
+static uint64 parseAddressPrefix(const char*& text)
+{
+    while (*text == ' ' || *text == '\t')
+        text++;
+    if (*text != '@')
+        return 0;
+    text++;
+    uint64 address = 0;
+    while (hexValue(*text) >= 0)
+    {
+        address = (address << 4) | (uint64)hexValue(*text);
+        text++;
+    }
+    while (*text == ' ' || *text == '\t')
+        text++;
+    return address;
+}
+
+// Parses the hex of an instruction: the value of one A32 / A64 word, or the
+// values of the T32 halfwords. Appends the little endian bytes to 'out'
+static bool parseArmHex(const char* text, ArmInstructionSet::DisassemblerTypes type,
+                        cBuffer& out)
+{
+    // The groups of hex digits, separated by blanks
+    uint8 bytes[8];
+    uint count = 0;
+    while (*text != 0)
+    {
+        while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r')
+            text++;
+        if (*text == 0)
+            break;
+        uint digits = 0;
+        uint32 value = 0;
+        while (hexValue(*text) >= 0)
+        {
+            value = (value << 4) | (uint32)hexValue(*text);
+            digits++;
+            text++;
+        }
+        if (((digits != 4) && (digits != 8)) || ((*text != 0) && (*text != ' ') &&
+            (*text != '\t') && (*text != '\n') && (*text != '\r')))
+            return false;
+        if ((type != ArmInstructionSet::ARM_T32) && (digits != 8))
+            return false;
+        // A 32 bit group is a halfword pair in T32 (hw1 first), one word
+        // otherwise
+        if (digits == 8)
+        {
+            if (count + 4 > sizeof(bytes))
+                return false;
+            if (type == ArmInstructionSet::ARM_T32)
+            {
+                bytes[count++] = (uint8)(value >> 16);
+                bytes[count++] = (uint8)(value >> 24);
+                bytes[count++] = (uint8)(value);
+                bytes[count++] = (uint8)(value >> 8);
+            } else
+            {
+                bytes[count++] = (uint8)(value);
+                bytes[count++] = (uint8)(value >> 8);
+                bytes[count++] = (uint8)(value >> 16);
+                bytes[count++] = (uint8)(value >> 24);
+            }
+        } else
+        {
+            if (count + 2 > sizeof(bytes))
+                return false;
+            bytes[count++] = (uint8)(value);
+            bytes[count++] = (uint8)(value >> 8);
+        }
+    }
+    if (count == 0)
+        return false;
+    out.changeSize(count);
+    for (uint i = 0; i < count; i++)
+        out[i] = bytes[i];
+    return true;
+}
+
+static int runArmDis(ArmInstructionSet::DisassemblerTypes type, const ArmFeatureSet& features)
+{
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        XSTL_TRY
+        {
+            const char* text = line;
+            uint64 address = parseAddressPrefix(text);
+            cBuffer bytes;
+            if (!parseArmHex(text, type, bytes))
+                XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
+
+            cMemoryStream stream(bytes);
+            ArmStreamDisassembler disassembler(type,
+                BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true,
+                ProcessorAddress((type == ArmInstructionSet::ARM_A64) ?
+                                    ProcessorAddress::PROCESSOR_64 :
+                                    ProcessorAddress::PROCESSOR_32, address),
+                false, features);
+            XSTL_TRY
+            {
+                OpcodePtr opcode = disassembler.next();
+                DefaultOpcodeDataFormatter formatter(1);
+                OpcodeFormatterPtr fr = disassembler.getOpcodeFormat(opcode, formatter);
+                writeLine(cString("OK ") + cString((int32)opcode->getOpcodeSize()) +
+                          " " + fr->string());
+            }
+            XSTL_CATCH(DisassemblerInvalidOpcodeException&)
+            {
+                writeLine(cString("INVALID ") + cString((int32)bytes.getSize()));
+            }
+        }
+        XSTL_CATCH(DisassemblerEndOfStreamException&)
+        {
+            writeLine(cString("ERR truncated instruction (end of stream)"));
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitize(e.getMessage()));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
+static int runArmAsm(ArmInstructionSet::DisassemblerTypes type, const ArmFeatureSet& features)
+{
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        const char* text = line;
+        uint64 address = parseAddressPrefix(text);
+        char copy[MAX_LINE];
+        strncpy(copy, text, sizeof(copy) - 1);
+        copy[sizeof(copy) - 1] = 0;
+        normalizeAsmLine(copy);
+        if (copy[0] == 0)
+        {
+            writeLine(cString("ERR empty instruction"));
+            continue;
+        }
+        XSTL_TRY
+        {
+            uint32 encoding = 0;
+            uint size = 0;
+            ArmAssemblerStream::assembleInstruction(type, features, cString(copy),
+                                                    address, 0, encoding, size);
+            // The bytes in memory order
+            cString hex;
+            static const char digits[] = "0123456789abcdef";
+            for (uint i = 0; i < size; i++)
+            {
+                uint8 b;
+                if (size == 2)
+                    b = (uint8)(encoding >> (8 * i));
+                else if (type == ArmInstructionSet::ARM_T32)
+                    b = (uint8)(encoding >> ((i < 2) ? (24 - 8 * i) : (8 - 8 * (i - 2))));
+                else
+                    b = (uint8)(encoding >> (8 * i));
+                hex += cString(digits[b >> 4]);
+                hex += cString(digits[b & 0xf]);
+            }
+            writeLine(cString("OK ") + hex);
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitizeText(describeException(e)));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
+// Calls 'callback' for each entry of the tables of an instruction set
+static void forEachArmEntry(ArmInstructionSet::DisassemblerTypes type,
+                            void (*callback)(const armdis::ArmEncodingEntry&, uint, void*),
+                            void* context)
+{
+    for (uint size = 2; size <= 4; size += 2)
+    {
+        if ((size == 2) && (type != ArmInstructionSet::ARM_T32))
+            continue;
+        const armdis::ArmEncodingEntry* const* tables =
+            ArmStreamDisassembler::getTables(type, size);
+        for (; *tables != NULL; tables++)
+            for (const armdis::ArmEncodingEntry* entry = *tables; entry->m_mnemonic != NULL; entry++)
+                callback(*entry, size, context);
+    }
+}
+
+static void countEntry(const armdis::ArmEncodingEntry& entry, uint, void* context)
+{
+    ((uint*)context)[entry.m_feature]++;
+}
+
+static void printEntry(const armdis::ArmEncodingEntry& entry, uint size, void*)
+{
+    char text[256];
+    snprintf(text, sizeof(text), "%08x %08x %u %x %u %s", entry.m_mask, entry.m_value,
+             (unsigned)entry.m_feature, (unsigned)entry.m_flags, size, entry.m_mnemonic);
+    writeLine(cString(text));
+}
+
+static int runArmFeatures(ArmInstructionSet::DisassemblerTypes type)
+{
+    uint counts[ArmFeatures::FEATURES_COUNT];
+    for (uint i = 0; i < ArmFeatures::FEATURES_COUNT; i++)
+        counts[i] = 0;
+    forEachArmEntry(type, countEntry, counts);
+    for (uint i = 0; i < ArmFeatures::FEATURES_COUNT; i++)
+    {
+        ArmFeatures::Feature feature = (ArmFeatures::Feature)i;
+        ArmInstructionSet::DisassemblerTypes set = ArmFeatures::getInstructionSet(feature);
+        // Each set lists its own features (the T32 list has the A32 ones too)
+        bool listed = (set == type) ||
+                      ((type == ArmInstructionSet::ARM_T32) && (set == ArmInstructionSet::ARM_A32));
+        if (!listed)
+            continue;
+        char text[256];
+        snprintf(text, sizeof(text), "%u %s %s %x %u", i,
+                 (ArmFeatures::getName(feature)[0] == 0) ? "-" : ArmFeatures::getName(feature),
+                 (set == ArmInstructionSet::ARM_A64) ? "a64" :
+                 (set == ArmInstructionSet::ARM_T32) ? "t32" : "a32",
+                 ArmFeatures::getSupport(feature), counts[i]);
+        writeLine(cString(text));
+    }
+    return 0;
+}
+
+static int runArmEntries(ArmInstructionSet::DisassemblerTypes type)
+{
+    forEachArmEntry(type, printEntry, NULL);
+    return 0;
+}
+
 static void usage()
 {
     fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32|64] < input\n"
+                    "       dismount_cli asm|dis|run|features|entries --arch a32|t32|a64"
+                    " [--mattr +feature,-feature] < input\n"
                     "       dismount_cli cpuinfo\n");
 }
 
@@ -1116,9 +1391,34 @@ int main(int argc, char* argv[])
 
     IA32eInstructionSet::DisassemblerTypes asmMode = IA32eInstructionSet::INTEL_32;
     OpcodeSubsystems::DisassemblerType disType = OpcodeSubsystems::DISASSEMBLER_INTEL_32;
+    bool isArm = false;
+    ArmInstructionSet::DisassemblerTypes armType = ArmInstructionSet::ARM_A64;
+    ArmFeatureSet armFeatures = ArmFeatureSet::all();
     for (int i = 2; i < argc; i++)
     {
-        if (strcmp(argv[i], "--bits") == 0 && i + 1 < argc)
+        if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc)
+        {
+            i++;
+            isArm = true;
+            if (strcmp(argv[i], "a32") == 0)
+                armType = ArmInstructionSet::ARM_A32;
+            else if (strcmp(argv[i], "t32") == 0)
+                armType = ArmInstructionSet::ARM_T32;
+            else if (strcmp(argv[i], "a64") == 0)
+                armType = ArmInstructionSet::ARM_A64;
+            else
+            {
+                usage();
+                return 2;
+            }
+        }
+        else if (strcmp(argv[i], "--mattr") == 0 && i + 1 < argc)
+        {
+            i++;
+            if (!armFeatures.parse(argv[i]))
+                fprintf(stderr, "warning: unknown feature in --mattr %s\n", argv[i]);
+        }
+        else if (strcmp(argv[i], "--bits") == 0 && i + 1 < argc)
         {
             i++;
             if (strcmp(argv[i], "16") == 0)
@@ -1147,6 +1447,28 @@ int main(int argc, char* argv[])
             usage();
             return 2;
         }
+    }
+
+    if (isArm)
+    {
+        if (strcmp(argv[1], "asm") == 0)
+            return runArmAsm(armType, armFeatures);
+        if (strcmp(argv[1], "dis") == 0)
+            return runArmDis(armType, armFeatures);
+        if (strcmp(argv[1], "features") == 0)
+            return runArmFeatures(armType);
+        if (strcmp(argv[1], "entries") == 0)
+            return runArmEntries(armType);
+        if (strcmp(argv[1], "run") == 0)
+        {
+            // TODO: the lifter of ARM
+            char line[MAX_LINE];
+            while (fgets(line, sizeof(line), stdin))
+                writeLine(cString("ERR unsupported: the ARM lifter is not there yet"));
+            return 0;
+        }
+        usage();
+        return 2;
     }
 
     if (strcmp(argv[1], "asm") == 0)

@@ -218,6 +218,35 @@ public:
         // luti4 4 registers: FEAT_SME_LUTv2)
         FEAT_SME_LUTV2,
 
+        // --- Extensions of the A64 system and base instructions which the
+        // LLVM disassembler knows (added with the base table)
+        // ARMv8.7 dsb <option>nXS (FEAT_XS)
+        FEAT_XS,
+        // Transactional memory: tstart, tcommit, ttest, tcancel (FEAT_TME)
+        FEAT_TME,
+        // Unprivileged load / store instructions (ldtp, sttp, ldtxr...)
+        FEAT_LSUI,
+        // Compare and branch (cbgt, cbbhs...)
+        FEAT_CMPBR,
+        // Limited ordering regions (ldlar, stllr)
+        FEAT_LOR,
+        // Translation hardening extension: rcwclr, rcwset, rcwswp, rcwcas...
+        FEAT_THE,
+        // Atomic floating point instructions (ldfadd, ldbfadd, stfmax...)
+        FEAT_LSFE,
+        // Pointer authentication with the return address in the pc
+        // (retaasppc, autiasppc...)
+        FEAT_PAUTH_LR,
+        // Statistical profiling (psb csync), trace filtering (tsb csync), RAS
+        // (esb), the store hint (stshh), permission overlays 2 (tchangef),
+        // the transactional exit (texit)
+        FEAT_SPE,
+        FEAT_TRF,
+        FEAT_RAS,
+        FEAT_PCDPHINT,
+        FEAT_POE2,
+        FEAT_TEV,
+
         // The number of features. Must be last
         FEATURES_COUNT
     };
@@ -310,7 +339,10 @@ public:
 
     /*
      * Add or remove the features of an LLVM feature list: "+sve2,+sme,-neon"
-     * (without a sign the feature is added).
+     * (without a sign the feature is added). A feature brings the features
+     * it needs ("+sve2" adds sve). Three words are not features: "none"
+     * resets the set to the base features, "all" is every feature and
+     * "armv8.2-a" the features of a version (fromArchitecture()).
      *
      * Return false if a name is unknown (the known names are still applied)
      */

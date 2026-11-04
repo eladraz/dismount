@@ -53,6 +53,25 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableAMD64.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp" />
+    <ClCompile Include="Source\dismount\assembler\proc\arm\ArmAssembler.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmInstructionSet.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmFeatures.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOpcode.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodec.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA32.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA64.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandNames.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64Names.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmNotation.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmStreamDisassembler.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTable.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSimd.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSve.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSme.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableA32.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableA32Simd.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableT16.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableT32.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32IntelNotation.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Opcode.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32StreamDisassembler.cpp" />
@@ -73,6 +92,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Include\dismount\assembler\AssemblerInterface.h" />
+    <ClInclude Include="Include\dismount\assembler\proc\arm\ArmAssembler.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmInstructionSet.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmFeatures.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmEncodingTable.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmOpcode.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmOperandCodec.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmOperandCodecInternal.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmStreamDisassembler.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmNotation.h" />
     <ClInclude Include="Include\dismount\assembler\AssemblingFactory.h" />
     <ClInclude Include="Include\dismount\assembler\BinaryDependencies.h" />
     <ClInclude Include="Include\dismount\assembler\DependencyException.h" />

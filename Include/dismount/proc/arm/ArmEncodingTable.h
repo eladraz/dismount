@@ -173,7 +173,8 @@ enum ArmOperandKind {
     ARM_KIND_A64_ARITHMETIC_IMMEDIATE,
     // A64 logical immediate: N:immr:imms at 10-22, the size by m_flags
     // (ARM_GPR_X / ARM_GPR_SF) or the SVE element size (dupm, and / orr /
-    // eor immediate of SVE)
+    // eor immediate of SVE). m_extra 1 prints the value as a signed number
+    // of the register size (the mov alias of orr)
     ARM_KIND_A64_LOGICAL_IMMEDIATE,
     // A64 move wide immediate: imm16 at 5, the shift hw at 21 (lsl #16 *
     // hw). The aliases mov (movz / movn / orr) print the value instead
@@ -278,6 +279,23 @@ enum ArmOperandKind {
     ARM_KIND_OPTION,
     // A64 nzcv immediate of ccmp / ccmn / fccmp (4 bits at 0)
     ARM_KIND_A64_NZCV,
+    // A64 operand of a bitfield alias, computed from the immr / imms fields
+    // of the encoding (immr at 16, imms at 10; the operand size from m_flags,
+    // ArmGprFlags): the ArmBitfieldScheme in m_extra
+    ARM_KIND_A64_BITFIELD_AMOUNT,
+    // A64 register with a left shift by a 3 bit amount at 10 (m_extra: the
+    // number of bits, 3): the Rm of addpt / subpt, printed "x2, lsl #1"
+    ARM_KIND_A64_LSL_REGISTER,
+    // A64 fixed general purpose register operand (chkfeat x16): the x
+    // register number m_extra. No field: the encoding has the register
+    // implied. Decoded always, encoded only if the operand is that register
+    ARM_KIND_A64_FIXED_REGISTER,
+    // A64 register which is not an operand of the text: the field at m_position
+    // is a copy of the register field at m_extra (the Rm of cinc and ror,
+    // which equals Rn). Never decoded into an operand and encoded by copying
+    // the field, see ArmOperandCodec::isHidden(). The decoder checks the
+    // equality in the m_condition of the entry
+    ARM_KIND_A64_TIED_REGISTER,
     // AArch32 named options: the barrier of dmb / dsb / isb (4 bits at 0),
     // the endianness of setend (bit 9), the interrupt flags of cps (aif),
     // the coprocessor fields of mcr / mrc / cdp / ldc (p<n>, c<n>, opc), the
@@ -309,8 +327,14 @@ enum ArmGprFlags {
     // AArch32: pc (15) is not allowed, the encoding is UNPREDICTABLE (the
     // decoder still decodes it if LLVM does, see the tests)
     ARM_GPR_NO_PC       = 0x20,
+    // A64 (the same bit, which A64 doesn't use for NO_PC): the pair of
+    // ARM_GPR_PAIR may be the zero register (tlbip xzr, xzr)
+    ARM_GPR_PAIR_ZERO   = 0x20,
     // A64: x if bit 22 (the opc of the loads, ldrsb x / w) is clear
-    ARM_GPR_OPC22       = 0x40
+    ARM_GPR_OPC22       = 0x40,
+    // A64: the register is written back, printed "x2!" (the size operand of
+    // cpyfp / setp)
+    ARM_GPR_WRITEBACK   = 0x80
 };
 
 /*
@@ -325,10 +349,19 @@ enum ArmSpecFlags {
     ARM_SPEC_HEX            = 0x10,
     // ARM_KIND_SHIFTED_REGISTER: the shift amount is a register (A32 Rs)
     ARM_SPEC_REGISTER_SHIFT = 0x20,
+    // ARM_KIND_IMMEDIATE / SIGNED_IMMEDIATE: a zero is written "#0" and not
+    // "#0x0" (LLVM does it for the exception numbers: svc, brk, hlt...).
+    // Shares the bit with ARM_SPEC_REGISTER_SHIFT, which is for registers
+    ARM_SPEC_DECIMAL_ZERO   = 0x20,
     // ARM_KIND_SHIFTED_REGISTER: ror is not a valid shift
     ARM_SPEC_NO_ROR         = 0x40,
     // ARM_KIND_CONDITION_MNEMONIC: print al (A64 b.al)
-    ARM_SPEC_PRINT_AL       = 0x80
+    ARM_SPEC_PRINT_AL       = 0x80,
+    // ARM_KIND_CONDITION (m_flags): the operand is the inverted condition
+    // (cset, cinc, cneg print the condition which is the inverse of the
+    // field). Shares the bit with ARM_SPEC_SCALE_MASK, which a condition
+    // doesn't use
+    ARM_SPEC_INVERT         = 0x01
 };
 
 /*
@@ -363,7 +396,10 @@ enum ArmEntryFlags {
     // A64 SME: the instruction is valid only in the streaming mode, or is
     // illegal in it (the lifter traps; the decoder decodes both)
     ARM_ENTRY_STREAMING_ONLY        = 0x0100,
-    ARM_ENTRY_NOT_STREAMING         = 0x0200
+    ARM_ENTRY_NOT_STREAMING         = 0x0200,
+    // Only the assembler uses the entry: LLVM reads the text but never prints
+    // it (cmpp is read for subps xzr, ...: the disassembler prints subps)
+    ARM_ENTRY_ASSEMBLE_ONLY         = 0x0400
 };
 
 /*
@@ -417,7 +453,10 @@ enum { ARM_MAX_OPERAND_SPECS = 8 };
 struct ArmEncodingEntry {
     // The mnemonic, or NULL for the end of the table
     const char* m_mnemonic;
-    // The fixed bits
+    // The fixed bits. m_value is also the start of the assembler: the bits of
+    // m_value outside m_mask are the canonical value of the fields that the
+    // decoder ignores (the "should be one" bits of ldar, smulh...), which the
+    // assembler writes and the decoder doesn't look at
     uint32 m_mask;
     uint32 m_value;
     // The operands and the mnemonic parts, in the order of the syntax,

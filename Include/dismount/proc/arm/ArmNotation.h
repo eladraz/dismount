@@ -39,11 +39,12 @@ public:
     /*
      * Constructor
      *
-     * opcode        - The instruction
+     * instruction   - The instruction, an ArmOpcode (the formatter keeps a
+     *                 reference of it, as the other formatters do)
      * dataFormatter - Used for the separator and for endInstruction() only:
      *                 the numbers are formatted in the LLVM syntax
      */
-    ArmNotation(const ArmOpcodePtr& opcode, OpcodeDataFormatter& dataFormatter);
+    ArmNotation(const OpcodePtr& instruction, OpcodeDataFormatter& dataFormatter);
 
     // See OpcodeFormatter
     virtual cString string(OpcodeFormatStruct* formatStruct = NULL) const;
@@ -59,8 +60,9 @@ public:
                                  const ArmDecodedOperand& operand);
 
 private:
-    // The instruction
-    ArmOpcodePtr m_opcode;
+    // The instruction, and its ArmOpcode view
+    OpcodePtr m_data;
+    const ArmOpcode* m_opcode;
     // The GUI formatter
     OpcodeDataFormatter& m_dataFormatter;
 };

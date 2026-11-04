@@ -79,6 +79,25 @@ list(APPEND DISMOUNT_LIB_FILES
 	# ARM: the architecture descriptions of the semantic layer
 	Source/dismount/proc/arm/ArmArchitecture.cpp
 	Source/dismount/proc/arm/Arm64Architecture.cpp
+	Source/dismount/assembler/proc/arm/ArmAssembler.cpp
+	Source/dismount/proc/arm/ArmInstructionSet.cpp
+	Source/dismount/proc/arm/ArmFeatures.cpp
+	Source/dismount/proc/arm/ArmOpcode.cpp
+	Source/dismount/proc/arm/ArmOperandCodec.cpp
+	Source/dismount/proc/arm/ArmOperandCodecA32.cpp
+	Source/dismount/proc/arm/ArmOperandCodecA64.cpp
+	Source/dismount/proc/arm/ArmOperandNames.cpp
+	Source/dismount/proc/arm/Arm64Names.cpp
+	Source/dismount/proc/arm/ArmNotation.cpp
+	Source/dismount/proc/arm/ArmStreamDisassembler.cpp
+	Source/dismount/proc/arm/Arm64EncodingTable.cpp
+	Source/dismount/proc/arm/Arm64EncodingTableSimd.cpp
+	Source/dismount/proc/arm/Arm64EncodingTableSve.cpp
+	Source/dismount/proc/arm/Arm64EncodingTableSme.cpp
+	Source/dismount/proc/arm/ArmEncodingTableA32.cpp
+	Source/dismount/proc/arm/ArmEncodingTableA32Simd.cpp
+	Source/dismount/proc/arm/ArmEncodingTableT16.cpp
+	Source/dismount/proc/arm/ArmEncodingTableT32.cpp
 )
 
 add_library(dismount_static STATIC ${DISMOUNT_LIB_FILES})
@@ -126,6 +145,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestIA32AssemblerDisassembler.cpp
 		tests/TestAMD64Disassembler.cpp
 		tests/TestAMD64Assembler.cpp
+		tests/TestArm64Disassembler.cpp
 		tests/TestSemantics.cpp
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp

@@ -121,8 +121,9 @@ private:
     // T32: the it state of the next instruction (0 outside of a block)
     uint m_itState;
     // The bytes of an invalid unit not returned yet (InvalidOpcodeByte one
-    // at a time)
+    // at a time): the last m_pendingInvalidBytes bytes of m_pendingInvalid
     uint m_pendingInvalidBytes;
+    uint8 m_pendingInvalid[4];
 };
 
 #endif // __TBA_DISMOUNT_PROC_ARM_ARMSTREAMDISASSEMBLER_H

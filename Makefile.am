@@ -53,7 +53,26 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/IA32SemanticTableX87.cpp     \
                          Source/dismount/proc/ia32/IA32SemanticTableSimd.cpp \
                          Source/dismount/proc/arm/ArmArchitecture.cpp           \
-                         Source/dismount/proc/arm/Arm64Architecture.cpp
+                         Source/dismount/proc/arm/Arm64Architecture.cpp \
+                         Source/dismount/assembler/proc/arm/ArmAssembler.cpp \
+                         Source/dismount/proc/arm/ArmInstructionSet.cpp \
+                         Source/dismount/proc/arm/ArmFeatures.cpp \
+                         Source/dismount/proc/arm/ArmOpcode.cpp \
+                         Source/dismount/proc/arm/ArmOperandCodec.cpp \
+                         Source/dismount/proc/arm/ArmOperandCodecA32.cpp \
+                         Source/dismount/proc/arm/ArmOperandCodecA64.cpp \
+                         Source/dismount/proc/arm/ArmOperandNames.cpp \
+                         Source/dismount/proc/arm/Arm64Names.cpp \
+                         Source/dismount/proc/arm/ArmNotation.cpp \
+                         Source/dismount/proc/arm/ArmStreamDisassembler.cpp \
+                         Source/dismount/proc/arm/Arm64EncodingTable.cpp \
+                         Source/dismount/proc/arm/Arm64EncodingTableSimd.cpp \
+                         Source/dismount/proc/arm/Arm64EncodingTableSve.cpp \
+                         Source/dismount/proc/arm/Arm64EncodingTableSme.cpp \
+                         Source/dismount/proc/arm/ArmEncodingTableA32.cpp \
+                         Source/dismount/proc/arm/ArmEncodingTableA32Simd.cpp \
+                         Source/dismount/proc/arm/ArmEncodingTableT16.cpp \
+                         Source/dismount/proc/arm/ArmEncodingTableT32.cpp
 
 
 

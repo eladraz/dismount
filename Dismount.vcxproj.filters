@@ -25,6 +25,12 @@
     <Filter Include="assembler\proc">
       <UniqueIdentifier>{3afc9ce4-9640-44b0-9ec5-be5e4e3fbb8c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="proc\arm">
+      <UniqueIdentifier>{9f049458-606c-41a4-99e9-ad442d4416f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="assembler\proc\arm">
+      <UniqueIdentifier>{fd86d010-f0b1-4199-8ac6-60ecbb17c882}</UniqueIdentifier>
+    </Filter>
     <Filter Include="assembler\proc\ia32">
       <UniqueIdentifier>{75bc505f-198c-4c6f-81b3-2426bdd5afb5}</UniqueIdentifier>
     </Filter>
@@ -123,6 +129,63 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableX87.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\assembler\proc\arm\ArmAssembler.cpp">
+      <Filter>assembler\proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmInstructionSet.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmFeatures.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOpcode.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodec.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA32.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA64.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandNames.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64Names.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmNotation.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmStreamDisassembler.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTable.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSimd.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSve.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64EncodingTableSme.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableA32.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableA32Simd.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableT16.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableT32.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -172,6 +235,33 @@
   <ItemGroup>
     <ClInclude Include="Include\dismount\assembler\Stack.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\assembler\proc\arm\ArmAssembler.h">
+      <Filter>assembler\proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmInstructionSet.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmFeatures.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmEncodingTable.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmOpcode.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmOperandCodec.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmOperandCodecInternal.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmStreamDisassembler.h">
+      <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmNotation.h">
+      <Filter>proc\arm</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\assembler\AssemblerInterface.h">
       <Filter>Header Files</Filter>

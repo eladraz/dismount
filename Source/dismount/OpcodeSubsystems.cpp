@@ -24,11 +24,13 @@ bool OpcodeSubsystems::isLittleEndian(DisassemblerType subSystem)
     // ARM
     case DISASSEMBLER_ARM_32_LE:
     case DISASSEMBLER_THUMB_LE:
+    case DISASSEMBLER_ARM_64_LE:
         return true;
 
     // ARM
     case DISASSEMBLER_ARM_32_BE:
     case DISASSEMBLER_THUMB_BE:
+    case DISASSEMBLER_ARM_64_BE:
         return false;
     default:
         // Unknown type!!
@@ -51,6 +53,8 @@ bool OpcodeSubsystems::isOverwriteRelativeLocations(
     case DISASSEMBLER_ARM_32_BE:
     case DISASSEMBLER_THUMB_BE:
     case DISASSEMBLER_THUMB_LE:
+    case DISASSEMBLER_ARM_64_LE:
+    case DISASSEMBLER_ARM_64_BE:
         return true;
     default:
         // Unknown type!!

@@ -70,7 +70,13 @@ struct ArmDecodedOperand {
         // the element size; a slice has m_sliceDirection, m_sliceRegister and
         // m_sliceOffset (za0h.s[w12, 1]), an array vector m_vectorGroup
         // (za.d[w8, 0, vgx2]); the tile list of zero has m_registerMask
-        KIND_MATRIX
+        KIND_MATRIX,
+        // An identifier the assembler could not classify by its syntax: a
+        // condition (ne), an option (ish, pldl1keep), a system register
+        // (tpidr_el0) or a label. m_name holds the text, and the codec
+        // resolves it for the spec it encodes. The disassembler never
+        // produces it
+        KIND_NAME
     };
 
     // The arrangement / element size of a vector register
@@ -206,10 +212,21 @@ struct ArmDecodedOperand {
     // 0, 2 (vgx2) or 4 (vgx4)
     uint m_vectorGroup;
 
+    // KIND_NAME: the identifier, lowercase
+    cString m_name;
+
     // Printing hints: print the immediate in hexadecimal; the operand was
     // written with an explicit "#0" / ", lsl #0" which the formatter keeps
+    // (A64 register offset memory: the S bit, the amount is printed)
     bool m_isHex;
     bool m_isExplicit;
+    // KIND_IMMEDIATE: m_immediate is an unsigned 64 bit value (the hex
+    // logical immediates), not a signed one
+    bool m_isUnsigned;
+    // The assembler only: the immediate was written with a '#', so a branch
+    // or an adr takes it as an offset from the instruction and not as an
+    // address
+    bool m_hasHash;
 
     // Constructor: KIND_NONE, every field cleared
     ArmDecodedOperand();

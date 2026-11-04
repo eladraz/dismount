@@ -13,6 +13,8 @@
 #include "dismount/StreamDisassemblerFactory.h"
 #include "dismount/proc/ia32/IA32eInstructionSet.h"
 #include "dismount/proc/ia32/IA32StreamDisassembler.h"
+#include "dismount/proc/arm/ArmInstructionSet.h"
+#include "dismount/proc/arm/ArmStreamDisassembler.h"
 
 StreamDisassemblerPtr StreamDisassemblerFactory::disassemble(
                 OpcodeSubsystems::DisassemblerType type,
@@ -43,6 +45,20 @@ StreamDisassemblerPtr StreamDisassemblerFactory::disassemble(
         // Generate 64bit disassembler
         return StreamDisassemblerPtr(new IA32StreamDisassembler(
                     IA32eInstructionSet::AMD_64,
+                    data,
+                    shouldUseAddress,
+                    streamAddress,
+                    shouldOpcodeFaultTolerantEnabled));
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_LE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_BE:
+    case OpcodeSubsystems::DISASSEMBLER_THUMB_LE:
+    case OpcodeSubsystems::DISASSEMBLER_THUMB_BE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_BE:
+        // The ARM instructions are always little endian, the BE subsystems
+        // are for big endian data. The disassembler decodes all the features
+        return StreamDisassemblerPtr(new ArmStreamDisassembler(
+                    ArmInstructionSet::fromSubsystem(type),
                     data,
                     shouldUseAddress,
                     streamAddress,
