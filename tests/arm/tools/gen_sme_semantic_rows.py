@@ -51,6 +51,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, 'tests', 'arm', 'semantics'))
 import armstate as S      # noqa: E402
 import sme_model          # noqa: E402
+import cliteral           # noqa: E402
 
 TABLE = os.path.join(REPO, 'Source', 'dismount', 'proc', 'arm', 'Arm64EncodingTableSme.cpp')
 CLI = os.path.join(REPO, 'out', 'bin', 'dismount_cli')
@@ -379,7 +380,8 @@ def main():
         f.write('// { word, "text", "setup", "expected" }\n')
         f.write('#define ARM64_SME_ROWS \\\n')
         for w, t, setup, exp in rows:
-            f.write('    { 0x%08x, "%s", "%s", "%s" }, \\\n' % (w, t, tokens(setup), tokens(exp)))
+            f.write('    { 0x%08x, "%s", %s, %s }, \\\n' % (w, t, cliteral.literal(tokens(setup)),
+                                                    cliteral.literal(tokens(exp))))
         f.write('\n')
     print('wrote %s: %d rows' % (OUTPUT, len(rows)))
     for mn, ts in sorted(unsupported.items()):
