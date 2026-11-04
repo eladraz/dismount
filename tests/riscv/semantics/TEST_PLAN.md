@@ -26,6 +26,9 @@ a disagreement between the three is resolved with the specification (`oracle_bug
 | `rvstate.py` | The state / result line protocol (parse, format, compare) |
 | `rvasm.py` | Assembles the corpus lines with llvm-mc (reads the ELF itself) |
 | `states_rv.py` | Random and directed states |
+| `gen_corpus.py` | Generates the scalar corpus `corpus/{rv,rv64,rv32}_gen_*.s` from the decoder corpus (`tests/riscv/corpus`) |
+| `gen_directed.py` | Generates the directed corpus `corpus/{rv,rv64,rv32}_dir_*.s` (special values, memory edges, atomics, CSRs, CFI) |
+| `gen_unit_rows.py` | Generates the rows of `tests/TestRiscvSemantics.cpp` (`tests/riscv/RiscvSemanticRows{64,32}.inc`) from QEMU and Spike |
 | `build_guest.py`, `guest/runner.c`, `guest/rt.S`, `guest/link.ld` | The bare metal guest of QEMU and Spike (rv32 and rv64, built to `out/riscv_guest/`) |
 | `oracle_qemu.py`, `oracle_spike.py`, `oracle_unicorn.py` | The oracles |
 | `corpus/*.s` | `rv_*` (RV32 and RV64), `rv64_*`, `rv32_*` (one XLEN): `i m a a_pair f d d_gpr fd c b zfa zfh misc cfi v v2 oracle_diffs` |
@@ -164,14 +167,23 @@ single precision instructions only.
 
 ## The corpus
 
-Starter corpus (`corpus/`, about 1300 lines per XLEN): the base integer instructions with boundary immediates (all
-shifts, loads and stores with offsets, branches, jal, jalr, csr instructions of fcsr/fflags/frm, fences), M, A (all amo
-orderings, lr/sc pairs), F, D, Zfh, Zfa, Zfbfmin (every rounding mode on the arithmetic, the conversions and the
-comparisons), C (all the Zca/Zcb/Zcd forms, assembled as themselves), Zba/Zbb/Zbs/Zbc/Zbkb/Zbkx/Zicond, the scalar
-cryptography, the hints and cache block ops, Zimop/Zcmop, Zabha/Zacas, the CFI instructions, and about 400 vector
-instructions (vsetvl*, the integer, fixed point, floating point, widening/narrowing, mask, reduction, permutation,
-load/store (unit stride, strided, indexed, segment, fault-only-first, whole register) forms, Zvbb, Zvbc, Zvk*,
-Zvfbf*). `oracle_diffs` is the evidence for oracle_bugs.txt.
+* Starter corpus (`corpus/rv_*.s`, `rv64_*.s`, `rv32_*.s`, about 1300 lines per XLEN, by hand): the base integer
+  instructions with boundary immediates, M, A (all amo orderings, lr/sc pairs), F, D, Zfh, Zfa, Zfbfmin, C, B, the
+  scalar cryptography, the hints and cache block ops, Zimop/Zcmop, Zabha/Zacas, the CFI instructions, and about 400
+  vector instructions. `oracle_diffs` is the evidence for oracle_bugs.txt.
+* The generated scalar corpus (`gen_corpus.py`: `corpus/*_gen_*.s`, about 42 000 lines): every instruction of the
+  base, compressed and scalar extension tables, as the decoder corpus has it (`tests/riscv/corpus`): every register of
+  each operand (x0 as destination and as source, the same register everywhere), the edge values of the immediates,
+  every rounding mode (`rne rtz rdn rup rmm dyn`; the reserved static modes can't be encoded: the decoder rejects
+  them like LLVM), every aq / rl combination, every fence set, the CSRs of the description. The Zicfilp / Zicfiss
+  lines run twice: as Zimop instructions and with the control flow integrity enabled (`@mode: cfi`).
+* The directed scalar corpus (`gen_directed.py`: `corpus/*_dir_*.s`, about 76 000 lines): the special values of
+  every operand position of the floating point instructions (zeros, denormals, infinities, quiet and signaling
+  NaNs, the integer conversion boundaries, ties) in the three formats, badly NaN boxed inputs, every `frm` with
+  `dyn`, `fcvtmod.w.d`, `fli`; the integer instructions over boundary values (division by zero and overflow, shifts
+  by the width, `clz` of zero, `xperm` out of range indexes...); loads, stores and AMOs at every alignment next to
+  a page and the end of the window; `lr` / `sc` sequences (other address, other size, in between stores, x0);
+  Zacas pairs; the cache block operations at the edges; the CSR instructions with read back; the CFI states.
 
 The states: random integers (boundary values and random widths), floating point (zeros, infinities, quiet and
 signaling NaNs, denormals, the integer conversion boundaries, random normals) boxed 80% of the time (else the upper
@@ -210,3 +222,61 @@ line) and on the vector sample (VLEN 128, 256 and 512, 400 states per line): see
 * `--cross qemu,spike` over the whole starter corpus (1214 lines, 128 states: 155 000 states per oracle): 50 s.
   FP lines at 800 states: 279 000 states per oracle in 49 s. So the planned ~50k lines x 16 states = 800 000
   states take 1-2 minutes per oracle for the oracle side (the dismount_cli side is the lifter's speed).
+
+## The scalar lifter: decisions where the processors or the specification leave a choice
+
+The scalar instructions (`RiscvSemanticLift*.cpp`) are verified with QEMU and Spike (`corpus/*_gen_*.s`, the
+decoder corpus of every register / immediate / rounding mode; `corpus/*_dir_*.s`, the directed values) and Unicorn
+for the base. Where the oracles disagree, or the specification gives an implementation the choice, dismount's
+behavior and the reason are:
+
+| Topic | dismount | Why |
+|---|---|---|
+| `rm` of the conversions that don't round (`fcvt.d.w`, `fcvt.d.s`, `fcvt.s.h`...) | the field is read from the encoding like every rounding mode: `dyn` with a reserved `frm` (5-7) is an illegal instruction, a static mode is not checked (the decoder never produces 5 / 6) | QEMU and Spike agree (every instruction with an rm field calls `set_rm`) |
+| NaN results | the canonical NaN (positive, quiet bit only) for every operation, including the conversions of a NaN | F 2.2; `FloatEnvironment::NAN_DEFAULT` |
+| `fmin` / `fmax` / `fminm` / `fmaxm` | `BEHAVIOR_MINMAX_NUMBER` / `BEHAVIOR_MINMAX_PROPAGATE_NAN`; -0 < +0 | F 2.2 (minimumNumber), Zfa (minimum) |
+| float to integer | saturate, a NaN is the largest positive value, invalid raised; `fcvt.wu` of a negative is 0; the 32 bit results are sign extended on RV64 | F 2.2 |
+| `fcvtmod.w.d` | the integer part modulo 2^32, as a signed word; NaN and infinity give 0; invalid for those and for a value outside of [-2^31, 2^31) (and no inexact then), inexact for a fraction | QEMU and Spike agree |
+| NaN boxing | a read of an f register as a narrower format whose upper bits aren't all ones is the canonical NaN of the format; `fsw`, `fsh`, `fmv.x.w`, `fmv.x.h` use the raw bits | F 2.2; QEMU and Spike agree |
+| Misaligned loads and stores | complete (Zicclsm), byte accurate, a page / window crossing access faults without writing | QEMU. Spike writes the bytes below the faulting one (`oracle_bugs.txt`: implementation defined) |
+| Misaligned AMOs | an AMO whose access stays inside a naturally aligned 16 byte region completes (Zama16b), one that crosses a region raises the access fault (`RISCV_TRAP_ACCESS_FAULT`) | Zama16b; Spike. QEMU completes a crossing AMO (rule 6 of the table below) and faults a misaligned `amo*.b/.h` / `amocas.*` even inside the region |
+| `lr` / `sc` | a natural alignment is required (a misaligned lr / sc faults, as QEMU and Spike do); the reservation is the address and the size, ended by any `sc`; an `sc` to an unmapped address faults even when it fails | QEMU and Spike agree on the alignment and the fault. Same-hart stores between lr and sc don't invalidate it, an `sc` of another size fails (the two processors differ on each: `oracle_bugs.txt`) |
+| `amocas` pairs | `amocas.d` on RV32 and `amocas.q` on RV64 use the even register pair (x0 reads as a zero pair, nothing is written) | Zacas |
+| Zicfilp (`RiscvArchitecture::isControlFlowIntegrity()`) | `jalr` / `c.jr` / `c.jalr` set elp unless the base is ra, t0 (whatever rd is) or t2; every instruction but `lpad` begins with a trap if elp is set; `lpad` traps if the pc isn't 4 aligned or the label is not 0 and not x7[31:12], clears elp otherwise; without the enable `lpad` is a nop | QEMU and Spike agree (the jalr forms are in `corpus/rv_dir_cfi.s`) |
+| Zicfiss | `sspush` / `sspopchk` / `ssrdp` / `ssamoswap` / `c.sspush` / `c.sspopchk` use ssp (misaligned: access fault, a mismatch of `sspopchk` is the software check exception); `csr ssp` is a plain register; without the enable they are Zimop (`ssamoswap` and the ssp CSR are illegal instructions) | Zicfiss. Spike clears the low bits of ssp when the guest writes the CSR (`oracle_bugs.txt`) |
+| Zimop / Zcmop | `mop.r.N` / `mop.rr.N` / `c.mop.N` write 0 to rd | Zimop |
+| `fence` | an OP_FENCE with the sets: `i` and `r` are loads, `o` and `w` stores; `fence.tso` is the full fence | no finer description in the IR |
+| `fence.i` | OP_FENCE_INSTRUCTION; `pause` is HINT_SPIN, `wrs.*` HINT_WAIT; the hints are no-ops | |
+| `cbo.clean` / `flush` / `inval` | a one byte load of the aligned 64 byte block (the fault) and OP_CACHE_MAINTENANCE | Zic64b |
+| `cbo.zero` | 8 stores of 64 bits of zero to the aligned block (the first one faults) | Zic64b |
+| `ecall` / `ebreak` / `unimp` | OP_TRAP (system call / breakpoint / undefined) | |
+| CSRs | `fflags`, `frm`, `fcsr`, `vstart`, `vxsat`, `vxrm`, `vcsr`, `vl`, `vtype`, `vlenb` (a constant VLEN / 8), `ssp` are inline; the others (the counters, `seed`, the supervisor / machine CSRs) are `RISCV_HELPER_READ_CSR` / `WRITE_CSR`. A write to a read only CSR (`csr[11:10] == 3`, `vl`, `vtype`, `vlenb`) is an illegal instruction, `csrrs` / `csrrc` with x0 (and `csrrsi` / `csrrci` with 0) don't write, `csrrw` to x0 doesn't read | Zicsr |
+| Scalar cryptography | AES, SHA-2, SM3 in the IR (the AES steps of the IR for a lookup of the S-box), SM4 (`sm4ed`, `sm4ks`) the helper `RISCV_HELPER_INSTRUCTION` implemented by `RiscvHelpers` | the S-box of SM4 has no IR operation |
+| The helpers on the reference runs | `RiscvHelpers::execute` (SM4, the counters read 0, `seed`); the user mode `dismount_cli run` answers the helper of any other CSR with an illegal instruction (user mode can't access it) | |
+
+What the reference runs do not cover, and why (the lines are in `skip.txt` or not in the corpus):
+
+* The privileged instructions (`mret`, `sret`, `wfi`, `sfence.vma`, the Svinval and H instructions) trap in user
+  mode: their semantics are the helper `RISCV_HELPER_PRIVILEGED`; they are lifted and not verified
+  (`SUPPORT_LIFT` without `SUPPORT_LIFT_VERIFIED`, and `privileged.s` of the decoder corpus is not run).
+* The counters (`rdcycle`, `rdtime`, `rdinstret`, `csrr*` of `cycle`, `time`, `instret`, `hpmcounter*`) and `seed`:
+  the values differ at every run (the write attempts to them, an illegal instruction, are in `rv_dir_csr.s`).
+* `wrs.nto`, `wrs.sto`: the reference would wait for a reservation to be invalidated.
+* The encodings the decoder rejects like LLVM and which Zimop could use (`mop.r.28` with rd = x0 that isn't
+  `sspopchk`, `mop.rr.7` with rd = rs1 = x0).
+* Branches and jumps to their own address and into the middle of the instruction (`gen_corpus.py`).
+
+## Results of the scalar gate (16 states per line; starter + generated + directed corpus)
+
+| Arch | Oracle | Lines | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
+|---|---|---|---|---|---|---|---|---|
+| rv64 | qemu | 117574 | 117344 | 0 | 3 | 157 | 70 | 0 |
+| rv64 | spike | 117574 | 117354 | 0 | 3 | 167 | 50 | 0 |
+| rv32 | qemu | 87156 | 86839 | 0 | 3 | 268 | 32 | 14 |
+| rv32 | spike | 87156 | 86836 | 0 | 3 | 278 | 39 | 0 |
+
+* The 3 UNLIFTED lines are the vector lines of `rv_oracle_diffs.s` (the vector lifter is another task). The 14
+  ORACLE_ERR are QEMU's RV32 `mstatush.MPELP` bug (table above, 8).
+* Unicorn, the RV64GC / RV32GC base files of the generated corpus and the starter files: rv64 19652 PASS, 455
+  ORACLE_BUG, 0 FAIL; rv32 15728 PASS, 382 ORACLE_BUG, 0 FAIL.
+* `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release pass.

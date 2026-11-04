@@ -121,15 +121,26 @@ public:
      * vectorBits - VLEN: 128 to 512 (SemanticValue::MAX_BITS), a power of
      *              2. The default is the one of the test processors (QEMU's
      *              rva23u64 has VLEN = 128)
+     * isControlFlowIntegrity - The environment runs with Zicfilp and Zicfiss
+     *              enabled (the menvcfg / senvcfg bits, a choice of the
+     *              supervisor): the lifter then models elp (every
+     *              instruction but lpad traps while a landing pad is
+     *              expected) and the shadow stack instructions. Without it
+     *              lpad is a nop and the encodings of Zicfiss are the Zimop /
+     *              Zcmop instructions which write 0 to rd, as on a processor
+     *              whose supervisor didn't enable them
      */
     RiscvArchitecture(RiscvInstructionSet::DisassemblerTypes type =
                           RiscvInstructionSet::RISCV_RV64,
-                      uint vectorBits = 128);
+                      uint vectorBits = 128,
+                      bool isControlFlowIntegrity = false);
 
     // Return the instruction set, XLEN and VLEN
     RiscvInstructionSet::DisassemblerTypes getInstructionSet() const;
     uint getXlen() const;
     uint getVectorBits() const;
+    // Return true if Zicfilp and Zicfiss are enabled, see the constructor
+    bool isControlFlowIntegrity() const;
 
     // See ArchitectureDescription
     virtual OpcodeSubsystems::DisassemblerType getType() const;
@@ -158,6 +169,8 @@ private:
     // The instruction set and VLEN
     RiscvInstructionSet::DisassemblerTypes m_type;
     uint m_vectorBits;
+    // See the constructor
+    bool m_isControlFlowIntegrity;
     // The registers, indexed by the riscvdis::RISCV_REG_* ids. Built by the
     // constructor, since the sizes of x and v depend on XLEN and VLEN. The
     // names are static strings

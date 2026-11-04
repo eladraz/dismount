@@ -23,6 +23,8 @@ Modes of the tool:
 """
 import argparse
 import collections
+import concurrent.futures
+import fnmatch
 import glob
 import json
 import os
@@ -116,7 +118,9 @@ def rule_applies(names, arch, oracles, file=None):
 def corpus_files(arch, wanted):
     paths = sorted(set(glob.glob(os.path.join(CORPUS, 'rv_*.s')) + glob.glob(os.path.join(CORPUS, arch + '_*.s'))))
     if wanted:
-        paths = [p for p in paths if os.path.basename(p) in wanted or os.path.basename(p)[:-2] in wanted]
+        # (a name may be a glob: `--file 'rv*_gen_*'`)
+        paths = [p for p in paths if os.path.basename(p) in wanted or os.path.basename(p)[:-2] in wanted or
+                 any(fnmatch.fnmatch(os.path.basename(p)[:-2], w) for w in wanted if '*' in w)]
     return paths
 
 
@@ -161,9 +165,8 @@ def collect(args, skips, oracles):
 # dismount_cli
 # ---------------------------------------------------------------------------
 
-def run_cli(cli, arch, vlen, inputs):
-    """Runs `dismount_cli run --arch ARCH --vlen N`. Returns one output line per input; the lines
-    of a CLI that doesn't know the command are `ERR ...`."""
+def run_cli_chunk(cli, arch, vlen, inputs):
+    """One `dismount_cli run --arch ARCH --vlen N` process over `inputs`."""
     proc = subprocess.run([cli, 'run', '--arch', arch, '--vlen', str(vlen)], input=''.join(s + '\n' for s in inputs),
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     got = proc.stdout.splitlines()
@@ -171,6 +174,18 @@ def run_cli(cli, arch, vlen, inputs):
         tail = (proc.stderr.strip().splitlines() or [''])[-1][:160]
         got = ['ERR dismount_cli run --arch %s not available (rc=%d) %s' % (arch, proc.returncode, tail)] * len(inputs)
     return got
+
+
+def run_cli(cli, arch, vlen, inputs, jobs=1):
+    """Runs `dismount_cli run --arch ARCH --vlen N` (in `jobs` processes over slices of the inputs). Returns
+    one output line per input; the lines of a CLI that doesn't know the command are `ERR ...`."""
+    if jobs <= 1 or len(inputs) < 2000:
+        return run_cli_chunk(cli, arch, vlen, inputs)
+    size = (len(inputs) + jobs * 4 - 1) // (jobs * 4)
+    chunks = [inputs[i:i + size] for i in range(0, len(inputs), size)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        parts = list(pool.map(lambda c: run_cli_chunk(cli, arch, vlen, c), chunks))
+    return [line for part in parts for line in part]
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +275,7 @@ def process(recs, args, ctx):
         inputs = []
         for r in active:
             inputs += [S.format_state(r['code'], st) for st in r['states']]
-        outs = run_cli(ctx['cli'], args.arch, args.vlen, inputs)
+        outs = run_cli(ctx['cli'], args.arch, args.vlen, inputs, args.jobs)
         pos = 0
         for r in active:
             n = len(r['states'])

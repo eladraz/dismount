@@ -235,6 +235,13 @@ def apply_fixed(st, fixed, xlen, overrides):
     base = st['win'][0]
     for tok in toks:
         k, _, v = tok.partition('=')
+        if k == 'mem':
+            # mem=ADDR:HEXBYTES (the bytes in the order of the addresses; ADDR may be win+N)
+            addr, _, data = v.partition(':')
+            start = parse_value(addr, base)
+            for i in range(0, len(data) - 1, 2):
+                st['mem'][start + i // 2] = int(data[i:i + 2], 16)
+            continue
         val = parse_value(v, base)
         _set(st, k, val, xlen)
     for k, val in overrides.items():

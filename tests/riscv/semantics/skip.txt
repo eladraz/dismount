@@ -7,6 +7,7 @@
 
 # --- the process / the platform
 \b(csrr|csrrs|csrrc|csrrw|csrrsi|csrrci|csrrwi)\b.*\b(cycle|time|instret|hpmcounter\w*|seed)\b  # the counters belong to the processor and the run
+^rd(cycle|time|instret)h?\b  # the counters belong to the processor and the run (the pseudo instructions of csrr)
 ^c\.j 0$  # an endless loop
 ^jal (zero|x0), 0$  # an endless loop
 ^wrs\.(nto|sto)$  # waits for a reservation to be invalidated
@@ -28,3 +29,7 @@
 [unicorn,rv32_misc] .*  # Unicorn: no Zacas, the scalar cryptography
 [unicorn,rv64_cfi] .*  # Unicorn: no Zicfiss
 [unicorn,rv_oracle_diffs] ^v  # Unicorn: no V
+
+# --- encodings the decoder (as LLVM's) rejects, which the assembler accepts
+^mop\.r\.28 (zero|x0), (?!ra|t0|x1|x5)  # the decoder rejects mop.r.28 with rd = x0 unless it is sspopchk (rs1 = x1 / x5): Zicfiss reserves it
+^mop\.rr\.7 (zero|x0), (zero|x0),  # the decoder rejects mop.rr.7 with rd = rs1 = x0 unless it is sspush: Zicfiss reserves it

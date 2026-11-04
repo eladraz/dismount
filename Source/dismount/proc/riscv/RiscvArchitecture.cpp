@@ -107,9 +107,11 @@ bool parseNumbered(const cString& name, char prefix, uint& number)
 
 RiscvArchitecture::RiscvArchitecture(
                     RiscvInstructionSet::DisassemblerTypes type,
-                    uint vectorBits) :
+                    uint vectorBits,
+                    bool isControlFlowIntegrity) :
     m_type(type),
-    m_vectorBits(vectorBits)
+    m_vectorBits(vectorBits),
+    m_isControlFlowIntegrity(isControlFlowIntegrity)
 {
     // VLEN is a power of 2, between 128 and the widest value of the
     // interpreter
@@ -167,6 +169,11 @@ uint RiscvArchitecture::getXlen() const
 uint RiscvArchitecture::getVectorBits() const
 {
     return m_vectorBits;
+}
+
+bool RiscvArchitecture::isControlFlowIntegrity() const
+{
+    return m_isControlFlowIntegrity;
 }
 
 OpcodeSubsystems::DisassemblerType RiscvArchitecture::getType() const

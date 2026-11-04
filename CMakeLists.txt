@@ -123,6 +123,14 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/riscv/RiscvSemantics.cpp
 	Source/dismount/proc/riscv/RiscvSemanticTable.cpp
 	Source/dismount/proc/riscv/RiscvSemanticTableStubs.cpp
+	Source/dismount/proc/riscv/RiscvSemanticTablePrivileged.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftCommon.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftInteger.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftFloat.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftAtomic.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftSystem.cpp
+	Source/dismount/proc/riscv/RiscvSemanticLiftCrypto.cpp
+	Source/dismount/proc/riscv/RiscvHelpers.cpp
 	Source/dismount/proc/arm/ArmFeatures.cpp
 	Source/dismount/proc/arm/ArmOpcode.cpp
 	Source/dismount/proc/arm/ArmOperandCodec.cpp
@@ -224,6 +232,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestSemanticFloat.cpp
 		tests/TestArmArchitecture.cpp
 		tests/TestRiscvArchitecture.cpp
+		tests/TestRiscvSemantics.cpp
 		tests/TestSemanticFloatRiscv.cpp
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp

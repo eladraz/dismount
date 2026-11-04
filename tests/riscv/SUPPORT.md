@@ -9,111 +9,113 @@ The names are the LLVM 23 target features (`llvm-mc -mattr`). The RVA23 column i
 * RVA23S64 mandatory, more than RVA23U64 (Sha is H with Ssstateen, Shcounterenw, Shvstvala, Shtvala, Shvstvecd, Shvsatpa, Shgatpa): zifencei, svinval, h, sstc, sscofpmf, ssnpm, ssstateen, svpbmt, svnapot, svade, svbare, ssccptr, sstvecd, sstvala, sscounterenw, ssu64xl, shcounterenw, shvstvala, shtvala, shvstvecd, shvsatpa, shgatpa
 * RVA23S64 optional: the RVA23U64 optional ones and zkr, sdtrig, ssstrict, svvptc, sspm (Sv48, Sv57 and Svadu have no feature here)
 
-The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded; *lift* and *lift verified* belong to the semantic layer (`RiscvArchitecture`, `RiscvSemantics`: not part of this matrix, the marks are set by it); *encoding verified*: the decoder and the assembler are compared with llvm-objdump and llvm-mc (the corpus, `fuzz_decode.py`, `fuzz_roundtrip.py`). The vector features (Zve*, V, Zvf*, Zvk*, Zvb*) are in `RiscvEncodingTableVector*.cpp`: LLVM gates each instruction by the weakest of them (the integer ones by Zve32x, the floating point ones by Zve32f, the 64 bit loads and Zvbc by Zve64x), so V, Zve64f, Zve64d, Zvfh, Zvfhmin and Zvknhb have no encodings of their own. The corpus columns are the lines of `tests/riscv/corpus` whose first feature is the row, with no FAIL in any check (lines/passing).
+The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded; *lift*: every instruction of the feature has semantics in the lifter (`RiscvSemantics`); *partial lift*: some do; *lift verified*: the instructions were compared with QEMU and Spike by the semantics tests (`tests/riscv/semantics`) -- the privileged instructions, which user mode can not run, are lifted to the helper `RISCV_HELPER_PRIVILEGED` and are not verified; *encoding verified*: the decoder and the assembler are compared with llvm-objdump and llvm-mc (the corpus, `fuzz_decode.py`, `fuzz_roundtrip.py`). The vector features (Zve*, V, Zvf*, Zvk*, Zvb*) have an empty table (`RiscvEncodingTableVector.cpp`) and no marks. The corpus columns are the lines of `tests/riscv/corpus` whose first feature is the row, with no FAIL in any check (lines/passing).
 
-| feature | RVA23 | encodings RV32 / RV64 | marks | corpus RV32 | corpus RV64 |
-|---|---|---|---|---|---|
-| (base) | RVA23U64 mandatory | 66 / 80 | disassemble, assemble, encoding verified | 7379/7379 | 8820/8820 |
-| m | RVA23U64 mandatory | 4 / 8 | disassemble, assemble, encoding verified | 448/448 | 896/896 |
-| zmmul | RVA23U64 mandatory | 4 / 5 | disassemble, assemble, encoding verified | 448/448 | 560/560 |
-| zalrsc | RVA23U64 mandatory | 2 / 4 | disassemble, assemble, encoding verified | 182/182 | 364/364 |
-| zaamo | RVA23U64 mandatory | 9 / 18 | disassemble, assemble, encoding verified | 990/990 | 1980/1980 |
-| f | RVA23U64 mandatory | 42 / 46 | disassemble, assemble, encoding verified | 3507/3507 | 3807/3807 |
-| d | RVA23U64 mandatory | 29 / 35 | disassemble, assemble, encoding verified | 2804/2804 | 3244/3244 |
-| zicsr | RVA23U64 mandatory | 14 / 14 | disassemble, assemble, encoding verified | 6588/6588 | 4859/4859 |
-| zicntr | RVA23U64 mandatory | 6 / 3 | disassemble, assemble, encoding verified | 222/222 | 111/111 |
-| zihpm | RVA23U64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| zifencei | RVA23S64 mandatory | 1 / 1 | disassemble, assemble, encoding verified | 1/1 | 1/1 |
-| zihintpause | RVA23U64 mandatory | 1 / 1 | disassemble, assemble, encoding verified | 1/1 | 1/1 |
-| zihintntl | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, encoding verified | 8/8 | 8/8 |
-| zicbom | RVA23U64 mandatory | 3 / 3 | disassemble, assemble, encoding verified | 99/99 | 99/99 |
-| zicbop | RVA23U64 mandatory | 3 / 3 | disassemble, assemble, encoding verified | 249/249 | 249/249 |
-| zicboz | RVA23U64 mandatory | 1 / 1 | disassemble, assemble, encoding verified | 33/33 | 33/33 |
-| zicond | RVA23U64 mandatory | 2 / 2 | disassemble, assemble, encoding verified | 224/224 | 224/224 |
-| zimop | RVA23U64 mandatory | 40 / 40 | disassemble, assemble, encoding verified | 3296/3296 | 3296/3296 |
-| zawrs | RVA23U64 mandatory | 2 / 2 | disassemble, assemble, encoding verified | 2/2 | 2/2 |
-| zacas | RVA23U64 optional | 2 / 3 | disassemble, assemble, encoding verified | 220/220 | 330/330 |
-| zabha | RVA23U64 optional | 20 / 20 | disassemble, assemble, encoding verified | 2200/2200 | 2200/2200 |
-| experimental-zicfilp | RVA23U64 optional | 1 / 1 | disassemble, assemble, encoding verified | 54/54 | 54/54 |
-| experimental-zicfiss | RVA23U64 optional | 8 / 9 | disassemble, assemble, encoding verified | 153/153 | 263/263 |
-| zba | RVA23U64 mandatory | 3 / 9 | disassemble, assemble, encoding verified | 336/336 | 943/943 |
-| zbb | RVA23U64 mandatory | 18 / 24 | disassemble, assemble, encoding verified | 1692/1692 | 2221/2221 |
-| zbs | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, encoding verified | 784/784 | 784/784 |
-| zbc | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 336/336 | 336/336 |
-| zbkb | none | 13 / 15 | disassemble, assemble, encoding verified | 1243/1243 | 1509/1509 |
-| zbkc | none | 2 / 2 | disassemble, assemble, encoding verified | 224/224 | 224/224 |
-| zbkx | none | 2 / 2 | disassemble, assemble, encoding verified | 224/224 | 224/224 |
-| zknd | none | 2 / 5 | disassemble, assemble, encoding verified | 312/312 | 497/497 |
-| zkne | none | 2 / 4 | disassemble, assemble, encoding verified | 312/312 | 422/422 |
-| zknh | none | 10 / 8 | disassemble, assemble, encoding verified | 972/972 | 600/600 |
-| zksed | none | 2 / 2 | disassemble, assemble, encoding verified | 312/312 | 312/312 |
-| zksh | none | 2 / 2 | disassemble, assemble, encoding verified | 150/150 | 150/150 |
-| zkr | RVA23S64 optional | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| zkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| zfa | RVA23U64 mandatory | 24 / 22 | disassemble, assemble, encoding verified | 2096/2096 | 1917/1917 |
-| zfh | RVA23U64 optional | 25 / 29 | disassemble, assemble, encoding verified | 2424/2424 | 2724/2724 |
-| zfhmin | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, encoding verified | 664/664 | 664/664 |
-| zfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 144/144 | 144/144 |
-| zca | RVA23U64 mandatory | 38 / 44 | disassemble, assemble, encoding verified | 1457/1457 | 1820/1820 |
-| zcf | none | 4 / 0 | disassemble, assemble, encoding verified | 296/296 | 0/0 |
-| zcd | RVA23U64 mandatory | 4 / 4 | disassemble, assemble, encoding verified | 296/296 | 296/296 |
-| zcb | RVA23U64 mandatory | 11 / 12 | disassemble, assemble, encoding verified | 359/359 | 367/367 |
-| zcmop | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, encoding verified | 8/8 | 8/8 |
-| zve32x | RVA23U64 mandatory | 463 / 463 | disassemble, assemble, encoding verified | 72226/72226 | 72226/72226 |
-| zve32f | RVA23U64 mandatory | 103 / 103 | disassemble, assemble, encoding verified | 15900/15900 | 15900/15900 |
-| zve64x | RVA23U64 mandatory | 44 / 76 | disassemble, assemble, encoding verified | 2937/2937 | 10475/10475 |
-| zve64f | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| zve64d | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| v | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| zvfh | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| zvfhmin | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| zvfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 281/281 | 281/281 |
-| zvfbfwma | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 668/668 | 668/668 |
-| zvkb | RVA23U64 mandatory | 9 / 9 | disassemble, assemble, encoding verified | 1155/1155 | 1155/1155 |
-| zvbb | RVA23U64 mandatory | 7 / 7 | disassemble, assemble, encoding verified | 1224/1224 | 1224/1224 |
-| zvbc | RVA23U64 optional | 4 / 4 | disassemble, assemble, encoding verified | 620/620 | 620/620 |
-| zvkg | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 230/230 | 230/230 |
-| zvkned | RVA23U64 optional | 11 / 11 | disassemble, assemble, encoding verified | 1157/1157 | 1157/1157 |
-| zvknha | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 789/789 | 789/789 |
-| zvknhb | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
-| zvksed | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 294/294 | 294/294 |
-| zvksh | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 337/337 | 337/337 |
-| zvkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ziccif | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ziccrse | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ziccamoa | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ziccamoc | RVA23U64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| zicclsm | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| za64rs | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| zic64b | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| zama16b | RVA23U64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| supm | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| (privileged) | RVA23S64 mandatory | 6 / 6 | disassemble, assemble, encoding verified | 117/117 | 117/117 |
-| svinval | RVA23S64 mandatory | 3 / 3 | disassemble, assemble, encoding verified | 78/78 | 78/78 |
-| h | RVA23S64 mandatory | 18 / 21 | disassemble, assemble, encoding verified | 1070/1070 | 1277/1277 |
-| sstc | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| sscofpmf | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| ssnpm | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| ssstateen | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 |
-| svpbmt | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| svnapot | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| svade | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| svbare | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ssccptr | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| sstvecd | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| sstvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| sscounterenw | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ssu64xl | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shcounterenw | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shvstvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shtvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shvstvecd | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shvsatpa | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| shgatpa | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
-| sdtrig | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| ssstrict | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| svvptc | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| sspm | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| **total** | | 1141 / 1237 | | 142832/142832 | 154391/154391 |
+The semantics columns are the lines of `tests/riscv/semantics/corpus` run by `run_semantics.py` (QEMU 11 and Spike, 16 states per line at least) whose first mnemonic belongs to the feature, PASS or ORACLE_BUG over the ones which ran (not SKIP); the line counts as passing when both oracles agree with the lifter.
+
+| feature | RVA23 | encodings RV32 / RV64 | marks | corpus RV32 | corpus RV64 | semantics RV32 | semantics RV64 |
+|---|---|---|---|---|---|---|---|
+| (base) | RVA23U64 mandatory | 66 / 80 | disassemble, assemble, lift, lift verified, encoding verified | 6593/6593 | 8034/8034 | 12534/12534 | 20862/20862 |
+| m | RVA23U64 mandatory | 4 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 448/448 | 896/896 | 1252/1252 | 4792/4792 |
+| zmmul | RVA23U64 mandatory | 4 / 5 | disassemble, assemble, lift, lift verified, encoding verified | 448/448 | 560/560 | 1252/1252 | 3004/3004 |
+| zalrsc | RVA23U64 mandatory | 2 / 4 | disassemble, assemble, lift, lift verified, encoding verified | 182/182 | 364/364 | 243/243 | 480/480 |
+| zaamo | RVA23U64 mandatory | 9 / 18 | disassemble, assemble, lift, lift verified, encoding verified | 990/990 | 1980/1980 | 1316/1316 | 2598/2598 |
+| f | RVA23U64 mandatory | 42 / 46 | disassemble, assemble, lift, lift verified, encoding verified | 3507/3507 | 3807/3807 | 13463/13463 | 13944/13944 |
+| d | RVA23U64 mandatory | 29 / 35 | disassemble, assemble, lift, lift verified, encoding verified | 2804/2804 | 3244/3244 | 13999/13999 | 14686/14686 |
+| zicsr | RVA23U64 mandatory | 14 / 14 | disassemble, assemble, lift, lift verified, encoding verified | 6588/6588 | 4859/4859 | 1433/1433 | 1433/1433 |
+| zicntr | RVA23U64 mandatory | 6 / 3 | disassemble, assemble, lift, encoding verified | 222/222 | 111/111 | skipped 222 | skipped 111 |
+| zihpm | RVA23U64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| zifencei | RVA23S64 mandatory | 1 / 1 | disassemble, assemble, lift, lift verified, encoding verified | 1/1 | 1/1 | 4/4 | 4/4 |
+| zihintpause | RVA23U64 mandatory | 1 / 1 | disassemble, assemble, lift, lift verified, encoding verified | 1/1 | 1/1 | 4/4 | 4/4 |
+| zihintntl | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 8/8 | 8/8 | 18/18 | 18/18 |
+| zicbom | RVA23U64 mandatory | 3 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 99/99 | 99/99 | 153/153 | 153/153 |
+| zicbop | RVA23U64 mandatory | 3 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 249/249 | 249/249 | 261/261 | 261/261 |
+| zicboz | RVA23U64 mandatory | 1 / 1 | disassemble, assemble, lift, lift verified, encoding verified | 33/33 | 33/33 | 52/52 | 52/52 |
+| zicond | RVA23U64 mandatory | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 224/224 | 224/224 | 624/624 | 1200/1200 |
+| zimop | RVA23U64 mandatory | 40 / 40 | disassemble, assemble, lift, lift verified, encoding verified | 3296/3296 | 3296/3296 | 3339/3339 | 3339/3339 |
+| zawrs | RVA23U64 mandatory | 2 / 2 | disassemble, assemble, lift, encoding verified | 2/2 | 2/2 | skipped 7 | skipped 7 |
+| zacas | RVA23U64 optional | 2 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 220/220 | 330/330 | 296/296 | 465/465 |
+| zabha | RVA23U64 optional | 20 / 20 | disassemble, assemble, lift, lift verified, encoding verified | 2200/2200 | 2200/2200 | 2342/2342 | 2342/2342 |
+| experimental-zicfilp | RVA23U64 optional | 1 / 1 | disassemble, assemble, lift, lift verified, encoding verified | 54/54 | 54/54 | 110/124 | 124/124 |
+| experimental-zicfiss | RVA23U64 optional | 8 / 9 | disassemble, assemble, lift, lift verified, encoding verified | 153/153 | 263/263 | 368/368 | 594/594 |
+| zba | RVA23U64 mandatory | 3 / 9 | disassemble, assemble, lift, lift verified, encoding verified | 336/336 | 943/943 | 936/936 | 4509/4509 |
+| zbb | RVA23U64 mandatory | 18 / 24 | disassemble, assemble, lift, lift verified, encoding verified | 1692/1692 | 2221/2221 | 4577/4577 | 9561/9561 |
+| zbs | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 784/784 | 784/784 | 1856/1856 | 3684/3684 |
+| zbc | RVA23U64 optional | 3 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 336/336 | 336/336 | 1160/1160 | 2024/2024 |
+| zbkb | none | 13 / 15 | disassemble, assemble, lift, lift verified, encoding verified | 1243/1243 | 1509/1509 | 888/888 | 1888/1888 |
+| zbkc | none | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 224/224 | 224/224 | - | - |
+| zbkx | none | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 224/224 | 224/224 | 624/624 | 1200/1200 |
+| zknd | none | 2 / 5 | disassemble, assemble, lift, lift verified, encoding verified | 312/312 | 497/497 | 232/232 | 698/698 |
+| zkne | none | 2 / 4 | disassemble, assemble, lift, lift verified, encoding verified | 312/312 | 422/422 | 232/232 | 226/226 |
+| zknh | none | 10 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 972/972 | 600/600 | 982/982 | 608/608 |
+| zksed | none | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 312/312 | 312/312 | 232/232 | 233/233 |
+| zksh | none | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 150/150 | 150/150 | 152/152 | 152/152 |
+| zkr | RVA23S64 optional | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| zkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| zfa | RVA23U64 mandatory | 24 / 22 | disassemble, assemble, lift, lift verified, encoding verified | 2096/2096 | 1917/1917 | 8024/8024 | 7842/7842 |
+| zfh | RVA23U64 optional | 25 / 29 | disassemble, assemble, lift, lift verified, encoding verified | 2424/2424 | 2724/2724 | 11013/11013 | 11466/11466 |
+| zfhmin | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 664/664 | 664/664 | 1070/1070 | 1070/1070 |
+| zfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 144/144 | 144/144 | 220/220 | 220/220 |
+| zca | RVA23U64 mandatory | 38 / 44 | disassemble, assemble, lift, lift verified, encoding verified | 1457/1457 | 1820/1820 | 1122/1122 | 1343/1343 |
+| zcf | none | 4 / 0 | disassemble, assemble, lift, lift verified, encoding verified | 296/296 | 0/0 | 162/162 | - |
+| zcd | RVA23U64 mandatory | 4 / 4 | disassemble, assemble, lift, lift verified, encoding verified | 296/296 | 296/296 | 162/162 | 162/162 |
+| zcb | RVA23U64 mandatory | 11 / 12 | disassemble, assemble, lift, lift verified, encoding verified | 359/359 | 367/367 | 150/150 | 159/159 |
+| zcmop | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 8/8 | 8/8 | 14/14 | 14/14 |
+| zve32x | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zve32f | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zve64x | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zve64f | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zve64d | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| v | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvfh | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvfhmin | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvfbfmin | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvfbfwma | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvkb | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvbb | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvbc | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvkg | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvkned | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvknha | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvknhb | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvksed | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvksh | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 | - | - |
+| zvkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ziccif | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ziccrse | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ziccamoa | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ziccamoc | RVA23U64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| zicclsm | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| za64rs | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| zic64b | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| zama16b | RVA23U64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| supm | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| (privileged) | RVA23S64 mandatory | 6 / 6 | disassemble, assemble, lift, encoding verified | 117/117 | 117/117 | - | - |
+| svinval | RVA23S64 mandatory | 3 / 3 | disassemble, assemble, lift, encoding verified | 78/78 | 78/78 | - | - |
+| h | RVA23S64 mandatory | 18 / 21 | disassemble, assemble, lift, encoding verified | 1070/1070 | 1277/1277 | - | - |
+| sstc | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| sscofpmf | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| ssnpm | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| ssstateen | RVA23S64 mandatory | 0 / 0 | no instructions (CSR names) | 0/0 | 0/0 | - | - |
+| svpbmt | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| svnapot | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| svade | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| svbare | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ssccptr | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| sstvecd | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| sstvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| sscounterenw | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ssu64xl | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shcounterenw | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shvstvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shtvala | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shvstvecd | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shvsatpa | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| shgatpa | RVA23S64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| sdtrig | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| ssstrict | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| svvptc | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| sspm | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
+| **total** | | 486 / 550 | | 44228/44228 | 48249/48249 | | |
 
 The pseudo instructions (`pseudo.s`: li of many values, la, call, tail, the symbol loads and stores, zext/sext without their extension) are not attributed to a feature: 2299/2299 lines pass in RV32 and 1682/1682 in RV64 (the li sequences of every bit manipulation extension are also compared by `RiscvPseudoRows.inc` of the unit test).

@@ -3,13 +3,13 @@
  *
  * Implementation file
  *
- * The empty semantic tables of the vector and the privileged RISC-V
- * instructions (see RiscvSemantics.h): their mnemonics are lifted to
- * OP_UNDEFINED until the tables are written. The scalar table is in
- * RiscvSemanticTable.cpp.
+ * The empty semantic table of the vector RISC-V instructions (see
+ * RiscvSemantics.h): their mnemonics are lifted to OP_UNDEFINED until the
+ * table is written. The scalar table is in RiscvSemanticTable.cpp and the
+ * privileged one in RiscvSemanticTablePrivileged.cpp.
  *
- * The agent which writes RiscvSemanticTableVector.cpp or
- * RiscvSemanticTablePrivileged.cpp removes the table from this file.
+ * The author of RiscvSemanticTableVector.cpp removes the table from this
+ * file (and the file).
  *
  * Author: Elad Raz <e@eladraz.com>
  */
@@ -22,12 +22,7 @@ namespace riscvdis {
 
 const RiscvSemanticEntry gRiscvVectorSemanticTable[] =
 {
-    { 0, { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }, NULL, 0, 0, 0, 0 }
-};
-
-const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[] =
-{
-    { 0, { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }, NULL, 0, 0, 0, 0 }
+    { 0, { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }, NULL, 0, 0, 0, 0, 0 }
 };
 
 } // namespace riscvdis

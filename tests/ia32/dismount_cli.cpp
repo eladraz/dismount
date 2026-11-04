@@ -114,6 +114,7 @@
 #include "dismount/proc/riscv/RiscvOpcode.h"
 #include "dismount/proc/riscv/RiscvArchitecture.h"
 #include "dismount/proc/riscv/RiscvSemantics.h"
+#include "dismount/proc/riscv/RiscvHelpers.h"
 
 #include "cpufeatures.h"
 
@@ -2429,13 +2430,14 @@ static int runRiscvSet(const RiscvFeatureSet& features)
 class RiscvRunMemory : public SemanticMemory {
 public:
     RiscvRunMemory(const cBuffer& code, uint64 pc, uint64 windowBase,
-                   uint64 windowSize) :
+                   uint64 windowSize, bool isShadowStack = false) :
         m_code(code),
         m_pc(pc),
         m_windowBase(windowBase),
         m_windowSize(windowSize),
         m_regionBase((pc & ~(uint64)0xFFF) - 0x1000),
-        m_regionSize(0x3000)
+        m_regionSize(0x3000),
+        m_isShadowStack(isShadowStack)
     {
     }
 
@@ -2510,9 +2512,14 @@ public:
     }
 
 private:
+    // The shadow stack page of Zicfiss (the states of the CFI mode), which
+    // reads as the data window does
+    static const uint64 SHADOW_STACK_BASE = 0x80200000ULL;
+
     bool isWindow(uint64 address) const
     {
-        return (address - m_windowBase) < m_windowSize;
+        return ((address - m_windowBase) < m_windowSize) ||
+               (m_isShadowStack && ((address - SHADOW_STACK_BASE) < 0x1000));
     }
 
     bool isRegion(uint64 address) const
@@ -2551,6 +2558,7 @@ private:
     uint64 m_windowSize;
     uint64 m_regionBase;
     uint64 m_regionSize;
+    bool m_isShadowStack;
     cHash<uint64, uint8> m_initial;
     cHash<uint64, uint8> m_written;
 };
@@ -2570,6 +2578,7 @@ struct RiscvRunState {
         m_vxsat(0),
         m_ssp(0),
         m_elp(0),
+        m_isCfi(false),
         m_reservedAddress(0),
         m_reservedSize(0),
         m_windowBase(0x80100000ULL),
@@ -2597,6 +2606,8 @@ struct RiscvRunState {
     uint32 m_vxsat;
     uint64 m_ssp;
     uint32 m_elp;
+    // Zicfilp and Zicfiss are enabled: the line has the ssp or elp token
+    bool m_isCfi;
     uint64 m_reservedAddress;
     uint64 m_reservedSize;
     uint64 m_windowBase;
@@ -2726,11 +2737,14 @@ static bool parseRiscvState(const char* text, RiscvRunState& state)
                 state.m_vxsat = (uint32)number & 1;
                 state.m_isVector = true;
             } else if (name == "ssp")
+            {
                 ok = parseNumber(value, tokenEnd, xlen, state.m_ssp);
-            else if (name == "elp")
+                state.m_isCfi = true;
+            } else if (name == "elp")
             {
                 ok = parseNumber(value, tokenEnd, 4, number);
                 state.m_elp = (uint32)number & 1;
+                state.m_isCfi = true;
             } else if (name == "reserved")
                 ok = parseRiscvPair(value, tokenEnd, state.m_reservedAddress,
                                     state.m_reservedSize);
@@ -2780,13 +2794,16 @@ static cString runRiscvLine(char* line,
     static ArchitectureDescriptionPtr cachedArchitecture;
     static RiscvInstructionSet::DisassemblerTypes cachedType = type;
     static uint cachedVlen = 0;
+    static bool cachedCfi = false;
     if ((cachedArchitecture.getPointer() == NULL) || (cachedType != type) ||
-        (cachedVlen != state.m_vlen))
+        (cachedVlen != state.m_vlen) || (cachedCfi != state.m_isCfi))
     {
         cachedArchitecture = ArchitectureDescriptionPtr(
-                            new RiscvArchitecture(type, state.m_vlen));
+                            new RiscvArchitecture(type, state.m_vlen,
+                                                  state.m_isCfi));
         cachedType = type;
         cachedVlen = state.m_vlen;
+        cachedCfi = state.m_isCfi;
     }
     ArchitectureDescriptionPtr architecture = cachedArchitecture;
     RiscvSemanticLifter lifter(subsystem, architecture);
@@ -2823,7 +2840,7 @@ static cString runRiscvLine(char* line,
         (codeAddress + bytes.getSize()) & addressMask));
 
     RiscvRunMemory memory(bytes, codeAddress, state.m_windowBase,
-                          state.m_windowSize);
+                          state.m_windowSize, state.m_isCfi);
     {
         cList<uint64> keys = state.m_memory.keys();
         for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
@@ -2852,7 +2869,23 @@ static cString runRiscvLine(char* line,
     interpreter.setRegister(RISCV_REG_VSTART, SemanticValue(state.m_vstart));
     interpreter.setRegister(RISCV_REG_VCSR, SemanticValue(
                                 state.m_vxsat | (state.m_vxrm << 1)));
-    const SemanticInterpreter::ExitReason reason = interpreter.run(block);
+    SemanticInterpreter::ExitReason reason = interpreter.run(block);
+    // The helpers the reference implementation has (RiscvHelpers) are run
+    // here; the others (the privileged instructions) are reported. The run
+    // is a user mode run: a CSR the helper doesn't have is not accessible,
+    // which is an illegal instruction
+    bool isIllegalCsr = false;
+    while (reason == SemanticInterpreter::EXIT_HELPER)
+    {
+        SemanticValue helperResult;
+        if (!RiscvHelpers::execute(interpreter, xlen, helperResult))
+        {
+            isIllegalCsr = (interpreter.getHelperNumber() == riscvdis::RISCV_HELPER_READ_CSR) ||
+                           (interpreter.getHelperNumber() == riscvdis::RISCV_HELPER_WRITE_CSR);
+            break;
+        }
+        reason = interpreter.resume(helperResult);
+    }
 
     cString exitText;
     switch (reason)
@@ -2885,7 +2918,8 @@ static cString runRiscvLine(char* line,
         exitText = "trap:fault";
         break;
     case SemanticInterpreter::EXIT_HELPER:
-        exitText = cString("helper:") + cString((int32)interpreter.getHelperNumber());
+        exitText = isIllegalCsr ? cString("trap:illegal") :
+                   (cString("helper:") + cString((int32)interpreter.getHelperNumber()));
         break;
     case SemanticInterpreter::EXIT_UNDEFINED:
         exitText = "undefined";

@@ -151,7 +151,12 @@ def decode(xlen, vlen, tests, blob, name='qemu'):
         elif cause in (4, 5, 6, 7, 13, 15):
             res['exit'] = 'trap:fault'
         elif cause == 18:
-            res['exit'] = 'trap:swcheck'
+            if pc <= mepc < pc + n:
+                res['exit'] = 'trap:swcheck'
+            else:
+                # The instruction at the target of a jump (the zero bytes of the code region) found ELP set: the
+                # test instruction branched, with ELP set
+                res['exit'], res['pc'] = 'branch', mepc
         else:
             results.append(('err', name + ': unexpected exception %d at %x tval %x' % (cause, mepc, mtval)))
             continue

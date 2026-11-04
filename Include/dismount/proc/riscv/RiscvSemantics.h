@@ -36,10 +36,12 @@ enum {
     // Svinval and H instructions): the whole instruction on the guest
     // state, s1 is the encoding
     RISCV_HELPER_PRIVILEGED,
-    // The instructions which the IR has no operation for (the SHA-2, SM3
-    // and SM4 rounds of the scalar and the vector cryptography, the GHASH
-    // multiply, if the lifter doesn't lift them inline): the whole
-    // instruction on the guest state, s1 is the encoding
+    // The instructions which the IR has no operation for (the SM4 S-box of
+    // sm4ed and sm4ks, and for the vector cryptography the SHA-2, SM3 and
+    // SM4 rounds and the GHASH multiply, if the lifter doesn't lift them
+    // inline): the whole instruction on the guest state, s1 is the
+    // encoding. RiscvHelpers (RiscvHelpers.h) implements the ones of the
+    // scalar lifter
     RISCV_HELPER_INSTRUCTION,
     // The number of helpers. Must be last
     RISCV_HELPERS_COUNT
@@ -60,8 +62,14 @@ enum {
     RISCV_TRAP_ILLEGAL_INSTRUCTION,
     // Zicfilp / Zicfiss: a missing landing pad, a shadow stack mismatch
     // (the software check exception)
-    RISCV_TRAP_SOFTWARE_CHECK
+    RISCV_TRAP_SOFTWARE_CHECK,
+    // An access fault raised by the instruction itself rather than by the
+    // memory: an AMO which crosses a naturally aligned 16 byte region
+    // (Zama16b allows the misaligned AMOs inside one only)
+    RISCV_TRAP_ACCESS_FAULT
 };
+
+struct RiscvSemanticEntry;
 
 } // namespace riscvdis
 
@@ -105,6 +113,17 @@ public:
     // Return XLEN and VLEN
     uint getXlen() const;
     uint getVectorBits() const;
+    // Return true if the description models Zicfilp and Zicfiss as enabled
+    // (RiscvArchitecture::isControlFlowIntegrity())
+    bool isControlFlowIntegrity() const;
+
+    /*
+     * The semantic entry the instruction is lifted by (set by the lifter
+     * before it calls the hand written function) and its parameter: one
+     * function serves a family of mnemonics (RiscvSemanticEntry::m_parameter)
+     */
+    void setEntry(const riscvdis::RiscvSemanticEntry* entry);
+    uint64 getParameter() const;
 
     // Return the number of operands / the decoded operand 'index'
     uint getOperandsCount() const;
@@ -152,10 +171,13 @@ public:
     SemanticOperand getNextAddress() const;
 
     /*
-     * The rounding mode of operand 'index' (RISCV_KIND_ROUNDING_MODE, or the
-     * default of the instruction when the text has none): a static
+     * The rounding mode of the instruction: the rm field of its encoding (the
+     * decoder leaves the operand out when it holds the default of the text,
+     * 'index' is ignored), or dyn when the encoding has none. A static
      * SemanticOperation::RoundingMode, or ROUND_DYNAMIC for dyn (frm, with
-     * the check of the reserved values of frm: an illegal instruction)
+     * the check of the reserved values of frm: an illegal instruction). The
+     * instructions whose result doesn't depend on the mode (fcvt.d.w, fcvt.d.s)
+     * check it too, as the reference processors do
      */
     uint getRoundingMode(uint index) const;
 
@@ -204,6 +226,7 @@ private:
     const RiscvOpcode& m_instruction;
     RiscvOpcodePtr m_resolvedStorage;
     const RiscvOpcode* m_resolved;
+    const riscvdis::RiscvSemanticEntry* m_entry;
     SemanticBlock& m_block;
     ArchitectureDescriptionPtr m_architecture;
     // The addresses of the memory operands, computed once
@@ -231,6 +254,12 @@ namespace riscvdis {
  * aliases have no entries either: the lifter finds the entry of the
  * general encoding (it decodes the instruction again without the aliases).
  *
+ * An alias which has an entry of its own (lpad, sspush, sspopchk, ssrdp,
+ * pause, fence.tso: the aliases whose semantics are not the ones of the
+ * general encoding) is lifted by that entry. A compressed hint (the
+ * encodings whose destination is x0, which have no expansion) has no entry:
+ * the lifter lifts it as a nop.
+ *
  * The encoding tables are not changed: a mnemonic without an entry is lifted
  * to OP_UNDEFINED and classified as CATEGORY_UNKNOWN, and its feature is
  * marked without SUPPORT_LIFT in RiscvFeatures::getSupport().
@@ -252,6 +281,10 @@ struct RiscvSemanticEntry {
     uint8 m_dataFormat;
     uint16 m_dataBits;
     uint16 m_dataLanes;
+    // A number the hand written lifter uses to tell the members of the
+    // family of mnemonics it serves apart (RiscvLiftContext::getParameter()).
+    // Zero when the entry doesn't need one (the tables may leave it out)
+    uint64 m_parameter;
 
     enum { ANY_OPERANDS_COUNT = 0xFF };
 };
@@ -303,9 +336,16 @@ extern const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[];
  *     Zicfiss: sspush / sspopchk / ssrdp / ssamoswap use ssp; a mismatch
  *     of sspopchk is a software check exception. Without the enables of
  *     the CFI (the senvcfg bits, a supervisor's choice) they are Zimop /
- *     Zcmop instructions which write 0: the lifter lifts the enabled
- *     behavior, which is the one of the profile's user mode with CFI on;
- *     see tests/riscv/semantics/TEST_PLAN.md for how the oracles are configured.
+ *     Zcmop instructions which write 0 and lpad is a nop. The enabled
+ *     behavior is lifted when RiscvArchitecture::isControlFlowIntegrity()
+ *     is true: every instruction but lpad then begins with the check of
+ *     elp (the fetch of the instruction after an indirect jump traps when
+ *     it isn't a landing pad); see tests/riscv/semantics/TEST_PLAN.md for
+ *     how the oracles are configured.
+ *   - The memory accesses are byte accurate and may be misaligned (Zicclsm);
+ *     a misaligned AMO, lr or sc completes when the access stays inside an
+ *     aligned 16 byte region (Zama16b) and raises an access fault
+ *     (RISCV_TRAP_ACCESS_FAULT) when it crosses one.
  *   - The vector instructions: vtype and vl are registers read at runtime,
  *     not values the lifter knows (the same instruction runs with any
  *     vtype). Each vector instruction checks vtype.vill and the reserved
@@ -353,8 +393,9 @@ public:
 
     /*
      * Return the instruction which is lifted for 'instruction': the
-     * expansion of a compressed one, its getNoAliasForm() for an alias, or
-     * 'instruction' itself. A pointer to the
+     * expansion of a compressed one, its getNoAliasForm() for an alias (unless
+     * the alias has an entry of its own, see RiscvSemanticEntry), or
+     * 'instruction' itself (also a compressed hint, which has no expansion). A pointer to the
      * result is kept in 'storage' when it is not 'instruction'. Return a
      * NULL pointer if the instruction can't be resolved
      */

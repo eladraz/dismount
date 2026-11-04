@@ -50,6 +50,14 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemantics.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableStubs.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTablePrivileged.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftCommon.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftInteger.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftFloat.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftAtomic.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftSystem.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftCrypto.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvHelpers.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemantics.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLift32.cpp" />
@@ -212,6 +220,8 @@
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemantics.h" />
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvSemanticInternal.h" />
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvHelpers.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemantics.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemanticInternal.h" />

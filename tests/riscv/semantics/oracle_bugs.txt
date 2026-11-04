@@ -45,6 +45,27 @@
 # (mcause 7). Evidence: rv_oracle_diffs line 24 (amoadd.w at window + 0x100d; QEMU fall, Spike trap:fault,
 # also amoadd.d at window + 0x1009, amoadd.w at + 0x100e / 0x100f).
 [qemu,rv_oracle_diffs] ^amo # QEMU: a misaligned AMO crossing a 16 byte granule completes (Spike raises the access fault)
+# The same, in the directed lines (rv_dir_atomic / rv64_dir_atomic: the AMOs at win + 0x100..0x10f and the
+# page edges). The rule only turns a failing line into ORACLE_BUG: the lines whose states don't cross a
+# granule pass, and the Spike runs of the same lines are the verdict (no rule for Spike).
+[qemu,rv_dir_atomic,rv64_dir_atomic,rv32_dir_atomic] ^amo(swap|add|xor|and|or|min|max|minu|maxu)\.[wd] # QEMU: a misaligned AMO crossing a 16 byte granule completes (Spike raises the access fault)
+
+# Zabha and Zacas: QEMU raises the access fault for a misaligned amo*.b/.h and amocas.* even inside a 16 byte
+# region, as if Zama16b didn't apply to them; Zama16b is for loads, stores and AMOs, and the AMOs of Zabha
+# and Zacas are AMOs: a misaligned access inside the granule completes (Spike, and dismount). Evidence:
+# run_semantics.py --cross qemu,spike --file rv_dir_atomic: amoadd.h a0, a2, (a1) at win + 0x101: QEMU
+# trap:fault, Spike fall (also amocas.h and amocas.w / amocas.d at win + 0x104..0x10c).
+[qemu,rv_dir_atomic,rv64_dir_atomic,rv32_dir_atomic] ^amo\w+\.h|^amocas # QEMU: a misaligned amo*.h or amocas inside a 16 byte region faults (Spike completes it, as Zama16b says)
+
+# lr / sc: what invalidates a reservation is the implementation's choice beyond the aligned address of the
+# pair. dismount keeps the reservation until an sc (of the size of the lr and the address of the lr) or a
+# new lr; QEMU makes the sc fail when a store of the same hart changed the value in between (it implements
+# sc as a compare and swap with the value the lr loaded), Spike makes an sc of the other size (lr.w; sc.d
+# or lr.d; sc.w) at the same address succeed. The specification allows both. Evidence: run_semantics.py
+# --cross qemu,spike --file rv64_dir_atomic: lr.w a0, (a1) ; sc.d a3, a2, (a1): x13 = 1 on QEMU, 0 on
+# Spike; lr.d a0, (a1) ; sw a2, 0(a1) ; sc.d a3, a2, (a1): the same.
+[qemu,rv_dir_atomic,rv64_dir_atomic] ^lr\.[wd] .*; (sw|amo\w+\.[wd]) .*; sc # QEMU: an sc fails after a store or an AMO of the same hart changed the loaded value (dismount, like Spike, keeps the reservation)
+[qemu,spike,rv_dir_atomic,rv64_dir_atomic] ^lr\.w .*; sc\.d|^lr\.d .*; sc\.w # QEMU and Spike: an sc of the other size than the lr is decided by the value (QEMU: the compare and swap of the sc against the loaded value) or succeeds (Spike); dismount makes it fail
 
 # vsetvli / vsetvl with rd = rs1 = x0 keeps vl: when the new vtype changes VLMAX the behavior is "reserved" in
 # the specification: QEMU (rvv_vsetvl_x0_vill=true) sets vill only when the kept vl doesn't fit the new VLMAX,
@@ -76,3 +97,24 @@
 # elements; the specification makes it a no-op (vstart >= the number of elements: nothing is transferred). The
 # oracle splits a batch which dies down to the test that kills it and that state is ORACLE_ERR. Evidence:
 # run_semantics.py --oracle qemu --oracle-only --file rv_v --states 300 (vl2re16.v v8, (a1): 7 states).
+
+# --- Implementation-defined behavior where the specification allows both (dismount follows QEMU)
+
+# A misaligned store that faults on its last bytes: Spike emulates the access byte by byte and the bytes below
+# the faulting one are written; QEMU checks the whole access first and writes nothing, as dismount does. The
+# specification leaves the partial effects of a misaligned access that traps to the implementation ("the access
+# may be implemented as a sequence of byte accesses"). Evidence: run_semantics.py --oracle spike --file
+# rv_gen_base --grep '^sw a2, -3\(a1\)': sw at window + 0x3ffd: Spike writes the byte at 0x3ffd, QEMU doesn't.
+[spike] ^(sb|sh|sw|sd|fsh|fsw|fsd)\b # Spike: a store that faults on its upper bytes writes the lower ones (implementation defined)
+
+# The ssp CSR of Zicfiss has no WARL field in the specification (it is URW: any value is read back, the
+# shadow stack accesses are what must be aligned), and QEMU keeps all the bits. Spike clears the bits below
+# XLEN / 8. Evidence: run_semantics.py --cross qemu,spike --file rv_gen_zicsr --grep 'ssp': csrw ssp, a1 with
+# a1 = 0xf422933: QEMU ssp = 0xf422933, Spike 0xf422930.
+[spike] \bssp\b # Spike: the ssp CSR drops the low bits (QEMU and the specification keep them)
+
+# --- Unicorn (QEMU 5.0.1) on the generated scalar corpus (evidence: run_semantics.py --oracle unicorn --file rv_gen_base,rv_gen_f,rv_gen_d,rv_gen_zicsr,...)
+[unicorn] ^(sb|sh|sw|sd|fsh|fsw|fsd)\b # Unicorn: a store that faults on its upper bytes writes the lower ones (implementation defined, see Spike)
+[unicorn] \b(vstart|vxsat|vxrm|vcsr|vl|vtype|vlenb)\b # Unicorn has no V extension: its CSRs are illegal
+[unicorn] ^li\b # the li of 2048 is a bseti (Zbs): illegal in Unicorn
+[unicorn] ^f(n?m)(add|sub)\.[sd] # Unicorn (softfloat of QEMU 5): fused multiply-add with infinity * 0 and a quiet NaN addend doesn't raise invalid; QEMU 11 and Spike do, as F 2.2 requires (fmadd.d with f11 = -inf, f12 = 0, f13 = 7ff8000000000001: Unicorn fflags 0, QEMU 11 / Spike / dismount 0x10)

@@ -28,6 +28,7 @@
 #include "dismount/proc/riscv/RiscvArchitecture.h"
 #include "dismount/proc/riscv/RiscvOperandCodec.h"
 #include "dismount/proc/riscv/RiscvSemantics.h"
+#include "dismount/proc/riscv/RiscvSemanticInternal.h"
 
 using namespace riscvdis;
 
@@ -75,6 +76,7 @@ RiscvLiftContext::RiscvLiftContext(const RiscvOpcode& instruction,
                                    const ArchitectureDescriptionPtr& architecture) :
     m_instruction(instruction),
     m_resolved(NULL),
+    m_entry(NULL),
     m_block(block),
     m_architecture(architecture)
 {
@@ -82,6 +84,17 @@ RiscvLiftContext::RiscvLiftContext(const RiscvOpcode& instruction,
     CHECK(m_resolved != NULL);
     for (uint i = 0; i < RiscvOpcode::MAX_OPERANDS; i++)
         m_isAddressComputed[i] = false;
+}
+
+void RiscvLiftContext::setEntry(const riscvdis::RiscvSemanticEntry* entry)
+{
+    m_entry = entry;
+}
+
+uint64 RiscvLiftContext::getParameter() const
+{
+    CHECK(m_entry != NULL);
+    return m_entry->m_parameter;
 }
 
 const RiscvOpcode& RiscvLiftContext::getInstruction() const
@@ -112,6 +125,13 @@ uint RiscvLiftContext::getXlen() const
 uint RiscvLiftContext::getVectorBits() const
 {
     return m_architecture->getMaximumVectorBits();
+}
+
+bool RiscvLiftContext::isControlFlowIntegrity() const
+{
+    const RiscvArchitecture* architecture =
+            static_cast<const RiscvArchitecture*>(m_architecture.getPointer());
+    return architecture->isControlFlowIntegrity();
 }
 
 uint RiscvLiftContext::getOperandsCount() const
@@ -159,11 +179,19 @@ SemanticOperand RiscvLiftContext::getNextAddress() const
 
 uint RiscvLiftContext::getRoundingMode(uint index) const
 {
-    // The default of an instruction without the operand is the dynamic mode
+    // The rounding mode field of the instruction. The decoder leaves the
+    // operand out when it is the default of the text (dyn, or rne for the
+    // conversions which are exact), so the field is read from the encoding
     uint mode = 7;
-    if ((index < getOperandsCount()) &&
-        (getOperand(index).m_kind == RiscvDecodedOperand::KIND_ROUNDING_MODE))
-        mode = getOperand(index).m_roundingMode;
+    const RiscvEncodingEntry* entry = m_resolved->getEntry();
+    for (uint i = 0; i < RISCV_MAX_OPERAND_SPECS; i++)
+    {
+        if (entry->m_operands[i].m_kind == RISCV_KIND_NONE)
+            break;
+        if (entry->m_operands[i].m_kind == RISCV_KIND_ROUNDING_MODE)
+            mode = (m_resolved->getEncoding() >> entry->m_operands[i].m_position) & 7;
+    }
+    (void)index;
 
     switch (mode)
     {
@@ -539,39 +567,22 @@ ArchitectureDescriptionPtr RiscvSemanticLifter::getArchitecture() const
     return m_architecture;
 }
 
-const RiscvOpcode* RiscvSemanticLifter::resolve(const RiscvOpcode& instruction,
-                                                RiscvOpcodePtr& storage)
-{
-    const RiscvOpcode* current = &instruction;
-    // A compressed instruction is lifted by its expansion
-    if (current->isCompressed())
-    {
-        if (current->getExpansion().getPointer() == NULL)
-            return NULL;
-        storage = current->getExpansion();
-        current = storage.getPointer();
-    }
-    // An alias by the general encoding: the decoder keeps the same bits
-    // decoded without the aliases
-    if (current->getNoAliasForm().getPointer() != NULL)
-    {
-        storage = current->getNoAliasForm();
-        current = storage.getPointer();
-    }
-    return current;
-}
+namespace {
 
-const riscvdis::RiscvSemanticEntry* RiscvSemanticLifter::findEntry(
-                                            const RiscvOpcode& instruction)
-{
-    RiscvOpcodePtr storage;
-    const RiscvOpcode* resolved = resolve(instruction, storage);
-    if (resolved == NULL)
-        return NULL;
+// The entry of the nop of a compressed hint
+const RiscvSemanticEntry gHintEntry =
+    { RiscvSemanticEntry::ANY_OPERANDS_COUNT,
+      { "c.hint", NULL, 0, OpcodeClassification::CATEGORY_NOP, 0,
+        0, 0, 0, 0, 0 },
+      liftHint, 0, 0, 0, 0 };
 
-    const RiscvEncodingEntry* encoding = resolved->getEntry();
+// Return the entry of an instruction which is already resolved (not
+// compressed with an expansion, not an alias with a general form), or NULL
+const riscvdis::RiscvSemanticEntry* lookupEntry(const RiscvOpcode& resolved)
+{
+    const RiscvEncodingEntry* encoding = resolved.getEntry();
     const char* name = encoding->m_mnemonic;
-    const uint operandsCount = resolved->getOperandsCount();
+    const uint operandsCount = resolved.getOperandsCount();
 
     // The area of the encoding entry decides the semantic table
     struct AreaTable {
@@ -596,7 +607,14 @@ const riscvdis::RiscvSemanticEntry* RiscvSemanticLifter::findEntry(
         }
     }
     if (table == NULL)
+    {
+        // A compressed hint (an encoding of the compressed tables with no
+        // expansion) does nothing
+        if (resolved.isCompressed() &&
+            (resolved.getExpansion().getPointer() == NULL))
+            return &gHintEntry;
         return NULL;
+    }
 
     for (const RiscvSemanticEntry* entry = table;
          entry->m_template.m_name != NULL; entry++)
@@ -608,6 +626,51 @@ const riscvdis::RiscvSemanticEntry* RiscvSemanticLifter::findEntry(
             return entry;
     }
     return NULL;
+}
+
+// Return true if the alias has semantics of its own: an entry for its
+// mnemonic, which isn't the mnemonic of the general encoding it is an alias
+// of (jalr and fence have aliases of the same name with fewer operands)
+bool hasOwnSemantics(const RiscvOpcode& alias)
+{
+    const RiscvOpcode* general = alias.getNoAliasForm().getPointer();
+    if (strcmp(alias.getEntry()->m_mnemonic, general->getEntry()->m_mnemonic) == 0)
+        return false;
+    return lookupEntry(alias) != NULL;
+}
+
+} // namespace
+
+const RiscvOpcode* RiscvSemanticLifter::resolve(const RiscvOpcode& instruction,
+                                                RiscvOpcodePtr& storage)
+{
+    const RiscvOpcode* current = &instruction;
+    // A compressed instruction is lifted by its expansion. A hint has none:
+    // it is lifted as itself
+    if (current->isCompressed() && (current->getExpansion().getPointer() != NULL))
+    {
+        storage = current->getExpansion();
+        current = storage.getPointer();
+    }
+    // An alias by the general encoding: the decoder keeps the same bits
+    // decoded without the aliases, unless the alias has semantics of its own
+    if ((current->getNoAliasForm().getPointer() != NULL) &&
+        !hasOwnSemantics(*current))
+    {
+        storage = current->getNoAliasForm();
+        current = storage.getPointer();
+    }
+    return current;
+}
+
+const riscvdis::RiscvSemanticEntry* RiscvSemanticLifter::findEntry(
+                                            const RiscvOpcode& instruction)
+{
+    RiscvOpcodePtr storage;
+    const RiscvOpcode* resolved = resolve(instruction, storage);
+    if (resolved == NULL)
+        return NULL;
+    return lookupEntry(*resolved);
 }
 
 OpcodeClassification RiscvSemanticLifter::classify(const OpcodePtr& instruction) const
@@ -711,6 +774,11 @@ bool RiscvSemanticLifter::lift(const OpcodePtr& instruction,
     }
 
     RiscvLiftContext context(*riscv, block, m_architecture);
+    context.setEntry(entry);
+    // While a landing pad is expected only lpad may run
+    if (context.isControlFlowIntegrity() &&
+        (strcmp(entry->m_template.m_name, "lpad") != 0))
+        liftLandingPadCheck(context);
     if (entry->m_lift != NULL)
         entry->m_lift(context);
     else
