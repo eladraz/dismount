@@ -1,0 +1,41 @@
+# Lines where an oracle is wrong (or is a different processor) and dismount follows the Arm ARM,
+# as `[arch,...] <regex>  # <reason>`. The lines are still run: a failing line that matches is
+# ORACLE_BUG instead of FAIL, a passing one is PASS. Each entry needs the evidence, so it can be
+# re-checked when Unicorn is upgraded (unicorn 2.1.4 = QEMU 5.0.1) or on another host (Apple M4,
+# macOS 26). `Unicorn:` entries are bugs / missing features of Unicorn, `host:` entries are
+# features that the M4 doesn't implement or implements differently.
+#
+# --- Unicorn bugs (evidence: run_semantics.py --arch a64 --compare-oracles --file a64_ext)
+
+# LDSMAX / LDSMIN (and the byte / halfword / acquire / release / ST forms) are swapped: the
+# result is the minimum for smax and the maximum for smin. With [x4] = 5 and w1 = 0xffffffff
+# (-1): ldsmax w1, w0, [x4] must leave 5 (the host does), Unicorn stores 0xffffffff; ldsmin
+# must store 0xffffffff, Unicorn keeps 5. ldumax / ldumin (unsigned) agree with the host.
+# Reproduced for w, x, b and h sizes with 7 value pairs (all of them differ where the signed
+# and unsigned order differ). The comparison of the register results (x0 = the old value) agrees.
+\b(ld|st)s(max|min)(a|l|al)?[bh]?\b  # Unicorn: LDSMAX / LDSMIN compute the opposite (min for smax, max for smin)
+
+# --- Unicorn: missing features (QEMU 5.0.1 "max" cpu, ID_AA64ISAR/PFR registers)
+
+# SVE2 (ID_AA64ZFR0_EL1 = 0): the unpredicated integer multiply, and every other SVE2 instruction,
+# is an UNDEF (trap:undef), the host in streaming mode executes them
+^mul z[0-9]+\.[bhsd], z[0-9]+\.[bhsd], z[0-9]+\.[bhsd]$  # Unicorn: no SVE2 (unpredicated MUL is SVE2)
+# FEAT_BF16 and FEAT_I8MM (ID_AA64ISAR1_EL1.BF16 / I8MM = 0 on QEMU 5.0): UNDEF
+^(bfcvt|bfdot|bfmmla|bfmlal|smmla|ummla|usmmla|usdot|sudot)\b  # Unicorn: no FEAT_BF16 / FEAT_I8MM
+# SME (QEMU 5.0 predates it): smstart, smstop and every streaming / ZA instruction is an UNDEF
+^(smstart|smstop|zero \{za|fmopa|smopa|addha|mova z|mova za|ld1w \{za|st1b \{za|ldr za|str za|fmla za)  # Unicorn: no SME
+
+# --- Unicorn: alignment of the acquire / release and unaligned atomic accesses.
+# Unicorn faults on every unaligned exclusive, atomic (LSE) and load-acquire access (no
+# FEAT_LSE2); the M4 executes the exclusives and the atomics at any address (LSE2) and faults on
+# a LDAPUR that crosses a 16 byte granule. These lines use the base x6 with a misaligned
+# `@state:`; all the other lines of the corpus align their atomics (states_arm.py)
+^(ldxr|ldadd|swp) .*\[x6\]  # Unicorn: alignment fault for an unaligned exclusive / atomic (no FEAT_LSE2); the host executes it
+^ldapur w0, \[x4, #-3\]  # Unicorn: no alignment fault for LDAPUR crossing a 16 byte granule; the host faults (SIGBUS)
+
+# --- host (Apple M4) features
+# FEAT_SM3 / FEAT_SM4: SIGILL on the M4 (hw.optional.arm has no FEAT_SM3 / FEAT_SM4); Unicorn implements them
+^(sm3|sm4)[a-z0-9]*\b  # host: no FEAT_SM3 / FEAT_SM4 (the M4 raises SIGILL)
+# fadda and compact are not legal in the streaming mode: the host (streaming) UNDEFs them while Unicorn
+# (non-streaming SVE) executes them
+^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)
