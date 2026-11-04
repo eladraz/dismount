@@ -19,6 +19,7 @@ import tempfile
 
 A64_TARGET = ['-target', 'aarch64-none-elf',
               '-march=armv9.4-a+sve2+sme2+sme-f64f64+sme-i16i64+sve2-aes+sve2-bitperm+sve2-sha3'
+              '+sve2p1+sve-b16b16+sve2p2+sve2p3+sve-aes2+sve-bfscale+fp8+fp8fma+fp8dot2+fp8dot4+f8f16mm+f8f32mm+cpa+sme2p1'
               '+sve2-sm4+fp16+bf16+i8mm+sha3+sm4+aes+sha2+crc+lse+rcpc+f32mm+f64mm+mops+cssc+rcpc3+lse128+faminmax+lut+ssbs+flagm+pauth+fp16fml'
               '+lsui+ls64+hbc+wfxt+pcdphint+predres+fp8+fp8fma+fp8dot4+fp8dot2+fprcvt+f8f16mm+f8f32mm']
 A32_TARGET = ['-target', 'armv8.6a-none-eabi',
@@ -56,7 +57,7 @@ def parse_corpus(path):
             if not text:
                 continue
             tags = {}
-            for m in re.finditer(r'@(feature|state|mode):\s*([^@]*)', comment):
+            for m in re.finditer(r'@(feature|state|mode|oracle):\s*([^@]*)', comment):
                 tags.setdefault(m.group(1), []).append(m.group(2).strip())
             lines.append({'no': no, 'text': text, 'comment': comment, 'tags': tags})
     return lines

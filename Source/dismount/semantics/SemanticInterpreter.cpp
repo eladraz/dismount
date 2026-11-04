@@ -953,8 +953,14 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         uint count = lanes;
         const SemanticOperation::Operation combine =
                                         instruction.getCombineOperation();
-        if (instruction.getBehavior() ==
-            SemanticOperation::BEHAVIOR_REDUCE_PAIRWISE)
+        // The minimum and the maximum of ARM are reduced as a tree too (the
+        // NaN rules of the numbers depend on the order)
+        const bool isMinMax = (combine == SemanticOperation::OP_FLOAT_MINIMUM) ||
+                              (combine == SemanticOperation::OP_FLOAT_MAXIMUM);
+        if ((instruction.getBehavior() ==
+             SemanticOperation::BEHAVIOR_REDUCE_PAIRWISE) ||
+            (isMinMax && (instruction.getBehavior() !=
+                          SemanticOperation::BEHAVIOR_DEFAULT)))
         {
             while (count > 1)
             {
@@ -2648,6 +2654,18 @@ SemanticInterpreter::ExitReason SemanticInterpreter::execute(uint index)
                 m_nextAddress = getGuestAddress(index);
                 return EXIT_MEMORY_FAULT;
             }
+            break;
+        }
+
+        case SemanticOperation::OP_PROBE_ACCESS:
+        {
+            // Whether the access would succeed: the memory is read and the
+            // value dropped
+            const uint64 address = read(instruction.getSource(0)).getWord(0);
+            SemanticValue ignored;
+            const bool isReadable = readMemory(m_memory, isLittleEndian,
+                address, instruction.getType().getTotalBits(), ignored);
+            write(destination, SemanticValue(isReadable ? 1 : 0), attributes);
             break;
         }
 

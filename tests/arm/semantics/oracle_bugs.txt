@@ -38,7 +38,7 @@
 [a64,host] ^(sm3|sm4)[a-z0-9]*\b  # host: no FEAT_SM3 / FEAT_SM4 (the M4 raises SIGILL)
 # fadda and compact are not legal in the streaming mode: the host (streaming) UNDEFs them while Unicorn
 # (non-streaming SVE) executes them
-^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)
+[a64,host] ^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)
 
 # --- Instructions that neither oracle implements. Unicorn 2.1.4 (QEMU 5.0.1 "max") and the Apple M4
 # both raise UNDEFINED (trap:undef), so the lifter of these cannot be compared with a processor:
@@ -133,3 +133,13 @@
 # FPSCR bits 21:20 (Stride) and 18:16 (Len) are RES0 in the Arm ARM for AArch32 ARMv8 and read as zero; QEMU keeps them
 # (and has no FZ16, bit 19, without FEAT_FP16). The corpus lines with a random register mask them
 ^vmsr fpscr, r[01]( ; vmrs r2, fpscr)?$  # Unicorn: FPSCR keeps the RES0 Stride / Len bits (21:20, 18:16) and has no FZ16 (bit 19)
+
+# --- Unicorn: SVE first fault loads (QEMU 5.0 sve_ldff1)
+# The Arm ARM pseudocode of LDFF1 builds `result = Zeros(VL)` and writes only the elements it loaded: the
+# elements from the first fault on are zero. Unicorn leaves the previous value of the destination in them
+# (merging), though it sets FFR as the pseudocode does. Reproduction: ldff1sh {z11.s}, p0/z, [x4] with
+# x4 = 0x1010000fffa (the window ends at 0x10100010000): lane 3 faults, Unicorn z11 lane 3 = the old 0x15151515,
+# dismount 0; the same for ldff1b [x24, x2] with x24 + x2 + 13 = a 1 KiB boundary in the middle of the vector
+# (QEMU's TLB treats it as a page end and "faults"); ldff1d [x4] at the window end (z25 lanes 2-7 kept).
+# (run_semantics.py --arch a64 --oracle unicorn --vl 512 --file a64_sve1 --grep '^ldff1')
+^ldff1[a-z]* \{  # Unicorn: LDFF1 does not zero the elements it does not load (the Arm ARM zeroes them)

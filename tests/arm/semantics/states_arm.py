@@ -197,8 +197,14 @@ def make_state(arch, rng, text, overrides, mode):
     # faults on Unicorn (no FEAT_LSE2) and not on the host (oracle_bugs.txt)
     aligned = bool(re.match(r'^\s*(?:ld|st)(?:a?x|l?a?x|ar|lr|lar|apr|apur|ur|lur)|^\s*(?:cas|swp|ldadd|ldclr|ldeor|ldset|ldsmax|'
                             r'ldsmin|ldumax|ldumin|stadd|stclr|steor|stset|stsmax|stsmin|stumax|stumin|ld64b|st64b|ldap)', text.lower())) or arch != 'a64'
+    # The SVE first fault and non fault loads: Unicorn (QEMU 5.0) suppresses a fault wrongly when
+    # the vector crosses a 1 KiB boundary (oracle_bugs.txt), so the base is aligned to 1 KiB and
+    # the offset stays below the half of it
+    is_first_fault = bool(re.match(r'^\s*ld(ff|nf)1', text.lower()))
     for b in bases:
         value = base + 0x4000 + 16 * rng.randint(0, 0x200) + (rng.choice([0, 0, 0, 1, 2, 3, 4, 7, 8]) if (rng.random() < 0.3 and not aligned) else 0)
+        if is_first_fault:
+            value = base + 0x4000 + 0x400 * rng.randint(0, 0x1f)
         if b == 'sp':
             st['sp'] = value & ~15
         elif b == 'lr':
@@ -207,7 +213,8 @@ def make_state(arch, rng, text, overrides, mode):
             regs[reg_index(arch, b)] = value
     for ix in indexes:
         if ix[0] in 'xr' and reg_index(arch, ix) not in [reg_index(arch, b) for b in bases if b not in ('sp', 'lr')]:
-            regs[reg_index(arch, ix)] = rng.choice([0, 1, 2, 3, 4, 8, 16, 0x20, 0x40, M64 if a64 else M32])
+            regs[reg_index(arch, ix)] = rng.choice([0, 1, 2, 3, 4, 8, 16, 0x20, 0x40] if is_first_fault else
+                                                   [0, 1, 2, 3, 4, 8, 16, 0x20, 0x40, M64 if a64 else M32])
     # the flags and the floating point control
     if a64:
         st['nzcv'] = rng.getrandbits(4)
@@ -222,6 +229,7 @@ def make_state(arch, rng, text, overrides, mode):
             st['z'] = [draw_vector(rng, vbits, lane) for _ in range(32)]
             st['p'] = [draw_predicate(rng, vbits // 8, lane) for _ in range(16)]
             st['ffr'] = draw_predicate(rng, vbits // 8, lane) if mode == 'sve' else 0
+            sve_vector_addressing(st, text, rng, vbits)
         if mode == 'sm' and 'za' in text.lower() or mode == 'za':
             st['sm'] = True
             st['sve'] = True
@@ -249,6 +257,40 @@ def make_state(arch, rng, text, overrides, mode):
     if a64:
         S.complete_vectors(st)
     return st
+
+
+def set_z(st, number, value):
+    """z<number> = value; the low 128 bits of v too (v wins over z when the state is completed)."""
+    st['z'][number] = value
+    st['v'][number] = value & ((1 << 128) - 1)
+
+
+def sve_vector_addressing(st, text, rng, vbits):
+    """The SVE gathers and scatters: the index vector of `[x4, z1.s, uxtw #2]` holds small offsets
+    (negative for sxtw, with garbage in the upper half of the 64 bit elements of the 32 bit
+    offsets, which the instruction ignores); the base vector of `[z1.d, #8]` holds addresses of
+    the memory window (the 32 bit bases cannot reach it: those lines fault on every engine)."""
+    for m in re.finditer(r'\[\s*(?:x\d+|sp)\s*,\s*z(\d+)\.([sd])\s*(?:,\s*(uxtw|sxtw|lsl)(?:\s*#\d+)?)?\s*\]', text):
+        n, size, ext = int(m.group(1)), m.group(2), m.group(3)
+        bits = 32 if size == 's' else 64
+        value = 0
+        for i in range(vbits // bits):
+            off = rng.choice([0, 1, 2, 3, 4, 8, 16, 0x40, 0x100, rng.randrange(0, 0x300), rng.randrange(0, 0x40)])
+            if ext == 'sxtw' and rng.random() < 0.4 or bits == 64 and ext is None and rng.random() < 0.2:
+                off = -off
+            lane = off & ((1 << bits) - 1)
+            if bits == 64 and ext in ('uxtw', 'sxtw') and rng.random() < 0.5:
+                lane = (off & 0xffffffff) | (rng.getrandbits(32) << 32)
+            value |= lane << (i * bits)
+        set_z(st, n, value)
+    for m in re.finditer(r'\[\s*z(\d+)\.([sd])\s*(?:,\s*#-?\d+)?\s*\]', text):
+        n, size = int(m.group(1)), m.group(2)
+        bits = 32 if size == 's' else 64
+        value = 0
+        for i in range(vbits // bits):
+            addr = S.A64_MEM_BASE + 0x4000 + 8 * rng.randrange(0, 0x200)
+            value |= (addr & ((1 << bits) - 1)) << (i * bits)
+        set_z(st, n, value)
 
 
 def fp_control(rng, arch, ext=None):

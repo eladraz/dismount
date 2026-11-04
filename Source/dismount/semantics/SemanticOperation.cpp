@@ -60,6 +60,7 @@ const OperationInfo gOperations[] =
     /* OP_FENCE_INSTRUCTION             */ { "fence_instruction", 0, F_SIDE_EFFECTS },
     /* OP_PREFETCH                      */ { "prefetch", 1, F_MEMORY },
     /* OP_CACHE_MAINTENANCE             */ { "cache_maintenance", 1, F_MEMORY | F_SIDE_EFFECTS },
+    /* OP_PROBE_ACCESS                  */ { "probe_access", 1, F_DEST | F_MEMORY },
     /* OP_ADD                           */ { "add", 2, F_DEST | F_COMMUTATIVE },
     /* OP_ADD_CARRY                     */ { "add_carry", 3, F_DEST },
     /* OP_SUBTRACT                      */ { "subtract", 2, F_DEST },

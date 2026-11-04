@@ -67,6 +67,18 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/arm/Arm64SemanticTable.cpp \
                          Source/dismount/proc/arm/Arm64SemanticLift.cpp \
                          Source/dismount/proc/arm/Arm64SemanticLiftMemory.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticSveHelpers.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSve.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSvePredicate.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveMemory.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveFloat.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSve2.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSve2Wide.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveFloat2.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveQuad.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveCrypto.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftSveMisc.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticTableSve.cpp \
                          Source/dismount/proc/arm/Arm64SemanticLiftSimd.cpp \
                          Source/dismount/proc/arm/Arm64SemanticLiftSimdInteger.cpp \
                          Source/dismount/proc/arm/Arm64SemanticLiftFloat.cpp \

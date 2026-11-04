@@ -150,6 +150,40 @@
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftMemory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticSveHelpers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSve.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSvePredicate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveMemory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveFloat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSve2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSve2Wide.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveFloat2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveQuad.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveCrypto.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSveMisc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSve.cpp">
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -476,6 +510,7 @@
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticInternal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSve.h">
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSimd.h">
       <Filter>Header Files</Filter>
     </ClInclude>

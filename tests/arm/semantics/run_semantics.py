@@ -106,6 +106,16 @@ def load_rules(path):
     return rules
 
 
+def rule_applies(arches, arch, oracle):
+    """A rule applies to the architectures and the oracles its `[a64,unicorn]` prefix names (the
+    tokens `unicorn` and `host` are oracles, the others architectures; none: every one)."""
+    if arches is None:
+        return True
+    architectures = arches - {'unicorn', 'host'}
+    oracles = arches & {'unicorn', 'host'}
+    return (not architectures or arch in architectures) and (not oracles or oracle in oracles)
+
+
 # ---------------------------------------------------------------------------
 # Corpus
 # ---------------------------------------------------------------------------
@@ -138,8 +148,12 @@ def collect(args, skips):
                    'fixed': r['tags'].get('state', []),
                    'mnemonic': r['text'].split()[0].lower() if r['text'].split() else '',
                    'status': None, 'message': '', 'diffs': []}
+            oracles = (r['tags'].get('oracle') or [''])[0].split()
             if err is not None:
                 rec['status'], rec['message'] = 'ASM_ERR', 'clang: ' + err
+            elif oracles and args.oracle not in oracles and not args.lift_only:
+                rec['status'] = 'SKIP'
+                rec['message'] = 'not run by %s (@oracle: %s, see oracle_bugs.txt)' % (args.oracle, ' '.join(oracles))
             else:
                 for rx, reason, arches in skips:
                     if rule_applies(arches, args.arch, args.oracle) and rx.search(r['text']):
@@ -276,6 +290,12 @@ def process(recs, args, ctx):
                 r['status'] = 'UNLIFTED'
                 r['message'] = r['dis'][0]['exit']
         sys.stderr.write('  dismount_cli %d states in %.1fs\n' % (len(inputs), time.time() - t0))
+        if args.lift_only:
+            # No oracle: the lifted lines are SKIP (not run against a processor), the unlifted ones UNLIFTED
+            for r in active:
+                if r['status'] is None:
+                    r['status'], r['message'] = 'SKIP', 'lift only: lifted'
+            return
     t1 = time.time()
 
     # 2. the oracle (the lines that still matter; with --oracle-only all of them)
@@ -298,6 +318,21 @@ def process(recs, args, ctx):
                 continue
             good += 1
             diffs = S.compare_results(r['arch'], r['code'], st, d, o, ('dismount', kind), ignore)
+            if diffs and kind == 'host':
+                # The M4 sometimes returns a run with the exception flags of FPSR set (all of them,
+                # 0x0800009f) whatever the instruction: not reproducible. A state which differs is run
+                # again (twice at most); a difference which stays is a difference
+                for _ in range(2):
+                    try:
+                        again = oracle_host.get_host().run(r['code'], st)
+                    except Exception:
+                        break
+                    retry = S.compare_results(r['arch'], r['code'], st, d, again, ('dismount', kind), ignore)
+                    if not retry:
+                        diffs = retry
+                        r['host_retries'] = r.get('host_retries', 0) + 1
+                        break
+                    o, diffs = again, retry
             if diffs:
                 r['diffs'].append({'state': S.format_state(r['arch'], r['code'], st),
                                    'dismount': dl, 'oracle': S.format_result(r['arch'], o),
@@ -491,6 +526,9 @@ def main():
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 1, help='oracle worker processes')
     ap.add_argument('--oracle-only', action='store_true', help='print the results of the oracle only')
     ap.add_argument('--compare-oracles', action='store_true', help='Unicorn vs the host (a64)')
+    ap.add_argument('--lift-only', action='store_true',
+                    help='run dismount_cli only (every line, whatever its @oracle tag): UNLIFTED or SKIP; '
+                         'the report says which lines are lifted (tests/arm/tools/gen_support_matrix.py)')
     ap.add_argument('--vl', type=int, default=128, help='SVE vector length of Unicorn (128..512)')
     ap.add_argument('--set', default='', help='override registers in every state, e.g. x1=5,nzcv=4 (hex)')
     ap.add_argument('--cli', default=DEFAULT_CLI)

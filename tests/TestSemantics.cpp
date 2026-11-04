@@ -1549,6 +1549,33 @@ public:
         check("outside exit", interpreter.run(outside),
               SemanticInterpreter::EXIT_MEMORY_FAULT);
         check("outside address", interpreter.getFaultAddress(), 0x10);
+
+        // OP_PROBE_ACCESS: whether the access would succeed, and it never
+        // faults (the memory refuses 0x1800)
+        SemanticBlock probe(OpcodeSubsystems::DISASSEMBLER_INTEL_32);
+        probe.beginGuestInstruction(addr(0x7300), 2);
+        SemanticOperand readable = probe.newTemporary(SemanticType::integer(1));
+        probe.append(SemanticInstruction(Op::OP_PROBE_ACCESS, SemanticType::integer(32),
+                                         readable, imm(0x17FC, 32)));
+        SemanticOperand readableByte = probe.newTemporary(SemanticType::integer(8));
+        emit(probe, Op::OP_ZERO_EXTEND, 8, readableByte, readable);
+        emit(probe, Op::OP_MOVE, 8, reg(IA32_REG_AL, 8), readableByte);
+        SemanticOperand crossing = probe.newTemporary(SemanticType::integer(1));
+        probe.append(SemanticInstruction(Op::OP_PROBE_ACCESS, SemanticType::integer(32),
+                                         crossing, imm(0x17FE, 32)));
+        SemanticOperand crossingByte = probe.newTemporary(SemanticType::integer(8));
+        emit(probe, Op::OP_ZERO_EXTEND, 8, crossingByte, crossing);
+        emit(probe, Op::OP_MOVE, 8, reg(IA32_REG_BL, 8), crossingByte);
+        SemanticOperand unmapped = probe.newTemporary(SemanticType::integer(1));
+        probe.append(SemanticInstruction(Op::OP_PROBE_ACCESS, SemanticType::integer(8),
+                                         unmapped, imm(0x10, 32)));
+        SemanticOperand unmappedByte = probe.newTemporary(SemanticType::integer(8));
+        emit(probe, Op::OP_ZERO_EXTEND, 8, unmappedByte, unmapped);
+        emit(probe, Op::OP_MOVE, 8, reg(IA32_REG_DL, 8), unmappedByte);
+        check("probe exit", interpreter.run(probe), SemanticInterpreter::EXIT_FALL_THROUGH);
+        check("probe readable", interpreter.getRegister(IA32_REG_EAX).getWord(0) & 0xFF, 1);
+        check("probe refused", interpreter.getRegister(IA32_REG_EBX).getWord(0) & 0xFF, 0);
+        check("probe outside", interpreter.getRegister(IA32_REG_EDX).getWord(0) & 0xFF, 0);
     }
 
     void testRunMisc()

@@ -112,6 +112,11 @@ public:
         OP_PREFETCH,
         // Cache maintenance of the line of memory[s0], see CacheOperation
         OP_CACHE_MAINTENANCE,
+        // d (1 bit) = 1 if the memory at s0 can be read without a fault, the
+        // size of the access is the size of the type. Never faults and has no
+        // effect on the guest (SVE first fault and non fault loads: the
+        // elements that fault are not loaded)
+        OP_PROBE_ACCESS,
 
         //////////////////////////////////////////////////////////////////
         // Integer arithmetic

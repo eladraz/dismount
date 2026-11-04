@@ -109,7 +109,8 @@ def main():
         os.path.join(armlib.REPO, 'out', 'semantics_arm', 'report.json'),
         os.path.join(armlib.REPO, 'out', 'semantics_arm_host', 'report.json'),
         os.path.join(armlib.REPO, 'out', 'semantics_arm_a32', 'report.json'),
-        os.path.join(armlib.REPO, 'out', 'semantics_arm_t32', 'report.json')])
+        os.path.join(armlib.REPO, 'out', 'semantics_arm_t32', 'report.json'),
+        os.path.join(armlib.REPO, 'out', 'semantics_arm_lift', 'report.json')])
     args = parser.parse_args()
 
     # The reports of run_compat.py of each instruction set: --report (a64 by
@@ -145,15 +146,26 @@ def main():
     if reports:
         by_mnemonic = collections.defaultdict(set)
         names = dict((index, name) for index, name, isa, support, entries in armlib.features('a64'))
+        by_encoding = collections.defaultdict(list)
         for mask, value, feature, flags, size, mnemonic in armlib.entries('a64'):
-            by_mnemonic[mnemonic].add('' if names.get(feature, '-') == '-' else names[feature])
+            feature_name = '' if names.get(feature, '-') == '-' else names[feature]
+            by_mnemonic[mnemonic].add(feature_name)
+            by_encoding[mnemonic].append((mask, value, feature_name))
         for path in reports:
             for r in json.load(open(path)).get('lines', []):
                 if r.get('arch', 'a64') != 'a64':
                     count_aarch32_line(r, sem32)
                     continue
                 tag = r.get('feature', '')
-                keys = [tag] if tag else sorted(by_mnemonic.get(r.get('mnemonic', '').split('.')[0], ['']))
+                mnemonic = r.get('mnemonic', '').split('.')[0]
+                keys = [tag] if tag else sorted(by_mnemonic.get(mnemonic, ['']))
+                if not tag and len(keys) > 1 and r.get('hex'):
+                    # An untagged line counts for the features of the encodings which decode it (the same
+                    # mnemonic exists in the Advanced SIMD and the SVE sets with other features)
+                    word = int.from_bytes(bytes.fromhex(r['hex']), 'little')
+                    exact = sorted(set(name for mask, value, name in by_encoding.get(mnemonic, [])
+                                       if word & mask == value))
+                    keys = exact or keys
                 for key in keys:
                     status = r.get('status')
                     if status == 'UNLIFTED':

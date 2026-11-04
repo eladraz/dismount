@@ -1833,12 +1833,25 @@ static cString runArmLine(char* line, ArmInstructionSet::DisassemblerTypes type)
         (type == ArmInstructionSet::ARM_T32) ?
             OpcodeSubsystems::DISASSEMBLER_THUMB_LE :
             OpcodeSubsystems::DISASSEMBLER_ARM_32_LE;
-    ArchitectureDescriptionPtr architecture;
-    if (is64)
-        architecture = ArchitectureDescriptionPtr(
+    // The description is the same for most of the lines: kept (building the
+    // registers of a description costs more than running a block)
+    static ArchitectureDescriptionPtr cachedArchitecture;
+    static bool cachedIs64 = false;
+    static uint cachedVl = 0;
+    static uint cachedSvl = 0;
+    if ((cachedArchitecture.getPointer() == NULL) || (cachedIs64 != is64) ||
+        (is64 && ((cachedVl != state.m_vl) || (cachedSvl != state.m_svl))))
+    {
+        if (is64)
+            cachedArchitecture = ArchitectureDescriptionPtr(
                             new Arm64Architecture(state.m_vl, state.m_svl));
-    else
-        architecture = ArchitectureDescriptionPtr(new ArmArchitecture());
+        else
+            cachedArchitecture = ArchitectureDescriptionPtr(new ArmArchitecture());
+        cachedIs64 = is64;
+        cachedVl = state.m_vl;
+        cachedSvl = state.m_svl;
+    }
+    ArchitectureDescriptionPtr architecture = cachedArchitecture;
     ArmSemanticLifter lifter(subsystem, architecture);
 
     // Decode and lift the sequence at the pc

@@ -169,21 +169,27 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_FP8FMA */        { "fp8fma",          SUPPORT_FULL },
     /* FEAT_FP8DOT4 */       { "fp8dot4",         SUPPORT_FULL },
     /* FEAT_FP8DOT2 */       { "fp8dot2",         SUPPORT_FULL },
-    // FAMINMAX, LUT: lifted; neither oracle runs them, Arm64SimdSemanticRowsFloat.inc checks them
+    // FAMINMAX, LUT: lifted; neither oracle runs them, Arm64SimdSemanticRowsFloat.inc checks them. The SVE forms of LUTI2 / LUTI4 are not lifted
     /* FEAT_FAMINMAX */      { "faminmax",        SUPPORT_LIFTED },
-    /* FEAT_LUT */           { "lut",             SUPPORT_LIFTED },
+    /* FEAT_LUT */           { "lut",             SUPPORT_PARTIAL },
 
     // --- SVE
-    /* FEAT_SVE */           { "sve",             SUPPORT_FULL },
-    /* FEAT_F32MM */         { "f32mm",           SUPPORT_FULL },
-    /* FEAT_F64MM */         { "f64mm",           SUPPORT_FULL },
-    /* FEAT_SVE2 */          { "sve2",            SUPPORT_FULL },
-    /* FEAT_SVE_AES */       { "sve2-aes",        SUPPORT_FULL },
-    /* FEAT_SVE_SHA3 */      { "sve2-sha3",       SUPPORT_FULL },
-    /* FEAT_SVE_SM4 */       { "sve2-sm4",        SUPPORT_FULL },
-    /* FEAT_SVE_BITPERM */   { "sve2-bitperm",    SUPPORT_FULL },
-    /* FEAT_SVE2P1 */        { "sve2p1",          SUPPORT_FULL },
-    /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_FULL },
+    // The SVE lifters (Arm64SemanticLiftSve*.cpp) lift every instruction of the features below, at the
+    // vector length of the Arm64Architecture. LIFTED_VERIFIED: the instructions pass the differential tests
+    // of tests/arm/semantics against Unicorn (SVE) and the Apple M4 (SVE2, SVE2.1 and the SME2 forms in the
+    // streaming mode, at 512 bits); the lifted instructions neither processor runs are checked by
+    // tests/TestArm64SemanticsSve.cpp against an independent model of the Arm ARM pseudocode only (F32MM,
+    // F64MM, the crypto extensions, B16B16, BFSCALE and the bf16 / fp16 forms of the later extensions)
+    /* FEAT_SVE */           { "sve",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_F32MM */         { "f32mm",           SUPPORT_LIFTED },
+    /* FEAT_F64MM */         { "f64mm",           SUPPORT_LIFTED },
+    /* FEAT_SVE2 */          { "sve2",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SVE_AES */       { "sve2-aes",        SUPPORT_LIFTED },
+    /* FEAT_SVE_SHA3 */      { "sve2-sha3",       SUPPORT_LIFTED },
+    /* FEAT_SVE_SM4 */       { "sve2-sm4",        SUPPORT_LIFTED },
+    /* FEAT_SVE_BITPERM */   { "sve2-bitperm",    SUPPORT_LIFTED },
+    /* FEAT_SVE2P1 */        { "sve2p1",          SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_LIFTED },
 
     // --- SME
     /* FEAT_SME */           { "sme",             SUPPORT_FULL },
@@ -237,10 +243,13 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_LIFTED_VERIFIED },
 
     // --- More SVE
-    /* FEAT_SVE2P2 */        { "sve2p2",          SUPPORT_FULL },
-    /* FEAT_SVE2P3 */        { "sve2p3",          SUPPORT_FULL },
-    /* FEAT_SVE_AES2 */      { "sve-aes2",        SUPPORT_FULL },
-    /* FEAT_SVE_BFSCALE */   { "sve-bfscale",     SUPPORT_FULL },
+    // Not lifted: SVE2.2 sabal / uabal, SVE2.3 addqp / addsubp and the unpredicated scvtf / ucvtf of bytes,
+    // sve-aes2 pmull / pmlal (multiple vectors); the semantics of these are not known well enough and no
+    // processor runs them. The rest is lifted and checked by the unit rows only
+    /* FEAT_SVE2P2 */        { "sve2p2",          SUPPORT_PARTIAL },
+    /* FEAT_SVE2P3 */        { "sve2p3",          SUPPORT_PARTIAL },
+    /* FEAT_SVE_AES2 */      { "sve-aes2",        SUPPORT_PARTIAL },
+    /* FEAT_SVE_BFSCALE */   { "sve-bfscale",     SUPPORT_LIFTED },
 
     // --- More SME. sme-fa64, ssve-aes, ssve-bitperm and ssve-fexpa have no encodings of their
     // own (they allow the full SVE / Advanced SIMD and some SVE extensions in the streaming

@@ -21,7 +21,6 @@ namespace armdis {
 #define ARM_SEMANTIC_END \
     { 0, { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }, NULL, 0, 0, 0, 0 }
 
-const ArmSemanticEntry gArm64SveSemanticTable[] = { ARM_SEMANTIC_END };
 const ArmSemanticEntry gArm64SmeSemanticTable[] = { ARM_SEMANTIC_END };
 
 } // namespace armdis

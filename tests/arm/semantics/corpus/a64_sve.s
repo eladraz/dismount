@@ -5,7 +5,7 @@ add z0.s, z1.s, z2.s       // @mode: sve
 sub z0.b, z1.b, z2.b       // @mode: sve
 add z0.d, z0.d, #5         // @mode: sve
 mul z0.h, z0.h, #3         // @mode: sve
-mul z0.h, z0.h, z1.h       // @mode: sve   (SVE2 unpredicated: Unicorn has no SVE2)
+mul z0.h, z0.h, z1.h       // @mode: sve   (SVE2 unpredicated: Unicorn has no SVE2) @oracle: host
 and z0.d, z1.d, z2.d       // @mode: sve
 eor z0.d, z1.d, z2.d       // @mode: sve
 orr z0.d, z0.d, #0xff00    // @mode: sve
