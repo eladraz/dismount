@@ -132,6 +132,11 @@ cString formatRegister(InstructionSet type, const Operand& operand)
     if (operand.m_isPredicateCounter)
         text = cString("pn") + text.part(1, text.length());
     text += gArrangements[operand.m_arrangement];
+    if ((operand.m_register == ARM64_REG_ZT0) && operand.m_isExplicit)
+        return cString("{ zt0 }");
+    if ((operand.m_register == ARM64_REG_ZT0) && (operand.m_shift == Operand::SHIFT_MUL_VL))
+        // zt0[1, mul vl] of movt
+        return text + "[" + cString((uint32)operand.m_elementIndex) + ", mul vl]";
     if (operand.m_elementIndex >= 0)
         text += cString("[") + cString((uint32)operand.m_elementIndex) + "]";
     // The slice of psel: p12.b[w13, 15]
@@ -144,6 +149,65 @@ cString formatRegister(InstructionSet type, const Operand& operand)
         text += "/z";
     if (operand.m_addressing == Operand::ADDRESSING_PRE_INDEX)
         text += "!";
+    return text;
+}
+
+// Return the text of an SME matrix operand: the tile (za0.s), the slice
+// (za0h.s[w12, 1], {za0h.b[w12, 0]}), the array vector (za.s[w8, 0, vgx2],
+// za[w12, 5]) and the tile list of zero ({za0.d, za2.d})
+cString formatMatrix(InstructionSet type, const Operand& operand)
+{
+    if (operand.m_isExplicit && (operand.m_sliceDirection == Operand::SLICE_NONE))
+    {
+        // The list of the 64 bit tiles of zero. LLVM merges them: the
+        // whole array is {za}, the even and odd rows {za0.h} and {za1.h},
+        // and a list made of whole 32 bit tiles is written with them, with a
+        // comma and no blank ({za0.s,za1.s})
+        uint mask = operand.m_registerMask;
+        if (mask == 0xff)
+            return cString("{za}");
+        if (mask == 0x55)
+            return cString("{za0.h}");
+        if (mask == 0xaa)
+            return cString("{za1.h}");
+        bool isWords = (mask != 0);
+        for (uint i = 0; i < 4; i++)
+            if (((mask >> i) & 1) != ((mask >> (i + 4)) & 1))
+                isWords = false;
+        cString text("{");
+        bool isFirst = true;
+        for (uint i = 0; i < (isWords ? 4u : 8u); i++)
+            if (((mask >> i) & 1) != 0)
+            {
+                if (!isFirst)
+                    text += isWords ? "," : ", ";
+                text += cString("za") + cString((uint32)i) + (isWords ? ".s" : ".d");
+                isFirst = false;
+            }
+        return text + "}";
+    }
+    cString text("za");
+    bool isSlice = (operand.m_sliceDirection != Operand::SLICE_NONE);
+    bool isArray = !isSlice && (operand.m_sliceRegister != (uint)ARM_NO_REGISTER);
+    if (!isArray)
+        text += cString((uint32)operand.m_tile);
+    if (isSlice)
+        text += (operand.m_sliceDirection == Operand::SLICE_VERTICAL) ? "v" : "h";
+    text += gArrangements[operand.m_arrangement];
+    if (isSlice || isArray)
+    {
+        text += cString("[") + formatRegisterName(type, operand.m_sliceRegister) + ", ";
+        if (operand.m_sliceOffsetLast != operand.m_sliceOffset)
+            text += cString("0x") + hexText(operand.m_sliceOffset) + ":0x" +
+                    hexText(operand.m_sliceOffsetLast);
+        else
+            text += cString((uint32)operand.m_sliceOffset);
+        if (operand.m_vectorGroup != 0)
+            text += cString(", vgx") + cString((uint32)operand.m_vectorGroup);
+        text += "]";
+    }
+    if (isSlice && operand.m_isExplicit)
+        text = cString("{") + text + "}";
     return text;
 }
 
@@ -484,8 +548,9 @@ cString ArmNotation::formatOperand(ArmInstructionSet::DisassemblerTypes type,
     }
     case Operand::KIND_NAME:
         return operand.m_name;
+    case Operand::KIND_MATRIX:
+        return formatMatrix(type, operand);
     default:
-        // TODO: the matrix operands of SME
         return cString("?");
     }
 }

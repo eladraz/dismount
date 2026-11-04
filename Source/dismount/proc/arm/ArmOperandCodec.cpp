@@ -326,6 +326,8 @@ bool ArmOperandCodec::decode(const ArmOperandSpec& spec,
     }
 
     // The kinds of the areas
+    if (isSmeSpec(spec))
+        return decodeSme(spec, encoding, context, operand);
     if (isSveSpec(spec))
         return decodeSve(spec, encoding, context, operand);
     if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))
@@ -455,6 +457,8 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
         break;
     }
 
+    if (isSmeSpec(spec))
+        return encodeSme(spec, operand, context, encoding);
     if (isSveSpec(spec))
         return encodeSve(spec, operand, context, encoding);
     if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))

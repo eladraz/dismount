@@ -8,7 +8,7 @@ bit, so the neighbours of an encoding are reached) and from a random top byte
 
 A bug is: a different text, dismount decodes and objdump says <unknown>, the
 reverse, or a crash. Words of the classes that dismount doesn't implement yet
-(SVE and SME) are counted as "unimplemented", not as bugs.
+(none now) are counted as "unimplemented", not as bugs.
 
     fuzz_decode.py --arch a64 --count 200000 --seed 1
 """
@@ -22,7 +22,7 @@ import armlib
 
 
 # The classes whose words are compared (the others are not implemented yet)
-IMPLEMENTED_CLASSES = ('base', 'simd', 'sve')
+IMPLEMENTED_CLASSES = ('base', 'simd', 'sve', 'sme')
 
 
 def generate(arch, count, seed, rows, only_class=None, tops=None):
@@ -53,6 +53,9 @@ def generate(arch, count, seed, rows, only_class=None, tops=None):
         if only_class == 'sve':
             # The SVE class is the bits 28-25 = 0010: not rare, but sparse
             word = (word & ~0x1e000000) | 0x04000000
+        if only_class == 'sme':
+            # The SME class is the bits 28-25 = 0000 with bit 31 set
+            word = (word & ~0x1e000000) | 0x80000000
         if only_class and armlib.a64_class(word) != only_class:
             continue
         words.add(word)

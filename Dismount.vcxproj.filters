@@ -207,8 +207,13 @@
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecA64.cpp">
       <Filter>proc\arm</Filter>
     </ClCompile>
-    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecSve.cpp">
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecSimd.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecSve.cpp">
+      <Filter>proc\arm</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmOperandCodecSme.cpp">
       <Filter>proc\arm</Filter>
     </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\ArmOperandNames.cpp">

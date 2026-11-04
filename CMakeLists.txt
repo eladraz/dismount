@@ -106,6 +106,7 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/arm/ArmNotationA32Simd.cpp
 	Source/dismount/proc/arm/ArmOperandCodecA64.cpp
 	Source/dismount/proc/arm/ArmOperandCodecSve.cpp
+	Source/dismount/proc/arm/ArmOperandCodecSme.cpp
 	Source/dismount/proc/arm/ArmOperandCodecSimd.cpp
 	Source/dismount/proc/arm/ArmOperandNames.cpp
 	Source/dismount/proc/arm/Arm64Names.cpp
@@ -168,6 +169,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Assembler.cpp
 		tests/TestArm64Disassembler.cpp
 		tests/TestArm64Sve.cpp
+		tests/TestArm64Sme.cpp
 		tests/TestArm64Simd.cpp
 		tests/TestArmAArch32Disassembler.cpp
 		tests/TestSemantics.cpp

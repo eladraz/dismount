@@ -233,6 +233,17 @@ bool parseRegister(Parser& parser, const cString& word, InstructionSet type,
             uint64 index = 0;
             ASM_CHECK(parser.isUnsignedInteger64(&index, true), "invalid element index");
             skipBlanks(parser);
+            if (isNextChar(parser, ',') && (operand.m_register == ARM64_REG_ZT0))
+            {
+                // zt0[1, mul vl] of movt
+                parser.readChar();
+                skipBlanks(parser);
+                ASM_CHECK(readWord(parser) == "mul", "'mul vl' was expected");
+                skipBlanks(parser);
+                ASM_CHECK(readWord(parser) == "vl", "'vl' was expected");
+                skipBlanks(parser);
+                operand.m_shift = Operand::SHIFT_MUL_VL;
+            }
             ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
             parser.readChar();
             operand.m_elementIndex = (int)index;
@@ -407,8 +418,16 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
             cString endWord = readWord(parser);
             Operand end;
             ASM_CHECK(parseRegister(parser, endWord, type, end), "register was expected");
-            ASM_CHECK(end.m_register >= item.m_register, "invalid register range");
-            count += end.m_register - item.m_register;
+            // (the range wraps around z31: { z29.s - z0.s })
+            uint group = ((item.m_register >= (uint)ARM64_REG_Z0) && (item.m_register <= (uint)ARM64_REG_Z31)) ? 32 : 0;
+            if ((group != 0) && (end.m_register < item.m_register) &&
+                (end.m_register >= (uint)ARM64_REG_Z0) && (end.m_register <= (uint)ARM64_REG_Z31))
+                count += end.m_register + group - item.m_register;
+            else
+            {
+                ASM_CHECK(end.m_register >= item.m_register, "invalid register range");
+                count += end.m_register - item.m_register;
+            }
             last = end;
             skipBlanks(parser);
         }
@@ -426,13 +445,216 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
     if (isNextChar(parser, '['))
     {
         parser.readChar();
+        skipBlanks(parser);
         uint64 index = 0;
         ASM_CHECK(isDigitAhead(parser) && parser.isUnsignedInteger64(&index, true),
                   "element index was expected");
+        skipBlanks(parser);
         ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
         parser.readChar();
         operand.m_elementIndex = (int)index;
     }
+}
+
+// Read a slice offset or a range of the za operands: 3, 0x3, 0:3. Sets the
+// offsets of the operand
+void parseSliceOffset(Parser& parser, Operand& operand)
+{
+    ASM_CHECK(isDigitAhead(parser), "slice offset was expected");
+    uint64 first = 0;
+    ASM_CHECK(parser.isUnsignedInteger64(&first, true), "invalid slice offset");
+    uint64 last = first;
+    skipBlanks(parser);
+    if (isNextChar(parser, ':'))
+    {
+        parser.readChar();
+        skipBlanks(parser);
+        ASM_CHECK(isDigitAhead(parser), "slice offset was expected");
+        ASM_CHECK(parser.isUnsignedInteger64(&last, true), "invalid slice offset");
+    }
+    ASM_CHECK(first <= last && last < 64, "invalid slice offset");
+    operand.m_sliceOffset = (uint)first;
+    operand.m_sliceOffsetLast = (uint)last;
+}
+
+// Parse an SME za operand at the parser: za0.s, za0h.s[w12, 1], za1v.b[w13, 0:1],
+// za.s[w8, 0, vgx2], za[w12, 5]. 'word' (za, za0, za0h...) is already read.
+// Return false if it isn't one (a bare "za" is the option of smstart)
+bool parseMatrix(Parser& parser, const cString& word, InstructionSet type, Operand& operand)
+{
+    if ((word.length() < 2) || (word.left(2) != "za"))
+        return false;
+    uint position = 2;
+    uint tile = 0;
+    bool hasTile = false;
+    while ((position < word.length()) && cChar::isDigit(word[position]) && (tile < 1000))
+    {
+        tile = tile * 10 + (word[position] - XSTL_CHAR('0'));
+        hasTile = true;
+        position++;
+    }
+    uint direction = Operand::SLICE_NONE;
+    if (position < word.length())
+    {
+        if (word[position] == XSTL_CHAR('h'))
+            direction = Operand::SLICE_HORIZONTAL;
+        else if (word[position] == XSTL_CHAR('v'))
+            direction = Operand::SLICE_VERTICAL;
+        else
+            return false;
+        position++;
+    }
+    if (position != word.length())
+        return false;
+    if ((direction != Operand::SLICE_NONE) && !hasTile)
+        return false;
+    if (!isNextChar(parser, '.') && !isNextChar(parser, '['))
+        return false;
+    ASM_CHECK(tile < 16, "invalid za tile");
+    operand.m_kind = Operand::KIND_MATRIX;
+    operand.m_register = ARM64_REG_ZA_ROW0 + tile;
+    operand.m_tile = tile;
+    operand.m_sliceDirection = direction;
+    if (isNextChar(parser, '.'))
+    {
+        parser.readChar();
+        ASM_CHECK(findArrangementName(readWord(parser), operand.m_arrangement),
+                  "unknown arrangement");
+    }
+    if (isNextChar(parser, '['))
+    {
+        parser.readChar();
+        skipBlanks(parser);
+        uint registerId;
+        ASM_CHECK(findRegister(type, readWord(parser), registerId), "register was expected");
+        operand.m_sliceRegister = registerId;
+        skipBlanks(parser);
+        ASM_CHECK(isNextChar(parser, ','), "',' was expected");
+        parser.readChar();
+        skipBlanks(parser);
+        parseSliceOffset(parser, operand);
+        skipBlanks(parser);
+        if (isNextChar(parser, ','))
+        {
+            parser.readChar();
+            skipBlanks(parser);
+            cString group = readWord(parser);
+            ASM_CHECK((group == "vgx2") || (group == "vgx4"), "'vgx2' or 'vgx4' was expected");
+            operand.m_vectorGroup = (group == "vgx2") ? 2 : 4;
+            skipBlanks(parser);
+        }
+        ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
+        parser.readChar();
+        // The array vector has no tile (za.s[w8, 0]); its register is the first row
+        if (direction == Operand::SLICE_NONE)
+        {
+            ASM_CHECK(!hasTile, "a za array has no tile number");
+            operand.m_register = ARM64_REG_ZA_ROW0;
+        }
+    } else
+    {
+        // A tile: za0.s
+        ASM_CHECK(hasTile && (direction == Operand::SLICE_NONE), "invalid za operand");
+    }
+    return true;
+}
+
+// True if the text of an operand is a list of the za operands: {za0.d, za2.d},
+// {za}, {}, {za0h.b[w12, 0]}
+bool isMatrixList(const cString& text)
+{
+    uint i = 0;
+    while ((i < text.length()) && ((text[i] == XSTL_CHAR(' ')) || (text[i] == XSTL_CHAR('\t'))))
+        i++;
+    if ((i >= text.length()) || (text[i] != XSTL_CHAR('{')))
+        return false;
+    i++;
+    while ((i < text.length()) && ((text[i] == XSTL_CHAR(' ')) || (text[i] == XSTL_CHAR('\t'))))
+        i++;
+    if (i >= text.length())
+        return false;
+    if (text[i] == XSTL_CHAR('}'))
+        return true;
+    return (i + 1 < text.length()) && (text[i] == XSTL_CHAR('z')) && (text[i + 1] == XSTL_CHAR('a'));
+}
+
+// Parse the braces of the za operands (the '{' is next): a slice in braces
+// or the list of the 64 bit tiles
+void parseMatrixList(Parser& parser, InstructionSet type, Operand& operand)
+{
+    parser.readChar();
+    skipBlanks(parser);
+    uint mask = 0;
+    uint count = 0;
+    bool isSlice = false;
+    while (!isNextChar(parser, '}'))
+    {
+        ASM_CHECK(!isSlice, "unexpected text after the slice");
+        cString word = readWord(parser);
+        Operand item;
+        if (word == "za")
+        {
+            // The whole array
+            ASM_CHECK(!isNextChar(parser, '.') && !isNextChar(parser, '['), "invalid za list");
+            ASM_CHECK(count == 0, "invalid za list");
+            mask = 0xff;
+            count++;
+            skipBlanks(parser);
+            continue;
+        }
+        ASM_CHECK(parseMatrix(parser, word, type, item), "za tile was expected");
+        if (item.m_sliceDirection != Operand::SLICE_NONE)
+        {
+            ASM_CHECK(count == 0, "invalid za list");
+            operand = item;
+            isSlice = true;
+        } else
+        {
+            ASM_CHECK(item.m_sliceRegister == (uint)ARM_NO_REGISTER, "invalid za tile list");
+            // A tile of any size is the 64 bit tiles it is made of
+            switch (item.m_arrangement)
+            {
+            case Operand::ARRANGEMENT_D:
+                ASM_CHECK(item.m_tile < 8, "invalid za tile list");
+                mask |= 1u << item.m_tile;
+                break;
+            case Operand::ARRANGEMENT_S:
+                ASM_CHECK(item.m_tile < 4, "invalid za tile list");
+                mask |= 0x11u << item.m_tile;
+                break;
+            case Operand::ARRANGEMENT_H:
+                ASM_CHECK(item.m_tile < 2, "invalid za tile list");
+                mask |= 0x55u << item.m_tile;
+                break;
+            case Operand::ARRANGEMENT_B:
+                ASM_CHECK(item.m_tile < 1, "invalid za tile list");
+                mask |= 0xffu;
+                break;
+            default:
+                ASM_CHECK(false, "invalid za tile list");
+            }
+        }
+        count++;
+        skipBlanks(parser);
+        if (isNextChar(parser, ','))
+        {
+            parser.readChar();
+            skipBlanks(parser);
+        }
+    }
+    ASM_CHECK(isNextChar(parser, '}'), "'}' was expected");
+    parser.readChar();
+    if (isSlice)
+    {
+        operand.m_isExplicit = true;
+        return;
+    }
+    operand = Operand();
+    operand.m_kind = Operand::KIND_MATRIX;
+    operand.m_register = ARM64_REG_ZA_ROW0;
+    operand.m_arrangement = Operand::ARRANGEMENT_D;
+    operand.m_registerMask = mask;
+    operand.m_isExplicit = true;
 }
 
 // Parse the text of one operand
@@ -449,6 +671,22 @@ void parseOperand(const cString& text, InstructionSet type, uint64 address,
     if (c == '[')
     {
         parseMemory(parser, type, operand);
+    } else if ((c == '{') && (text.find(XSTL_STRING("zt0")) < text.length()) &&
+              (text.find(XSTL_STRING("z")) == text.find(XSTL_STRING("zt0"))))
+    {
+        // { zt0 } of zero
+        parser.readChar();
+        skipBlanks(parser);
+        ASM_CHECK(readWord(parser) == "zt0", "'zt0' was expected");
+        skipBlanks(parser);
+        ASM_CHECK(isNextChar(parser, '}'), "'}' was expected");
+        parser.readChar();
+        operand.m_kind = Operand::KIND_REGISTER;
+        operand.m_register = ARM64_REG_ZT0;
+        operand.m_isExplicit = true;
+    } else if ((c == '{') && isMatrixList(text))
+    {
+        parseMatrixList(parser, type, operand);
     } else if (c == '{')
     {
         parseList(parser, type, operand);
@@ -495,6 +733,9 @@ void parseOperand(const cString& text, InstructionSet type, uint64 address,
             operand.m_immediate = number.m_immediate;
             operand.m_shift = Operand::SHIFT_MUL;
             operand.m_hasHash = true;
+        } else if (parseMatrix(parser, word, type, operand))
+        {
+            // A za tile, slice or array vector
         } else if (!parseRegister(parser, word, type, operand))
         {
             // A condition, an option, a system register or a label
@@ -682,6 +923,19 @@ bool isSameRegisters(const Operand& parsed, const Operand& decoded)
                    ((parsed.m_kind != Operand::KIND_REGISTER_LIST) ||
                     (parsed.m_count == decoded.m_count));
         return isSameSimdOperand(parsed, decoded);
+    case Operand::KIND_MATRIX:
+        // The fields of the tiles, slices and arrays are shared by the operands (the size of
+        // mova): the text is what the bits say. The vector group may be left out
+        return (decoded.m_kind == Operand::KIND_MATRIX) &&
+               (parsed.m_tile == decoded.m_tile) &&
+               (parsed.m_arrangement == decoded.m_arrangement) &&
+               (parsed.m_sliceDirection == decoded.m_sliceDirection) &&
+               (parsed.m_sliceRegister == decoded.m_sliceRegister) &&
+               (parsed.m_sliceOffset == decoded.m_sliceOffset) &&
+               (parsed.m_sliceOffsetLast == decoded.m_sliceOffsetLast) &&
+               (parsed.m_registerMask == decoded.m_registerMask) &&
+               (parsed.m_isExplicit == decoded.m_isExplicit) &&
+               ((parsed.m_vectorGroup == decoded.m_vectorGroup) || (parsed.m_vectorGroup == 0));
     case Operand::KIND_MEMORY:
         if (isSveRegister(parsed.m_base) || isSveRegister(parsed.m_index))
             return (decoded.m_kind == Operand::KIND_MEMORY) &&
@@ -689,9 +943,12 @@ bool isSameRegisters(const Operand& parsed, const Operand& decoded)
                    (parsed.m_index == decoded.m_index) &&
                    (parsed.m_indexArrangement == decoded.m_indexArrangement) &&
                    (parsed.m_shift == decoded.m_shift);
+        // (xzr as the offset register of the loads and stores of the SME tiles is the form
+        // without an offset register: Rm = 31)
         return (decoded.m_kind == Operand::KIND_MEMORY) &&
                (parsed.m_base == decoded.m_base) &&
-               (parsed.m_index == decoded.m_index) &&
+               ((parsed.m_index == decoded.m_index) ||
+                ((parsed.m_index == (uint)ARM64_REG_XZR) && (decoded.m_index == (uint)ARM_NO_REGISTER))) &&
                isSameSimdOperand(parsed, decoded);
     default:
         return true;
@@ -959,13 +1216,18 @@ void assembleText(InstructionSet type,
                                                             ArmFeatureSet::all());
         if (opcode.isEmpty())
             continue;
-        if ((opcode->getEntry() != entry) &&
+        // (an entry with the same bits and mnemonic is the same instruction with another feature:
+        // the alternatives "sme-f16f16 or sme-f8f16", "ssve-fp8fma or fp8fma")
+        bool isSameEncoding = (opcode->getEntry() == entry) ||
+            ((opcode->getEntry()->m_mask == entry->m_mask) && (opcode->getEntry()->m_value == entry->m_value) &&
+             (cString(opcode->getEntry()->m_mnemonic) == entry->m_mnemonic));
+        if (!isSameEncoding &&
             ((opcode->getEntry()->m_flags & ARM_ENTRY_ALIAS) == 0) &&
             ((entry->m_flags & ARM_ENTRY_ASSEMBLE_ONLY) == 0))
             continue;
         // The registers of the text are the registers of the bits (an alias
         // has other operands: its bits were checked by the entry)
-        if (opcode->getEntry() == entry)
+        if (isSameEncoding)
         {
             if (opcode->getOperandsCount() != used.getSize())
                 continue;
@@ -980,6 +1242,13 @@ void assembleText(InstructionSet type,
         {
             if (missingFeature < 0)
                 missingFeature = entry->m_feature;
+            continue;
+        }
+        if ((entry->m_feature2 != 0) &&
+            !features.has((ArmFeatures::Feature)entry->m_feature2))
+        {
+            if (missingFeature < 0)
+                missingFeature = entry->m_feature2;
             continue;
         }
         result.m_encoding = encoding;

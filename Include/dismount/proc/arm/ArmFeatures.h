@@ -293,6 +293,34 @@ public:
         FEAT_SVE_AES2,
         FEAT_SVE_BFSCALE,
 
+        // More of the scalable matrix extensions, as LLVM names them:
+        // BFloat16 arithmetic on za (bfmla za.h[w8, 0, vgx2]...: FEAT_SME_B16B16),
+        // the FP8 non widening and widening outer products and multiply adds
+        // (fmopa za.h with fp8, fdot za.s, fmlall: FEAT_SME_F8F16 / FEAT_SME_F8F32),
+        // the 4 way outer products (fmop4a... : FEAT_SME_MOP4), the structured
+        // sparse ones (stmopa... : FEAT_SME_TMOP), SME2.2 (the zeroing and
+        // multiple vector forms of ARMv9.6), SME2.3 (luti6 with zt0). The
+        // FEAT_SME_FA64 mode (the full SVE and Advanced SIMD in the streaming
+        // mode) and the SSVE features (the SVE instructions which are allowed
+        // in the streaming mode: ssve-aes, ssve-bitperm, ssve-fexpa) have no
+        // encodings of their own; ssve-fp8fma / ssve-fp8dot2 / ssve-fp8dot4
+        // are the alternative of fp8fma / fp8dot2 / fp8dot4 for the FP8
+        // instructions of SVE (the table has an entry for each)
+        FEAT_SME_B16B16,
+        FEAT_SME_F8F16,
+        FEAT_SME_F8F32,
+        FEAT_SME_MOP4,
+        FEAT_SME_TMOP,
+        FEAT_SME2P2,
+        FEAT_SME2P3,
+        FEAT_SME_FA64,
+        FEAT_SSVE_FP8FMA,
+        FEAT_SSVE_FP8DOT2,
+        FEAT_SSVE_FP8DOT4,
+        FEAT_SSVE_AES,
+        FEAT_SSVE_BITPERM,
+        FEAT_SSVE_FEXPA,
+
         // The number of features. Must be last
         FEATURES_COUNT
     };

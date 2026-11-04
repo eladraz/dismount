@@ -225,10 +225,13 @@ public:
         ARM64_ASSERT(!ArmFeatures::findFeature("nosuchfeature", feature));
         ARM64_ASSERT(cString(ArmFeatures::getName(ArmFeatures::FEAT_LSE)) == "lse");
         ARM64_ASSERT(ArmFeatures::getInstructionSet(ArmFeatures::FEAT_LSE) == ArmInstructionSet::ARM_A64);
-        // The base is supported and verified, the A64 SIMD is not there yet
+        // The base is supported and verified; the features which only enable instructions
+        // of another feature in the streaming mode have no encodings
         ARM64_ASSERT((ArmFeatures::getSupport(ArmFeatures::FEAT_A64_BASE) &
                       ArmFeatures::SUPPORT_ENCODING_VERIFIED) != 0);
-        ARM64_ASSERT(ArmFeatures::getSupport(ArmFeatures::FEAT_SME2) == 0);
+        ARM64_ASSERT((ArmFeatures::getSupport(ArmFeatures::FEAT_SME2) &
+                      ArmFeatures::SUPPORT_ENCODING_VERIFIED) != 0);
+        ARM64_ASSERT(ArmFeatures::getSupport(ArmFeatures::FEAT_SME_FA64) == 0);
     }
 
     // The stream: addresses, fault tolerance, truncated data

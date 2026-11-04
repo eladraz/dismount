@@ -69,7 +69,11 @@ struct ArmDecodedOperand {
         // (ARM64_REG_ZA_ROW0 for za), m_tile the tile number, m_arrangement
         // the element size; a slice has m_sliceDirection, m_sliceRegister and
         // m_sliceOffset (za0h.s[w12, 1]), an array vector m_vectorGroup
-        // (za.d[w8, 0, vgx2]); the tile list of zero has m_registerMask
+        // (za.d[w8, 0, vgx2]); the tile list of zero has m_registerMask (the
+        // 64 bit tiles, bit n is za<n>.d). m_isExplicit is the braces of the
+        // slice of ld1b ({za0h.b[w12, 0]}) and of the tile list. zt0 is a
+        // KIND_REGISTER of ARM64_REG_ZT0 (m_elementIndex for zt0[8], with
+        // SHIFT_MUL_VL for zt0[1, mul vl], m_isExplicit for { zt0 })
         KIND_MATRIX,
         // An identifier the assembler could not classify by its syntax: a
         // condition (ne), an option (ish, pldl1keep), a system register

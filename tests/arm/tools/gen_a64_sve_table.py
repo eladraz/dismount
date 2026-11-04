@@ -15,6 +15,7 @@ first).
 SVE class and compares the entries with objdump (the precision and the recall
 of the fixed bits), see sve_check.py.
 """
+import copy
 import os
 import sys
 
@@ -71,6 +72,23 @@ bool isDupmMoveAlias(uint32 e)
 '''
 
 
+# LLVM: the FP8 instructions of SVE need "ssve-fp8fma or (sve2 and fp8fma)" (and the same for the
+# dot products): the features of the streaming mode are an alternative to the features of SVE
+STREAMING_ALTERNATIVES = {'FP8FMA': 'SSVE_FP8FMA', 'FP8DOT2': 'SSVE_FP8DOT2', 'FP8DOT4': 'SSVE_FP8DOT4'}
+
+
+def add_streaming_alternatives():
+    """An entry for each of the ssve-* features right after the entry it is an alternative of"""
+    entries = []
+    for entry in a64dsl_sve.ENTRIES:
+        entries.append(entry)
+        if entry.feat in STREAMING_ALTERNATIVES:
+            alternative = copy.copy(entry)
+            alternative.feat = STREAMING_ALTERNATIVES[entry.feat]
+            entries.append(alternative)
+    a64dsl_sve.ENTRIES[:] = entries
+
+
 def build():
     import a64groups_sve_int
     import a64groups_sve_pred
@@ -84,6 +102,7 @@ def build():
     a64groups_sve_mem.groups()
     a64groups_sve_sve2.groups()
     a64groups_sve_new.groups()
+    add_streaming_alternatives()
     a64dsl_sve.order_aliases()
 
 

@@ -95,6 +95,18 @@ SVE_FEATURES = ['sve', 'sve2', 'sve2p1', 'sve2p2', 'sve2p3', 'sve2-aes', 'sve2-s
                 'f8f32mm', 'f8f16mm', 'cpa', 'faminmax', 'frintts', 'sme']
 
 
+def is_sve_row(row):
+    """A row of the SVE table: the SVE class and the multi vector contiguous loads and
+    stores of SVE2.1 (the SME class, but not the loads of the tiles)"""
+    mask, value, feature, flags, size, mnemonic = row
+    return armlib.a64_class(value) == 'sve' or (
+        (value >> 25) == 0x50 and re.match(r'(ld|st)(nt)?1[bhwd]$', mnemonic) is not None)
+
+
+def is_sme_row(row):
+    return armlib.a64_class(row[1]) == 'sme' and not is_sve_row(row)
+
+
 def is_sve_word(word):
     """The words of the SVE table: the SVE class, and the multi vector
     contiguous loads and stores of SVE2.1 which are in the SME class."""
@@ -122,12 +134,23 @@ def sve_feature(words, texts):
     return result
 
 
+def ssve_feature(text):
+    """The streaming feature of an FP8 line of SVE: fmlalb... ssve-fp8fma, fdot z.h ssve-fp8dot2,
+    fdot z.s ssve-fp8dot4 (None for the others)"""
+    mnemonic = armlib.mnemonic_of(text)
+    if mnemonic.startswith('fmlal'):
+        return 'ssve-fp8fma'
+    if mnemonic == 'fdot':
+        return 'ssve-fp8dot2' if re.match(r'fdot z\d+\.h', text) else 'ssve-fp8dot4'
+    return None
+
+
 def generate_sve(args, rows):
     """tests/arm/corpus/a64/sve*.s: the lines of the SVE table (every entry
     with several operand values) and a random sample of the SVE class, named
     after the feature they need."""
     rng = armlib.seeded_rng(20240608)
-    sve_rows = [r for r in rows if r[4] == 4 and is_sve_word(r[1])]
+    sve_rows = [r for r in rows if r[4] == 4 and is_sve_row(r)]
     words = list(candidate_words(sve_rows, rng, per_entry_random=8))
     table_words = set(words)
     words.extend(random_class_words(rng, 'sve', 20000))
@@ -168,6 +191,12 @@ def generate_sve(args, rows):
             dropped['clang'] += 1
             continue
         files['sve' if feature == 'sve' else 'sve-' + feature].append((text, [feature]))
+        # The FP8 instructions of SVE are guarded by "ssve-fp8fma or (sve2 and fp8fma)": the streaming
+        # feature of each line goes to its own file ("sve-ssve-fp8dot2.s")
+        if feature == 'fp8dot2':
+            streaming = ssve_feature(text)
+            if streaming:
+                files['sve-' + streaming].append((text, [streaming]))
     out_dir = os.path.join(CORPUS, args.arch)
     os.makedirs(out_dir, exist_ok=True)
     for name in os.listdir(out_dir):
@@ -183,6 +212,77 @@ def generate_sve(args, rows):
         total += len(lines)
         print('%-24s %d' % (name + '.s', len(lines)))
     print('%d SVE lines; dropped %s' % (total, dict(dropped)))
+
+
+def is_sme_word(word, text):
+    """The words of the SME table: the SME class but the multi vector contiguous
+    loads and stores of SVE2.1 (the SVE table)"""
+    if armlib.a64_class(word) != 'sme':
+        return False
+    return not (re.match(r'(ld|st)(nt)?1[bhwd] ', text) and 'pn' in text)
+
+
+def generate_sme(args, rows):
+    """tests/arm/corpus/a64/sme*.s: the lines of the SME table (every entry with
+    several operand values) and a random sample of the SME class, named after
+    the features clang asks for ("sme.s", "sme2.s", "sme-f64f64+sme2.s", "sme-fp8+sme2.s")"""
+    rng = armlib.seeded_rng(20240609)
+    sme_rows = [r for r in rows if r[4] == 4 and is_sme_row(r)]
+    words = list(candidate_words(sme_rows, rng, per_entry_random=3))
+    table_words = set(words)
+    # The random sample: the top bytes of the class, fully random below
+    tops = (0x80, 0x81, 0xa0, 0xa1, 0xc0, 0xc1, 0xe0, 0xe1)
+    for _ in range(300000):
+        words.append((rng.choice(tops) << 24) | rng.getrandbits(24))
+    words = sorted(set(words))
+    texts, addresses = armlib.objdump_chunks(words, args.arch)
+
+    seen = collections.Counter()
+    items = []
+    seen_text = set()
+    for word, text in zip(words, texts):
+        if text == '<unknown>' or not is_sme_word(word, text):
+            continue
+        key = (armlib.mnemonic_of(text), re.sub(r'\d+', 'N', text))
+        if word not in table_words:
+            if seen[key] >= 2:
+                continue
+            seen[key] += 1
+        if text in seen_text:
+            continue
+        seen_text.add(text)
+        items.append((word, text))
+    results = armlib.clang_assemble([t for _, t in items], args.arch, [])
+    files = collections.defaultdict(list)
+    dropped = collections.Counter()
+    for (word, text), (status, data) in zip(items, results):
+        if status == 'ok':
+            required = []
+        else:
+            m = re.match(r'instruction requires: (.*)$', data)
+            if not m:
+                dropped[data.split(' ')[0] if data else 'error'] += 1
+                continue
+            # "a or b": the line is tagged with the first one
+            required = sorted(m.group(1).split(' or ')[0].split())
+        name = 'sme' if required in (['sme'], []) else (
+            '+'.join(required) if required[0].startswith('sme') else 'sme-' + '+'.join(required))
+        files[name].append((text, required))
+    out_dir = os.path.join(CORPUS, args.arch)
+    os.makedirs(out_dir, exist_ok=True)
+    for name in os.listdir(out_dir):
+        if name.startswith('sme') and name.endswith('.s'):
+            os.unlink(os.path.join(out_dir, name))
+    total = 0
+    for name, lines in sorted(files.items()):
+        with open(os.path.join(out_dir, name + '.s'), 'w') as f:
+            f.write('// Generated by tests/arm/tools/gen_corpus.py. One instruction per line;\n')
+            f.write('// "// @feature: x" is the LLVM feature the line needs (none: base).\n')
+            for line, required in lines:
+                f.write('%s // @feature: %s\n' % (line, ' '.join(required or ['sme'])))
+        total += len(lines)
+        print('%-28s %d' % (name + '.s', len(lines)))
+    print('%d SME lines; dropped %s' % (total, dict(dropped)))
 
 
 def main():
@@ -208,8 +308,12 @@ def main():
     if args.only_class == 'sve':
         generate_sve(args, rows)
         return
+    if args.only_class == 'sme':
+        generate_sme(args, rows)
+        return
     simd_rows = [r for r in rows if armlib.a64_class(r[1]) == 'simd']
-    rows = [r for r in rows if armlib.a64_class(r[1]) != 'simd']
+    all_rows = rows
+    rows = [r for r in rows if armlib.a64_class(r[1]) != 'simd' and not is_sme_row(r)]
     sources = []        # (word, class)
     for w in candidate_words(rows, rng):
         sources.append(w)
@@ -228,7 +332,7 @@ def main():
     chosen = []        # (text relative, class)
     seen_text = set()
     for word, address, text in zip(sources, addresses, texts):
-        if text == '<unknown>' or is_sve_word(word):
+        if text == '<unknown>' or is_sve_word(word) or is_sme_word(word, text):
             continue
         cls = armlib.a64_class(word)
         mnemonic = armlib.mnemonic_of(text)
@@ -273,13 +377,13 @@ def main():
     out_dir = os.path.join(CORPUS, args.arch)
     os.makedirs(out_dir, exist_ok=True)
     for name in os.listdir(out_dir):
-        # (the files sve*.s are the ones of generate_sve)
-        if not name.endswith('.s') or name.startswith('sve'):
+        # (the files sve*.s and sme*.s are the ones of generate_sve and generate_sme)
+        if not name.endswith('.s') or name.startswith('sve') or name.startswith('sme'):
             continue
         # With --class only the files of the class are replaced
         if args.only_class == 'simd' and not (name == 'simd.s' or name.startswith('simd-')):
             continue
-        if args.only_class in ('base', 'sme') and name != args.only_class + '.s':
+        if args.only_class == 'base' and name != 'base.s':
             continue
         os.unlink(os.path.join(out_dir, name))
     total = 0
@@ -295,8 +399,9 @@ def main():
         total += len(lines)
         print('%-24s %d' % (name + '.s', len(lines)))
     print('%d lines; dropped %s' % (total, dict(dropped)))
-    if args.only_class in (None, 'sve'):
-        generate_sve(args, rows)
+    if args.only_class is None:
+        generate_sve(args, all_rows)
+        generate_sme(args, all_rows)
 
 
 if __name__ == '__main__':

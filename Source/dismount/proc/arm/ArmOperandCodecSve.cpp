@@ -123,7 +123,8 @@ const SizeScheme gSizeSchemes[ARM_SVE_SIZE_SCHEMES_COUNT] = {
     /* ARM_SVE_LOGICAL_IMM */ { {0, 0}, {0, 0}, { X } },
     /* ARM_SVE_TSZ_PMOV */ { {22, 17}, {2, 2}, TSZ4 },
     /* ARM_SVE_XTN_DEST */ { {22, 19}, {1, 2}, XTN3 },
-    /* ARM_SVE_XTN_SOURCE */ { {22, 19}, {1, 2}, XTN3_WIDE }
+    /* ARM_SVE_XTN_SOURCE */ { {22, 19}, {1, 2}, XTN3_WIDE },
+    /* ARM_SVE_SIZE_MOVA */ { {22, 16}, {2, 1}, { B, X, H, X, S, X, D, Q } }
 };
 
 #undef X
@@ -656,6 +657,17 @@ bool decodeImmediate(const ArmOperandSpec& spec, uint32 encoding, Operand& opera
     case ARM_SVE_IMM_SHIFT_MULTI:
         operand.m_immediate = 16 - (int64)Codec::getField(encoding, 16, 4);
         return true;
+    case ARM_SVE_IMM_SHIFT_MULTI32:
+        operand.m_immediate = 32 - (int64)Codec::getField(encoding, 16, 5);
+        return true;
+    case ARM_SVE_IMM_SHIFT_MULTI64:
+    {
+        uint field = Codec::getField(encoding, 16, 7);
+        if ((field & 0x20) == 0)
+            return false;
+        operand.m_immediate = ((field & 0x40) != 0) ? (int64)(0x80 - field) : (int64)(0x60 - field);
+        return true;
+    }
     case ARM_SVE_IMM_MUL:
         operand.m_immediate = Codec::getField(encoding, 16, 4) + 1;
         operand.m_shift = Operand::SHIFT_MUL;
@@ -840,6 +852,16 @@ bool encodeImmediate(const ArmOperandSpec& spec, const Operand& operand, uint32&
         if (!isPlainImmediate(operand) || (value < 1) || (value > 16))
             return false;
         Codec::setField(encoding, 16, 4, (uint32)(16 - value));
+        return true;
+    case ARM_SVE_IMM_SHIFT_MULTI32:
+        if (!isPlainImmediate(operand) || (value < 1) || (value > 32))
+            return false;
+        Codec::setField(encoding, 16, 5, (uint32)(32 - value));
+        return true;
+    case ARM_SVE_IMM_SHIFT_MULTI64:
+        if (!isPlainImmediate(operand) || (value < 1) || (value > 64))
+            return false;
+        Codec::setField(encoding, 16, 7, (value <= 32) ? (uint32)(0x80 - value) : (uint32)(0x60 - value));
         return true;
     case ARM_SVE_IMM_MUL:
         if ((operand.m_kind != Operand::KIND_IMMEDIATE) ||

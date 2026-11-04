@@ -184,6 +184,10 @@ enum ArmSveSizeScheme {
     // larger (h, s, d)
     ARM_SVE_XTN_DEST,
     ARM_SVE_XTN_SOURCE,
+    // ---- Added by the SME table
+    // mova / movaz: the size field 23-22 and bit 16: b h s d, and q for
+    // size 3 with bit 16
+    ARM_SVE_SIZE_MOVA,
     ARM_SVE_SIZE_SCHEMES_COUNT
 };
 
@@ -314,6 +318,13 @@ enum ArmSveImmediateScheme {
     // dupm / and / orr / eor: the bitmask immediate N:immr:imms (17-5), of
     // the element size of ARM_SVE_LOGICAL_IMM
     ARM_SVE_IMM_LOGICAL,
+    // The multi vector narrowing shifts of four registers (sqrshr...): 32 -
+    // imm5 (20-16)
+    ARM_SVE_IMM_SHIFT_MULTI32,
+    // The same for the double word sources (sqrshr z0.h, { z0.d - z3.d }, #n):
+    // 1 to 64, bits 22-16 with bit 21 set: 64 - n in 0x20-0x3f (n 33-64),
+    // 128 - n in 0x60-0x7f (n 1-32)
+    ARM_SVE_IMM_SHIFT_MULTI64,
     ARM_SVE_IMM_SCHEMES_COUNT
 };
 
@@ -365,6 +376,101 @@ enum ArmSveAddressScheme {
     ARM_SVE_ADDR_MUL_VL6,
     ARM_SVE_ADDR_SCHEMES_COUNT
 };
+
+/*
+ * SME (ArmOperandCodecSme.cpp)
+ *
+ * ARM_KIND_SME_TILE: m_position is the low bit of the tile number field,
+ * m_flags the width of it (0-4), m_extra the element size (ARM_SVE_B...
+ * ARM_SVE_Q).
+ *
+ * ARM_KIND_SME_TILE_SLICE: m_position is the low bit of the tile and offset
+ * field (the tile number is the high part), the direction is bit 15 and the
+ * slice register (w12-w15) bits 14-13. m_flags: bits 0-2 the element size (0-4:
+ * b h s d q, 5: the field of ARM_SVE_SIZE_MOVA), bits 3-4 the log2 of the
+ * number of slices (the multi vector mova: 0, 1, 2), bit 5 the slice is in
+ * braces ({za0h.b[w12, 0]} of ld1b / st1b). The field is 4 bits for one
+ * slice and 3 for two or four; the offset is the low bits of it, the tile
+ * number the bits above: 4 - log2(element bytes) - log2(slices) bits of
+ * offset (at least 0)
+ */
+enum ArmSmeSliceFlags {
+    ARM_SME_SLICE_SIZE_MASK     = 0x07,
+    ARM_SME_SLICE_SIZE_FIELD    = 5,
+    ARM_SME_SLICE_COUNT_SHIFT   = 3,
+    ARM_SME_SLICE_COUNT_MASK    = 0x18,
+    ARM_SME_SLICE_BRACES        = 0x20
+};
+
+/*
+ * ARM_KIND_SME_ARRAY: za.<T>[wV, offset{:last}{, vgx2 | vgx4}]. m_position
+ * is the low bit of the offset field, the vector select register is bits
+ * 14-13 (w8-w11, or w12-w15 with ARM_SME_ARRAY_W12). m_flags: bits 0-1 the
+ * log2 of the vector group (1: vgx2, 2: vgx4, 0: none), bits 2-3 the log2 of
+ * the range (fmlal za.s[w8, 0:1]: the offset is the field times the length),
+ * bits 4-6 the width of the offset field. m_extra is the element size
+ * (ARM_SVE_NONE: za[w12, 5] of ldr, ARM_SVE_B...) with ARM_SME_ARRAY_OPTIONAL_GROUP
+ * (bit 7) when the assembler accepts the text without "vgx2" / "vgx4" (the
+ * group is the number of registers of the list: add za.s[w8, 0], { z0.s, z1.s })
+ */
+enum { ARM_SME_ARRAY_OPTIONAL_GROUP = 0x80 };
+enum ArmSmeArrayFlags {
+    ARM_SME_ARRAY_GROUP_MASK    = 0x03,
+    ARM_SME_ARRAY_RANGE_SHIFT   = 2,
+    ARM_SME_ARRAY_RANGE_MASK    = 0x0c,
+    ARM_SME_ARRAY_WIDTH_SHIFT   = 4,
+    ARM_SME_ARRAY_WIDTH_MASK    = 0x70,
+    ARM_SME_ARRAY_W12           = 0x80
+};
+
+// ARM_KIND_SME_ZT0: the fields of the operand (m_position is the low bit)
+enum ArmSmeZt0Scheme {
+    // zt0
+    ARM_SME_ZT0_PLAIN,
+    // zt0[imm3 * 8]: movt x0, zt0[8]
+    ARM_SME_ZT0_INDEX,
+    // zt0 or zt0[imm2, mul vl]: movt zt0[1, mul vl], z0 (the index 0 is "zt0")
+    ARM_SME_ZT0_MUL_VL,
+    // { zt0 } of zero
+    ARM_SME_ZT0_BRACED
+};
+
+// ARM_KIND_SME_MEMORY: the base register is at m_position
+enum ArmSmeMemoryScheme {
+    // [Xn|SP{, #imm4, mul vl}]: imm4 (3-0) is the vector select offset of ldr
+    // and str za
+    ARM_SME_MEM_ZA,
+    // [Xn|SP]: ldr zt0
+    ARM_SME_MEM_BASE,
+    // [Xn|SP{, Xm{, lsl #m_flags}}] of the loads and stores of the tiles: Rm (20-16)
+    // 31 is the form without the offset register (xzr is accepted by the assembler)
+    ARM_SME_MEM_SCALAR_OPTIONAL
+};
+
+// ARM_KIND_SME_Z_INDEXED: the index of an operand and the list. gArmSmeIndexLayouts
+// is generated with the SME table (tests/arm/tools/gen_a64_sme_table.py)
+struct ArmSmeIndexLayout {
+    // The fields of the index, from the most significant (up to 3)
+    uint8 m_count;
+    uint8 m_position[3];
+    uint8 m_width[3];
+    // 0 for a single register, else the number of registers of the list
+    // ({ z0, z1 }[1])
+    uint8 m_listCount;
+    // The register number is (field << m_log2Multiple) + m_base: a register
+    // restricted to the even numbers (the 4 way outer products: z0, z2...
+    // z14) or to a range (z20-z23 of the structured sparse ones)
+    uint8 m_log2Multiple;
+    uint8 m_base;
+    // The field of a register can be split in two parts, the low m_splitBits
+    // bits count one by one and the bits above them count m_splitStep (the zk
+    // of the structured sparse outer products: z20-z23 and z28-z31 are
+    // 3 bits with the step 8 after the 2 low bits). 0 for none
+    uint8 m_splitBits;
+    uint8 m_splitStep;
+};
+extern const ArmSmeIndexLayout gArmSmeIndexLayouts[];
+extern const uint gArmSmeIndexLayoutsCount;
 
 // ARM_KIND_A64_MEMORY: the addressing form. The base register is at m_position
 // (5). m_flags & ARM_SPEC_SCALE_MASK is the shift of the offset (the access

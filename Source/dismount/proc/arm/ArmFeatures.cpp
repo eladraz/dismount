@@ -176,13 +176,13 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_FULL },
 
     // --- SME
-    /* FEAT_SME */           { "sme",             SUPPORT_NONE },
-    /* FEAT_SME_F64F64 */    { "sme-f64f64",      SUPPORT_NONE },
-    /* FEAT_SME_I16I64 */    { "sme-i16i64",      SUPPORT_NONE },
-    /* FEAT_SME_F16F16 */    { "sme-f16f16",      SUPPORT_NONE },
-    /* FEAT_SME2 */          { "sme2",            SUPPORT_NONE },
-    /* FEAT_SME2P1 */        { "sme2p1",          SUPPORT_NONE },
-    /* FEAT_SME_LUTV2 */     { "sme-lutv2",       SUPPORT_NONE },
+    /* FEAT_SME */           { "sme",             SUPPORT_FULL },
+    /* FEAT_SME_F64F64 */    { "sme-f64f64",      SUPPORT_FULL },
+    /* FEAT_SME_I16I64 */    { "sme-i16i64",      SUPPORT_FULL },
+    /* FEAT_SME_F16F16 */    { "sme-f16f16",      SUPPORT_FULL },
+    /* FEAT_SME2 */          { "sme2",            SUPPORT_FULL },
+    /* FEAT_SME2P1 */        { "sme2p1",          SUPPORT_FULL },
+    /* FEAT_SME_LUTV2 */     { "sme-lutv2",       SUPPORT_FULL },
 
     // --- Added with the base table
     /* FEAT_XS */            { "xs",              SUPPORT_LIFTED_VERIFIED },
@@ -227,7 +227,25 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_SVE2P2 */        { "sve2p2",          SUPPORT_FULL },
     /* FEAT_SVE2P3 */        { "sve2p3",          SUPPORT_FULL },
     /* FEAT_SVE_AES2 */      { "sve-aes2",        SUPPORT_FULL },
-    /* FEAT_SVE_BFSCALE */   { "sve-bfscale",     SUPPORT_FULL }
+    /* FEAT_SVE_BFSCALE */   { "sve-bfscale",     SUPPORT_FULL },
+
+    // --- More SME. sme-fa64, ssve-aes, ssve-bitperm and ssve-fexpa have no encodings of their
+    // own (they allow the full SVE / Advanced SIMD and some SVE extensions in the streaming
+    // mode); ssve-fp8fma / dot2 / dot4 are the alternative of the SVE FP8 instructions
+    /* FEAT_SME_B16B16 */    { "sme-b16b16",      SUPPORT_FULL },
+    /* FEAT_SME_F8F16 */     { "sme-f8f16",       SUPPORT_FULL },
+    /* FEAT_SME_F8F32 */     { "sme-f8f32",       SUPPORT_FULL },
+    /* FEAT_SME_MOP4 */      { "sme-mop4",        SUPPORT_FULL },
+    /* FEAT_SME_TMOP */      { "sme-tmop",        SUPPORT_FULL },
+    /* FEAT_SME2P2 */        { "sme2p2",          SUPPORT_FULL },
+    /* FEAT_SME2P3 */        { "sme2p3",          SUPPORT_FULL },
+    /* FEAT_SME_FA64 */      { "sme-fa64",        SUPPORT_NONE },
+    /* FEAT_SSVE_FP8FMA */   { "ssve-fp8fma",     SUPPORT_FULL },
+    /* FEAT_SSVE_FP8DOT2 */  { "ssve-fp8dot2",    SUPPORT_FULL },
+    /* FEAT_SSVE_FP8DOT4 */  { "ssve-fp8dot4",    SUPPORT_FULL },
+    /* FEAT_SSVE_AES */      { "ssve-aes",        SUPPORT_NONE },
+    /* FEAT_SSVE_BITPERM */  { "ssve-bitperm",    SUPPORT_NONE },
+    /* FEAT_SSVE_FEXPA */    { "ssve-fexpa",      SUPPORT_NONE }
 };
 
 /*
@@ -268,6 +286,26 @@ const Implication gImplications[] = {
     { ArmFeatures::FEAT_SME2P1,       ArmFeatures::FEAT_SME2 },
     { ArmFeatures::FEAT_SME_F16F16,   ArmFeatures::FEAT_SME2 },
     { ArmFeatures::FEAT_SME_LUTV2,    ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME_B16B16,   ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME_B16B16,   ArmFeatures::FEAT_SVE_B16B16 },
+    { ArmFeatures::FEAT_SME_F8F32,    ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME_F8F32,    ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_SME_F8F16,    ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME_F8F16,    ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_SME_MOP4,     ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME_TMOP,     ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SME2P2,       ArmFeatures::FEAT_SME2P1 },
+    { ArmFeatures::FEAT_SME2P3,       ArmFeatures::FEAT_SME2P2 },
+    { ArmFeatures::FEAT_SME_FA64,     ArmFeatures::FEAT_SME },
+    { ArmFeatures::FEAT_SSVE_FP8FMA,  ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SSVE_FP8FMA,  ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_SSVE_FP8DOT4, ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SSVE_FP8DOT4, ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_SSVE_FP8DOT2, ArmFeatures::FEAT_SME2 },
+    { ArmFeatures::FEAT_SSVE_FP8DOT2, ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_SSVE_AES,     ArmFeatures::FEAT_SME },
+    { ArmFeatures::FEAT_SSVE_BITPERM, ArmFeatures::FEAT_SME },
+    { ArmFeatures::FEAT_SSVE_FEXPA,   ArmFeatures::FEAT_SME },
     { ArmFeatures::FEAT_VFP3,         ArmFeatures::FEAT_VFP2 },
     { ArmFeatures::FEAT_VFP4,         ArmFeatures::FEAT_VFP3 },
     { ArmFeatures::FEAT_NEON,         ArmFeatures::FEAT_VFP3 },

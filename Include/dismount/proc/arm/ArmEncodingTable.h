@@ -171,19 +171,33 @@ enum ArmOperandKind {
     // pN.<T>[wV, #imm] (psel), pnN[#imm] (pext), the scheme in m_extra
     // (ArmSvePredicateIndexScheme)
     ARM_KIND_SVE_PREDICATE_INDEXED,
-    // za tile: za<n>.<T>, or za for the whole array; m_extra is the element
-    // size (ArmSveSizeScheme) and m_position the tile number field
+    // za tile: za<n>.<T> (fmopa, addha): m_position is the tile number field,
+    // m_flags its width and m_extra the element size (ARM_SVE_B ... ARM_SVE_Q)
     ARM_KIND_SME_TILE,
-    // za tile slice: za<n><h|v>.<T>[wV, offset] (mova, ld1w, st1w, addha):
-    // the scheme ArmSmeSliceScheme m_extra
+    // za tile slice: za<n><h|v>.<T>[wV, offset{:last}] (mova, ld1w, st1w, the
+    // multi slice moves): m_position is the tile and offset field, m_flags
+    // ArmSmeSliceFlags (ArmOperandCodec.h)
     ARM_KIND_SME_TILE_SLICE,
-    // za array vector: za.<T>[wV, offset{, vgx2 | vgx4}] (SME2 multi vector)
+    // za array vector: za.<T>[wV, offset{:last}{, vgx2 | vgx4}] (SME2 multi
+    // vector), za[wV, offset] (ldr za): m_position is the offset field,
+    // m_flags ArmSmeArrayFlags, m_extra the element size
     ARM_KIND_SME_ARRAY,
-    // The list of the 64 bit tiles of zero {za0.d, za2.d} (the 8 bit mask
-    // at m_position)
+    // The list of the 64 bit tiles of zero {za0.d, za2.d}: the 8 bit mask at
+    // m_position (LLVM writes it with the biggest tiles: {za0.s}, {za})
     ARM_KIND_SME_TILE_LIST,
-    // zt0
+    // zt0 (the scheme ArmSmeZt0Scheme m_extra: plain, zt0[imm3], zt0[imm2, mul vl])
     ARM_KIND_SME_ZT0,
+    // A z register or an unsized list with an element index of SME2:
+    // z0.h[1] (by element multiply-add and dot product), z0[1] (the table
+    // index of luti), { z0, z1 }[1]. m_position is the register field,
+    // m_flags the width of it (bits 0-3) and the element size (bits 4-6: 0-3
+    // b h s d, 7 none); m_extra indexes gArmSmeIndexLayouts (generated with
+    // the table: the fields of the index, the alignment and the base of the
+    // register; a layout with no index is a narrow register: z0-z15)
+    ARM_KIND_SME_Z_INDEXED,
+    // The memory operand of ldr / str za and zt0: [x8, #5, mul vl] with the
+    // offset of the vector select (the scheme ArmSmeMemoryScheme m_extra)
+    ARM_KIND_SME_MEMORY,
 
     // ---- Immediates -----------------------------------------------------
     // An unsigned immediate of m_extra bits at m_position, multiplied by
@@ -529,6 +543,11 @@ struct ArmEncodingEntry {
     uint16 m_flow;
     // An extra constraint, or NULL
     ArmEncodingCondition m_condition;
+    // A second feature which the encoding needs too (the instructions which
+    // LLVM guards with two features: "instruction requires: sme2
+    // sme-i16i64"), 0 (FEAT_A32_BASE, which no A64 entry asks for) for none.
+    // The tables leave it out
+    uint16 m_feature2;
 };
 
 /*

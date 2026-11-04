@@ -281,6 +281,9 @@ static ArmOpcode* decodeBucket(const cArray<const ArmEncodingEntry*>& bucket,
             continue;
         if (!features.has((ArmFeatures::Feature)entry->m_feature))
             continue;
+        if ((entry->m_feature2 != 0) &&
+            !features.has((ArmFeatures::Feature)entry->m_feature2))
+            continue;
         if ((entry->m_flags & ARM_ENTRY_PRE_V8) != 0 &&
             features.has(ArmFeatures::FEAT_V8_AA32))
             continue;
