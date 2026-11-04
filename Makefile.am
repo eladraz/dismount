@@ -132,6 +132,8 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/riscv/RiscvEncodingTableCompressed.cpp \
                          Source/dismount/proc/riscv/RiscvEncodingTablePrivileged.cpp \
                          Source/dismount/proc/riscv/RiscvEncodingTableVector.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTableVectorMemory.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTableVectorExtension.cpp \
                          Source/dismount/proc/riscv/RiscvOpcode.cpp \
                          Source/dismount/proc/riscv/RiscvNotation.cpp \
                          Source/dismount/proc/riscv/RiscvStreamDisassembler.cpp \

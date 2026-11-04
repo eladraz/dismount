@@ -369,6 +369,12 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVector.cpp">
       <Filter>proc\riscv</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVectorMemory.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVectorExtension.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\riscv\RiscvOpcode.cpp">
       <Filter>proc\riscv</Filter>
     </ClCompile>

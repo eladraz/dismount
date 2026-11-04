@@ -58,8 +58,13 @@ def corpus(report_dir, bits):
     return result
 
 
-def marks(support):
+IMPLIED_ONLY = ('v', 'zve64f', 'zve64d', 'zvfh', 'zvfhmin', 'zvknhb')
+
+
+def marks(support, name=''):
     if support & 0x40:
+        if name in IMPLIED_ONLY:
+            return 'no encodings of its own (the instructions of the features it implies), verified'
         return 'no instructions' + (' (CSR names)' if support & 0x2 else '')
     return ', '.join(n for n, b in SUPPORT.items() if support & b)
 
@@ -91,7 +96,9 @@ def main():
                '*lift verified* belong to the semantic layer (`RiscvArchitecture`, `RiscvSemantics`: not part of this '
                'matrix, the marks are set by it); *encoding verified*: the decoder and the assembler are compared with '
                'llvm-objdump and llvm-mc (the corpus, `fuzz_decode.py`, `fuzz_roundtrip.py`). The vector features '
-               '(Zve*, V, Zvf*, Zvk*, Zvb*) have an empty table (`RiscvEncodingTableVector.cpp`) and no marks. The '
+               '(Zve*, V, Zvf*, Zvk*, Zvb*) are in `RiscvEncodingTableVector*.cpp`: LLVM gates each instruction by '
+               'the weakest of them (the integer ones by Zve32x, the floating point ones by Zve32f, the 64 bit loads '
+               'and Zvbc by Zve64x), so V, Zve64f, Zve64d, Zvfh, Zvfhmin and Zvknhb have no encodings of their own. The '
                'corpus columns are the lines of `tests/riscv/corpus` whose first feature is the row, with no FAIL in '
                'any check (lines/passing).\n')
     out.append('| feature | RVA23 | encodings RV32 / RV64 | marks | corpus RV32 | corpus RV64 |')
@@ -104,7 +111,7 @@ def main():
         c32 = corp[32].get(key, [0, 0])
         c64 = corp[64].get(key, [0, 0])
         out.append('| %s | %s | %d / %d | %s | %d/%d | %d/%d |' % (
-            shown, STATUS[status], counts[32][index], counts[64][index], marks(support),
+            shown, STATUS[status], counts[32][index], counts[64][index], marks(support, name),
             c32[0], c32[1], c64[0], c64[1]))
         totals[0] += counts[32][index]
         totals[1] += counts[64][index]

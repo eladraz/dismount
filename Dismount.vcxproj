@@ -131,6 +131,8 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableCompressed.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTablePrivileged.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVector.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVectorMemory.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVectorExtension.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvOpcode.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvNotation.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvStreamDisassembler.cpp" />

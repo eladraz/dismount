@@ -15,7 +15,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
-CLI = os.path.join(REPO, 'out', 'bin', 'dismount_cli')
+CLI = os.environ.get('RISCV_CLI', os.path.join(REPO, 'out', 'bin', 'dismount_cli'))
 LLVM_BIN = os.environ.get('RISCV_LLVM_BIN', '/opt/homebrew/opt/llvm/bin')
 
 # The address of the first instruction of a listing: the pc relative operands
@@ -23,8 +23,8 @@ LLVM_BIN = os.environ.get('RISCV_LLVM_BIN', '/opt/homebrew/opt/llvm/bin')
 BASE = 0x10000
 
 # The scalar, compressed and privileged features dismount implements, by their
-# LLVM names (RiscvFeatures::getName), without the vector ones (the vector
-# agent's table); "all" of the tests is this list
+# LLVM names (RiscvFeatures::getName), without the vector ones; "all" of the
+# tests is this list and VECTOR_FEATURES
 SCALAR_FEATURES = [
     'm', 'zmmul', 'zalrsc', 'zaamo', 'f', 'd', 'zicsr', 'zicntr', 'zihpm',
     'zifencei', 'zihintpause', 'zihintntl', 'zicbom', 'zicbop', 'zicboz',
@@ -63,8 +63,9 @@ def mattr_arg(features):
     return ','.join('+' + f for f in features)
 
 
-def all_features(bits, vector=False):
-    """The 'all' feature list of the tests for an XLEN. Zcf is RV32 only: LLVM
+def all_features(bits, vector=True):
+    """The 'all' feature list of the tests for an XLEN (the scalar and the
+    vector features; vector=False for the scalar ones). Zcf is RV32 only: LLVM
     refuses it on RV64."""
     features = list(SCALAR_FEATURES)
     if vector:

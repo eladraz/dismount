@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--sets', default='all,rva23u64,rv64gc,rv32gc')
     parser.add_argument('--show', type=int, default=12)
+    parser.add_argument('--class', dest='cls', default='scalar', choices=['scalar', 'vector', 'all'])
     args = parser.parse_args()
     failures = 0
     for name in args.sets.split(','):
@@ -55,7 +56,7 @@ def main():
         rng = random.Random(args.seed * 7919 + sum(map(ord, name)))
         units = []
         while len(units) < args.count:
-            size, value = fuzz_decode.random_unit(rng, entries, bits)
+            size, value = fuzz_decode.random_unit(rng, entries, bits, args.cls)
             if size in (2, 4):
                 units.append((rvlib.BASE, value.to_bytes(size, 'little')))
         decoded = rvlib.dismount_dis(units, bits, mattr)
@@ -69,7 +70,6 @@ def main():
                     continue
                 if kind == 'default' and len(data) == 2:
                     continue
-                # (the vector instructions are not part of this scope)
                 check.append((data, relative(t[1], address, bits)))
             lines = [t for _, t in check]
             mine = rvlib.dismount_asm(lines, bits, mattr, rvc=False)

@@ -88,7 +88,8 @@ struct RiscvDecodedOperand {
     uint m_fenceSet;
     // KIND_VTYPE: see Kind
     uint m_vtype;
-    // KIND_NAME: the identifier, lowercase
+    // KIND_NAME: the identifier, lowercase. KIND_MEMORY of the assembler: the
+    // text of the offset ("(base)" accepts one integer token only)
     cString m_name;
     // Printing hints: print the immediate in hexadecimal (no instruction
     // sets it: the tests compare with llvm-objdump --no-print-imm-hex)

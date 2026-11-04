@@ -158,6 +158,8 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/riscv/RiscvEncodingTableCompressed.cpp
 	Source/dismount/proc/riscv/RiscvEncodingTablePrivileged.cpp
 	Source/dismount/proc/riscv/RiscvEncodingTableVector.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTableVectorMemory.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTableVectorExtension.cpp
 	Source/dismount/proc/riscv/RiscvOpcode.cpp
 	Source/dismount/proc/riscv/RiscvNotation.cpp
 	Source/dismount/proc/riscv/RiscvStreamDisassembler.cpp
@@ -212,6 +214,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Assembler.cpp
 		tests/TestArm64Disassembler.cpp
 		tests/TestRiscvDisassembler.cpp
+		tests/TestRiscvVector.cpp
 		tests/TestArm64Sve.cpp
 		tests/TestArm64Sme.cpp
 		tests/TestArm64Simd.cpp

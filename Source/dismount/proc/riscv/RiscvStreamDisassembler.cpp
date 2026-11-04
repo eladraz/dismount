@@ -33,7 +33,8 @@ const RiscvEncodingEntry* const gCompressedTables[] = {
     gRiscvCompressedEncodingTable, NULL
 };
 const RiscvEncodingEntry* const gWideTables[] = {
-    gRiscvBaseEncodingTable, gRiscvVectorEncodingTable, gRiscvPrivilegedEncodingTable, NULL
+    gRiscvBaseEncodingTable, gRiscvVectorEncodingTable, gRiscvVectorMemoryEncodingTable,
+    gRiscvVectorExtensionEncodingTable, gRiscvPrivilegedEncodingTable, NULL
 };
 
 /*

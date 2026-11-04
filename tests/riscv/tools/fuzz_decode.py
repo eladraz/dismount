@@ -8,9 +8,13 @@ several feature sets and both formats (default and -M no-aliases).
 Half of the units are random 16 / 32 bit values, half are made from a random
 entry of the encoding tables (its fixed bits, random fields), so the valid
 space is covered. The units are placed in one stream, as a linear sweep:
-dismount_cli sweep (the fault tolerance on) against llvm-objdump -d. The
-instructions of the vector extension are skipped (the vector table is not
-part of this scope): an llvm-objdump text which starts with 'v'.
+dismount_cli sweep (the fault tolerance on) against llvm-objdump -d.
+
+--class scalar (default) skips the instructions of the vector extension (an
+llvm-objdump text which starts with 'v') and draws the units from the scalar
+entries; --class vector draws them from the vector entries (random fields,
+flipped bits, the reserved fields of the OP-V, vector load and vector store
+opcodes) and compares everything; --class all mixes both.
 
 Exit status 1 if any unit differs.
 """
@@ -31,6 +35,10 @@ SETS = {
     'rv32gc': ('rv32gc', None),
     'rv64i': ('rv64i', None),
     'rv32i': ('rv32i', None),
+    'rv64gcv': ('rv64gcv', None),
+    'rv32gcv': ('rv32gcv', None),
+    'zve32x': ('none,+zve32x', None),
+    'zve64d': ('none,+zve64d', None),
 }
 
 CHUNK = 4000
@@ -57,7 +65,55 @@ def read_entries(bits):
     return entries
 
 
-def random_unit(rng, entries, bits):
+def is_vector_entry(entry):
+    return entry[5].startswith('v')
+
+
+def split_entries(entries):
+    """(the scalar entries, the vector entries). The vector entries are those
+    with a mnemonic of the vector extension (vsetvli is one too)."""
+    vector = [e for e in entries if is_vector_entry(e)]
+    scalar = [e for e in entries if not is_vector_entry(e)]
+    return scalar, vector
+
+
+def random_vector_unit(rng, vector):
+    """A 32 bit unit near the vector encodings."""
+    kind = rng.random()
+    if kind < 0.3:
+        mask, value, feature, flags, size, mnemonic = rng.choice(vector)
+        return 4, ((value & mask) | (rng.getrandbits(32) & ~mask)) & 0xffffffff
+    if kind < 0.5:
+        # flipped bits of the fixed part: the neighbours
+        mask, value, feature, flags, size, mnemonic = rng.choice(vector)
+        bitsv = (value & mask) | (rng.getrandbits(32) & ~mask)
+        positions = [i for i in range(2, 32) if (mask >> i) & 1]
+        for _ in range(rng.randint(1, 3)):
+            bitsv ^= 1 << rng.choice(positions)
+        return 4, bitsv & 0xffffffff
+    if kind < 0.75:
+        # OP-V: any funct3 and funct6
+        return 4, (rng.getrandbits(32) & ~0x7f) | 0x57
+    if kind < 0.9:
+        # the vector loads and stores, and the scalar floating point ones
+        width = rng.choice((0, 5, 6, 7, 5, 6, 7, 1, 2, 3, 4))
+        major = rng.choice((0x07, 0x27))
+        return 4, (rng.getrandbits(32) & ~0x707f) | major | (width << 12)
+    if kind < 0.95:
+        # vsetvli / vsetivli / vsetvl
+        return 4, (rng.getrandbits(32) & ~0x707f) | 0x57 | (7 << 12)
+    return 4, rng.getrandbits(32) | 3
+
+
+def random_unit(rng, entries, bits, cls='scalar'):
+    if cls != 'scalar':
+        scalar, vector = split_entries(entries)
+        if cls == 'vector' or rng.random() < 0.5:
+            if rng.random() < 0.97:
+                return random_vector_unit(rng, vector)
+        entries = scalar
+    else:
+        entries = split_entries(entries)[0]
     kind = rng.random()
     if kind < 0.2:
         # an entry with 1-3 flipped bits of its fixed part: the neighbours
@@ -150,6 +206,7 @@ def main():
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--sets', default='all,rva23u64,rva23s64,rv64gc,rv32gc,rv64i')
     parser.add_argument('--formats', default='default,no-aliases')
+    parser.add_argument('--class', dest='cls', default='scalar', choices=['scalar', 'vector', 'all'])
     parser.add_argument('--show', type=int, default=15, help='mismatches to print per set')
     args = parser.parse_args()
 
@@ -169,14 +226,15 @@ def main():
             while remaining > 0:
                 n = min(CHUNK, remaining)
                 remaining -= n
-                units = [random_unit(rng, entries, bits) for _ in range(n)]
+                units = [random_unit(rng, entries, bits, args.cls) for _ in range(n)]
                 data = b''.join(unit_bytes(rng, u) for u in units)
                 expected = objdump_records(data, bits, features, objdump_flags)
                 got = dismount_records(data, bits, mattr, cli_format)
-                # (the bytes of a vector instruction are not compared)
+                # (the scalar class doesn't compare the vector instructions)
                 ignored = set()
                 for address, record in expected.items():
-                    if record[1] != '<unknown>' and record[1].split(' ')[0].startswith('v'):
+                    if args.cls == 'scalar' and record[1] != '<unknown>' and \
+                            record[1].split(' ')[0].startswith('v'):
                         ignored.update(range(address, address + record[0]))
                 for address in sorted(set(expected) | set(got)):
                     e = expected.get(address)

@@ -27,6 +27,8 @@ IMM = {
     'LPAD': (0xfffff000, 0x12345, 0xabcde),
     'V_SIMM5': (0x000f8000, 5, -6),
     'V_UIMM5': (0x000f8000, 5, 21),
+    'V_UIMM6': (0x040f8000, 33, 7),
+    'V_AVL': (0x000f8000, 5, 21),
     'CI': (0x107c, 21, -22),
     'CI_LUI': (0x107c, 21, 0xfffea),
     'CI_ADDI16SP': (0x107c, 336, -352),
@@ -49,7 +51,10 @@ FREG = {7: ('fa0', 'fs5'), 15: ('fa1', 'fs6'), 20: ('fa2', 'fs7'), 27: ('fa3', '
 
 
 class Token(object):
-    def __init__(self, cpp, fields=0, base='', alt='', hidden=False, part=False):
+    def __init__(self, cpp, fields=0, base='', alt='', hidden=False, part=False, role=None):
+        # role: 'vd', 'vs1', 'vs2', 'vm' for the vector tokens whose text the
+        # constraint probes of gen_encoding_tables.py replace
+        self.role = role
         self.cpp = cpp
         self.fields = fields  # a mask of the bits the operand occupies
         self.base = base
@@ -135,7 +140,36 @@ def build_tokens():
     return t
 
 
+def add_vector_tokens(t):
+    """The operands of the vector instructions. The flags of the destination
+    (VDFLAGS) are what llvm-mc checks when it assembles the entry: the generator
+    derives them (RISCV_VR_* of RiscvOperandCodec.h) and fills them in; the
+    m_extra of a vector register is its alignment (log2 of the number of
+    registers) | (the registers of a segment tuple << 3)."""
+    def vr(pos, flags, extra, base, alt, role):
+        return Token(S('VR', pos, flags, extra), 0x1f << pos, base, alt, role=role)
+    t['vd'] = vr(7, 'VDFLAGS', 0, 'v8', 'v24', 'vd')
+    t['vs2'] = vr(20, 0, 0, 'v4', 'v20', 'vs2')
+    t['vs1'] = vr(15, 0, 0, 'v2', 'v18', 'vs1')
+    t['vs3'] = vr(7, 0, 0, 'v8', 'v24', None)
+    # the registers of a group: vmv<n>r.v, vl<n>re<eew>.v, vs<n>r.v
+    for log2, n in ((1, 2), (2, 4), (3, 8)):
+        t['vd_m%d' % n] = vr(7, 0, log2, 'v8', 'v24', None)
+        t['vs2_m%d' % n] = vr(20, 0, log2, 'v16', 'v8', None)
+        t['vs3_m%d' % n] = vr(7, 0, log2, 'v8', 'v24', None)
+    # the tuples of the segment instructions (nf registers)
+    for n in range(2, 9):
+        t['vd_n%d' % n] = vr(7, 'VDFLAGS', n << 3, 'v8', 'v24', 'vd')
+        t['vs3_n%d' % n] = vr(7, 0, n << 3, 'v8', 'v24', None)
+    t['v0'] = Token(S('VR_V0', 0, 0, 0), 0, 'v0', 'v0')
+    t['vm'] = Token(S('VMASK', 25, 0, 0), 1 << 25, '', 'v0.t', role='vm')
+    t['vtype11'] = Token(S('VTYPE', 20, 0, 11), 0x7ff << 20, 'e32, m1, ta, ma', 'e8, mf2, tu, mu')
+    t['vtype10'] = Token(S('VTYPE', 20, 0, 10), 0x3ff << 20, 'e32, m1, ta, ma', 'e8, mf2, tu, mu')
+    t['vmem0'] = t['mem0']
+
+
 TOKENS = build_tokens()
+add_vector_tokens(TOKENS)
 
 
 def tie(pos, other):
@@ -156,6 +190,8 @@ class Entry(object):
         self.width = width
         self.mask = None
         self.value = None
+        # The flags of the destination vector register (VDFLAGS)
+        self.vflags = '0'
 
     def tokens(self):
         return [t if isinstance(t, Token) else TOKENS[t] for t in self.ops]
@@ -173,7 +209,10 @@ class Entry(object):
             if t.part:
                 suffix += t.alt if alt else t.base
             elif not t.hidden:
-                parts.append(t.alt if alt else t.base)
+                text = t.alt if alt else t.base
+                # (an operand which prints nothing: the unmasked vm)
+                if text != '':
+                    parts.append(text)
         if self.probe:
             return self.probe.format(*parts)
         return self.mn + suffix + ((' ' + ', '.join(parts)) if parts else '')
@@ -185,7 +224,7 @@ class Entry(object):
         elif self.rv == 64:
             flags.append('RISCV_ENTRY_RV64_ONLY')
         flag_text = ' | '.join(flags) if flags else '0'
-        ops = ', '.join(t.cpp for t in self.tokens())
+        ops = ', '.join(t.cpp.replace('VDFLAGS', self.vflags) for t in self.tokens())
         head = 'E("%s", 0x%08x, 0x%08x, %s, ' % (self.mn, self.mask, self.value, self.feat)
         if self.feat2:
             head = 'E2("%s", 0x%08x, 0x%08x, %s, %s, ' % (self.mn, self.mask, self.value,

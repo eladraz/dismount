@@ -17,6 +17,7 @@ sys.path.insert(0, HERE)
 import rvlib
 import riscvdsl
 import riscvinsns
+import riscvvector
 
 OUT = os.path.join(rvlib.REPO, 'Source', 'dismount', 'proc', 'riscv')
 CACHE = os.path.join(rvlib.REPO, 'out', 'riscv-probe-cache.json')
@@ -33,13 +34,13 @@ def table(name):
 
 
 def ins(mn, ops, feat, flags=(), flow=None, feat2=None, rv=None, probe=None, cond=None, width=32):
-    e = riscvdsl.Entry(mn, ops, 'FEAT_' + feat, list(flags), flow, ('FEAT_' + feat2) if feat2 else None,
-                       rv, probe, cond, width)
+    e = riscvdsl.Entry(mn, ops, 'AUTO' if feat == 'AUTO' else 'FEAT_' + feat, list(flags), flow,
+                       ('FEAT_' + feat2) if feat2 else None, rv, probe, cond, width)
     ENTRIES.append((CURRENT[0], e))
 
 
 def assemble(bits, text, width):
-    features = rvlib.all_features(bits)
+    features = rvlib.all_features(bits, vector=True)
     p = rvlib.run([rvlib.tool('llvm-mc'), '-triple=' + rvlib.triple(bits),
                    '-mattr=' + rvlib.mattr_arg(features), '-show-encoding'],
                   ('.option norvc\n' if width == 32 else '') + text + '\n')
@@ -90,6 +91,109 @@ def mark_ungated():
                     e.flags.append('RISCV_ENTRY_DECODE_UNGATED')
 
 
+VECTOR_CANDIDATES = ['zve32x', 'zve32f', 'zve64x', 'zve64f', 'zve64d', 'v', 'zvfhmin', 'zvfh',
+                     'zvfbfmin', 'zvfbfwma', 'zvkb', 'zvbb', 'zvbc', 'zvkg', 'zvkned', 'zvknha',
+                     'zvknhb', 'zvksed', 'zvksh']
+# The names of the dismount features of the candidates
+VECTOR_FEATURE_NAMES = {
+    'zve32x': 'FEAT_ZVE32X', 'zve32f': 'FEAT_ZVE32F', 'zve64x': 'FEAT_ZVE64X',
+    'zve64f': 'FEAT_ZVE64F', 'zve64d': 'FEAT_ZVE64D', 'v': 'FEAT_V', 'zvfhmin': 'FEAT_ZVFHMIN',
+    'zvfh': 'FEAT_ZVFH', 'zvfbfmin': 'FEAT_ZVFBFMIN', 'zvfbfwma': 'FEAT_ZVFBFWMA',
+    'zvkb': 'FEAT_ZVKB', 'zvbb': 'FEAT_ZVBB', 'zvbc': 'FEAT_ZVBC', 'zvkg': 'FEAT_ZVKG',
+    'zvkned': 'FEAT_ZVKNED', 'zvknha': 'FEAT_ZVKNHA', 'zvknhb': 'FEAT_ZVKNHB',
+    'zvksed': 'FEAT_ZVKSED', 'zvksh': 'FEAT_ZVKSH'}
+
+
+def mc_accepts(lines, bits, mattr):
+    """Which of the lines (one statement each) llvm-mc assembles with -mattr."""
+    source = '\n'.join(lines) + '\n'
+    p = rvlib.run([rvlib.tool('llvm-mc'), '-triple=' + rvlib.triple(bits), '-mattr=' + mattr,
+                   '-filetype=null'], source)
+    bad = set()
+    for m in re.finditer(r'<stdin>:(\d+):\d+: error:', p.stderr):
+        bad.add(int(m.group(1)) - 1)
+    return [i not in bad for i in range(len(lines))]
+
+
+def vector_text(entry, alt, overrides):
+    """The text of a vector entry with the texts of some roles replaced (None
+    removes the operand)."""
+    parts = []
+    for t in entry.tokens():
+        if t.hidden:
+            continue
+        text = t.alt if alt else t.base
+        if t.role in overrides:
+            text = overrides[t.role]
+        if text:
+            parts.append(text)
+    if entry.probe:
+        return entry.probe.format(*parts)
+    return entry.mn + ((' ' + ', '.join(parts)) if parts else '')
+
+
+def resolve_vector(all_entries=None):
+    """Find the feature and the constraints of the vector entries (the
+    entries of 'feat' AUTO of the list, default: ENTRIES) from llvm-mc."""
+    if all_entries is None:
+        all_entries = [e for _, e in ENTRIES]
+    entries = [e for e in all_entries if e.feat == 'AUTO']
+    lines = [e.probe_text(False) for e in entries]
+    accepted = {}
+    for cand in VECTOR_CANDIDATES:
+        accepted[cand] = mc_accepts(lines, 64, '+' + cand)
+    closures = {c: set(llvm_features(64, [c])) for c in VECTOR_CANDIDATES}
+    errors = 0
+    for k, e in enumerate(entries):
+        enabling = [c for c in VECTOR_CANDIDATES if accepted[c][k]]
+        weakest = [c for c in enabling if all(c in closures[o] for o in enabling)]
+        if not weakest:
+            print('ERROR: no weakest feature for %s: %s' % (lines[k], enabling))
+            errors += 1
+            e.feat = 'FEAT_I'
+            continue
+        e.feat = VECTOR_FEATURE_NAMES[weakest[0]]
+    # The constraints
+    probes = []
+    for e in entries:
+        roles = {t.role: t for t in e.tokens() if t.role}
+        row = {}
+        if 'vd' in roles:
+            # (the sources far from v0: a segment tuple of the destination would
+            # overlap a source of the base text)
+            far = {'vd': 'v0', 'vs2': 'v24', 'vs1': 'v28'}
+            if 'vm' in roles:
+                row['mask'] = vector_text(e, False, dict(far, vm='v0.t'))
+            row['v0'] = vector_text(e, False, dict(far, vm=''))
+            if 'vs2' in roles:
+                row['vs2'] = vector_text(e, False, {'vd': roles['vs2'].base})
+            if 'vs1' in roles:
+                row['vs1'] = vector_text(e, False, {'vd': roles['vs1'].base})
+        probes.append(row)
+    flat = []
+    for row in probes:
+        for key, text in row.items():
+            flat.append(text)
+    ok = mc_accepts(flat, 64, rvlib.mattr_arg(rvlib.all_features(64, vector=True)))
+    position = 0
+    for e, row in zip(entries, probes):
+        flags = []
+        results = {}
+        for key in row:
+            results[key] = ok[position]
+            position += 1
+        if not results.get('mask', True):
+            flags.append('RISCV_VR_NOT_MASK_WHEN_MASKED')
+        if not results.get('v0', True):
+            flags.append('RISCV_VR_NOT_V0')
+        if not results.get('vs2', True):
+            flags.append('RISCV_VR_NO_VS2_OVERLAP')
+        if not results.get('vs1', True):
+            flags.append('RISCV_VR_NO_VS1_OVERLAP')
+        e.vflags = ' | '.join(flags) if flags else '0'
+    return errors
+
+
 CACHE_DATA = {}
 
 
@@ -99,6 +203,9 @@ def cache_get(bits, text, width):
 
 def main():
     riscvinsns.define(ins, table)
+    riscvvector.define_vector(ins, table)
+    if resolve_vector():
+        sys.exit(1)
     cache = {}
     if os.path.exists(CACHE):
         cache = json.load(open(CACHE))
@@ -165,8 +272,8 @@ def main():
  * %(what)s
  *
  * GENERATED by tests/riscv/tools/gen_encoding_tables.py from the instruction
- * lists of tests/riscv/tools/riscvinsns.py (the masks and the values come from
- * llvm-mc): edit the generator, not this file. The order of the entries is the
+ * lists of tests/riscv/tools/riscvinsns.py and riscvvector.py (the masks and
+ * the values come from llvm-mc): edit the generator, not this file. The order of the entries is the
  * order of the decoder: an alias comes before the general encoding it prints
  * for.
  *
@@ -188,6 +295,12 @@ def main():
          'gRiscvCompressedEncodingTable', ['compressed']),
         ('RiscvEncodingTablePrivileged.cpp', 'The encoding table of the privileged instructions (see RiscvEncodingTable.h).',
          'gRiscvPrivilegedEncodingTable', ['privileged']),
+        ('RiscvEncodingTableVector.cpp', 'The encoding table of the vector instructions: V, the Zve* subsets (see RiscvEncodingTable.h).',
+         'gRiscvVectorEncodingTable', ['vector_config', 'vector_int', 'vector_mask', 'vector_fp']),
+        ('RiscvEncodingTableVectorMemory.cpp', 'The encoding table of the vector loads and stores (see RiscvEncodingTable.h).',
+         'gRiscvVectorMemoryEncodingTable', ['vector_mem']),
+        ('RiscvEncodingTableVectorExtension.cpp', 'The encoding table of the vector extensions: Zvfbfmin, Zvfbfwma, Zvbb, Zvkb, Zvbc and the vector cryptography (see RiscvEncodingTable.h).',
+         'gRiscvVectorExtensionEncodingTable', ['vector_ext']),
     ]
     for filename, what, array, parts in wrappers:
         with open(os.path.join(OUT, filename), 'w') as f:

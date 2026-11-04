@@ -754,7 +754,21 @@ bool RiscvOperandCodec::encode(const RiscvOperandSpec& spec,
         }
         int64 offset = operand.m_hasOffset ? operand.m_offset : 0;
         if ((spec.m_flags & RISCV_MEMORY_NO_OFFSET) != 0)
-            return offset == 0;
+        {
+            if (offset != 0)
+                return false;
+            // The offset of "(base)" is one integer token ("0", "0x0", "00": not
+            // "-0", "0+0", "(0)"), as llvm-mc reads it; the assembler leaves
+            // the text of the offset in m_name
+            for (uint i = 0; i < operand.m_name.length(); i++)
+            {
+                character c = operand.m_name[i];
+                if (!((c >= XSTL_CHAR('0') && c <= XSTL_CHAR('9')) ||
+                      (c >= XSTL_CHAR('a') && c <= XSTL_CHAR('z'))))
+                    return false;
+            }
+            return true;
+        }
         return encodeImmediate(spec.m_extra, offset, encoding);
     }
     case RISCV_KIND_BRANCH_TARGET:

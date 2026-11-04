@@ -41,7 +41,13 @@ enum {
                    F::SUPPORT_ENCODING_VERIFIED,
     // A feature without instructions: its CSR names are decoded and assembled
     SUPPORT_CSR_ONLY = F::SUPPORT_NO_INSTRUCTIONS | F::SUPPORT_DISASSEMBLE |
-                       F::SUPPORT_ASSEMBLE | F::SUPPORT_ENCODING_VERIFIED
+                       F::SUPPORT_ASSEMBLE | F::SUPPORT_ENCODING_VERIFIED,
+    // A feature without encodings of its own, whose use is the instructions of
+    // the features it implies (V is Zve64d: the vectors are Zve32x, Zve32f
+    // and Zve64x; Zvfh and Zvfhmin are the element type of the floating point
+    // instructions; Zvknhb adds the SEW 64 of the Zvknha encodings): they are
+    // decoded, assembled and compared with LLVM
+    SUPPORT_IMPLIED_ONLY = SUPPORT_CSR_ONLY
 };
 
 /*
@@ -123,28 +129,30 @@ const FeatureInfo gFeatures[F::FEATURES_COUNT] = {
     /* FEAT_ZCD */        { "zcd",               P_U64,     SUPPORT_FULL, { F::FEAT_D, F::FEAT_F, F::FEAT_ZCA, F::FEAT_ZICSR, END } },
     /* FEAT_ZCB */        { "zcb",               P_U64,     SUPPORT_FULL, { F::FEAT_ZCA, END } },
     /* FEAT_ZCMOP */      { "zcmop",             P_U64,     SUPPORT_FULL, { F::FEAT_ZCA, END } },
-    // The vector extension and its subsets: the vector table is filled by the
-    // vector agent (RiscvEncodingTableVector.cpp), nothing is claimed here
-    /* FEAT_ZVE32X */     { "zve32x",            P_U64,     SUPPORT_NONE, { F::FEAT_ZICSR, END } },
-    /* FEAT_ZVE32F */     { "zve32f",            P_U64,     SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVE64X */     { "zve64x",            P_U64,     SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVE64F */     { "zve64f",            P_U64,     SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
-    /* FEAT_ZVE64D */     { "zve64d",            P_U64,     SUPPORT_NONE, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64F, F::FEAT_ZVE64X, END } },
-    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_NONE, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
-    /* FEAT_ZVFH */       { "zvfh",              P_U64_OPT, SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZFHMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFHMIN, END } },
-    /* FEAT_ZVFHMIN */    { "zvfhmin",           P_U64,     SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVFBFMIN */   { "zvfbfmin",          P_U64_OPT, SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVFBFWMA */   { "zvfbfwma",          P_U64_OPT, SUPPORT_NONE, { F::FEAT_F, F::FEAT_ZFBFMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFBFMIN, END } },
-    /* FEAT_ZVKB */       { "zvkb",              P_U64,     SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVBB */       { "zvbb",              P_U64,     SUPPORT_NONE, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVKB, END } },
-    /* FEAT_ZVBC */       { "zvbc",              P_U64_OPT, SUPPORT_NONE, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
-    /* FEAT_ZVKG */       { "zvkg",              P_U64_OPT, SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVKNED */     { "zvkned",            P_U64_OPT, SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVKNHA */     { "zvknha",            P_U64_OPT, SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVKNHB */     { "zvknhb",            P_U64_OPT, SUPPORT_NONE, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, F::FEAT_ZVKNHA, END } },
-    /* FEAT_ZVKSED */     { "zvksed",            P_U64_OPT, SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVKSH */      { "zvksh",             P_U64_OPT, SUPPORT_NONE, { V32X, END } },
-    /* FEAT_ZVKT */       { "zvkt",              P_U64,     SUPPORT_NONE | F::SUPPORT_NO_INSTRUCTIONS, { END } },
+    // The vector extension and its subsets (RiscvEncodingTableVector*.cpp): LLVM
+    // gates the integer, mask and permutation instructions by Zve32x, the
+    // floating point ones by Zve32f, the 64 bit element loads and Zvbc by
+    // Zve64x
+    /* FEAT_ZVE32X */     { "zve32x",            P_U64,     SUPPORT_FULL, { F::FEAT_ZICSR, END } },
+    /* FEAT_ZVE32F */     { "zve32f",            P_U64,     SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVE64X */     { "zve64x",            P_U64,     SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVE64F */     { "zve64f",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
+    /* FEAT_ZVE64D */     { "zve64d",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64F, F::FEAT_ZVE64X, END } },
+    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
+    /* FEAT_ZVFH */       { "zvfh",              P_U64_OPT, SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZFHMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFHMIN, END } },
+    /* FEAT_ZVFHMIN */    { "zvfhmin",           P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVFBFMIN */   { "zvfbfmin",          P_U64_OPT, SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVFBFWMA */   { "zvfbfwma",          P_U64_OPT, SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZFBFMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFBFMIN, END } },
+    /* FEAT_ZVKB */       { "zvkb",              P_U64,     SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVBB */       { "zvbb",              P_U64,     SUPPORT_FULL, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVKB, END } },
+    /* FEAT_ZVBC */       { "zvbc",              P_U64_OPT, SUPPORT_FULL, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
+    /* FEAT_ZVKG */       { "zvkg",              P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVKNED */     { "zvkned",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVKNHA */     { "zvknha",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVKNHB */     { "zvknhb",            P_U64_OPT, SUPPORT_IMPLIED_ONLY, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, F::FEAT_ZVKNHA, END } },
+    /* FEAT_ZVKSED */     { "zvksed",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVKSH */      { "zvksh",             P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVKT */       { "zvkt",              P_U64,     F::SUPPORT_NO_INSTRUCTIONS, { END } },
     // The properties of the memory system
     /* FEAT_ZICCIF */     { "ziccif",            P_U64,     F::SUPPORT_NO_INSTRUCTIONS, { END } },
     /* FEAT_ZICCRSE */    { "ziccrse",           P_U64,     F::SUPPORT_NO_INSTRUCTIONS, { END } },

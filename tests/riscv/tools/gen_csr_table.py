@@ -20,7 +20,7 @@ ALTERNATIVES = [('sbadaddr', 0x143), ('mbadaddr', 0x343), ('sptbr', 0x180), ('ds
 
 def names(bits):
     data = b''.join(struct.pack('<I', 0x00002573 | (n << 20)) for n in range(4096))
-    result = rvlib.objdump_bytes(data, bits, rvlib.all_features(bits) + rvlib.VECTOR_FEATURES,
+    result = rvlib.objdump_bytes(data, bits, rvlib.all_features(bits),
                                  ['-M', 'no-aliases'])
     assert len(result) == 4096
     out = []

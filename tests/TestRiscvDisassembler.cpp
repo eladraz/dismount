@@ -695,7 +695,12 @@ public:
         RiscvFeatureSet all = RiscvFeatureSet::all();
         uint size;
         RISCV_ASSERT(assemble(64, "add a0, a1, a2", all, isValid) == 0x00c58533);
-        RISCV_ASSERT(assemble(64, "ADD A0, A1, A2", all, isValid) == 0x00c58533);
+        // (llvm-mc reads the mnemonics in any case, the registers in lowercase only)
+        RISCV_ASSERT(assemble(64, "ADD a0, a1, a2", all, isValid) == 0x00c58533);
+        RISCV_ASSERT(isValid);
+        assemble(64, "ADD A0, A1, A2", all, isValid);
+        RISCV_ASSERT(!isValid);
+        RISCV_ASSERT(assemble(64, "addi a0, a1, 0X10", all, isValid) == 0x01058513);
         RISCV_ASSERT(assemble(64, "add x10, x11, x12 # comment", all, isValid) == 0x00c58533);
         RISCV_ASSERT(assemble(64, "  add\ta0,a1,a2", all, isValid) == 0x00c58533);
         RISCV_ASSERT(assemble(64, "add s0, fp, s0", all, isValid) == 0x00840433);

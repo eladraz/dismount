@@ -46,6 +46,39 @@ LINES = [
     "addi a0, a0, 1 / 0", "addi a0, a0, 2 * (3 + 4)", "lw a0, 4 * 2(a1)", "lw a0, (1 + 1)(a1)", "lw a0, -(1)(a1)",
 ]
 
+# The vector syntax: the mask operand, the vtype words, the (base) offset token,
+# the case, the spaces, the immediates
+LINES += [
+    "vadd.vv v1, v2, v3, v0.t", "vadd.vv v1, v2, v3,v0.t", "vadd.vv v1,v2,v3 , v0.t", "vadd.vv v1, v2, v3, v0",
+    "vadd.vv v1, v2, v3, v0.T", "vadd.vv v1, v2, v3, V0.t", "vadd.vv v1, v2, v3, v0.t, v0.t", "vadd.vv v1, v2, v0.t, v3",
+    "vadd.vv v1, v2, v3,", "vadd.vv v1, v2, v3 v0.t", "vadd.vv v1, v2, v3, v1.t", "vadd.vv v0, v2, v3, v0.t",
+    "vadd.vv V1, v2, v3", "VADD.VV v1, v2, v3", "Vadd.Vv v1, v2, v3", "vadd.vx v1, v2, X1", "vadd.vx v1, v2, x1",
+    "vadd.vx v1, v2, fp", "vadd.vx v1, v2, FP", "vadd.vi v1, v2, 0X5", "vadd.vi v1, v2, 0b101", "vadd.vi v1, v2, 010",
+    "vadd.vi v1, v2, 1+2", "vadd.vi v1, v2, -(3)", "vadd.vi v1, v2, 15", "vadd.vi v1, v2, 16", "vadd.vi v1, v2, -16",
+    "vadd.vi v1, v2, -17", "vsll.vi v1, v2, 31", "vsll.vi v1, v2, 32", "vsll.vi v1, v2, -1", "vror.vi v1, v2, 63",
+    "vror.vi v1, v2, 64", "vadd.vi v1, v2, sym", "vadd.vi v1, v2, 1.5", "vadd.vi v1, v2, v3",
+    "vle8.v v1, (a0)", "vle8.v v1, 0(a0)", "vle8.v v1, 0x0(a0)", "vle8.v v1, 00(a0)", "vle8.v v1, 0b0(a0)",
+    "vle8.v v1, -0(a0)", "vle8.v v1, +0(a0)", "vle8.v v1, 0+0(a0)", "vle8.v v1, (0)(a0)", "vle8.v v1, 1(a0)",
+    "vle8.v v1, 0 (a0)", "vle8.v v1, ( a0 )", "vle8.v v1, 0( a0 )", "vle8.v v1, ((a0))", "vle8.v v1, (A0)",
+    "vle8.v v1, (a0), v0.t", "vle8.v v1, (a0),v0.t", "vle8.v v1, (a0) , v0.t", "vle8.v v1, (a0), v0", "vle8.v v1, (fa0)",
+    "vle8.v v1, (v1)", "vle8.v v1, (x10)", "vle8.v v1, (fp)", "lr.w a0, 0+0(a1)", "lr.w a0, -0(a1)", "cbo.clean 0+0(a0)",
+    "vsetvli a0, a1, e8", "vsetvli a0, a1, e8,", "vsetvli a0, a1, e8, m1,", "vsetvli a0, a1, e8,,m1", "vsetvli a0, a1, m2",
+    "vsetvli a0, a1, ta", "vsetvli a0, a1, ma", "vsetvli a0, a1, mu, ta", "vsetvli a0, a1, e8, ta, m1",
+    "vsetvli a0, a1, e8, m1, ta, ma, mu", "vsetvli a0, a1, e8alt", "vsetvli a0, a1, e16alt, mf8", "vsetvli a0, a1, e32alt",
+    "vsetvli a0, a1, e64alt", "vsetvli a0, a1, e07", "vsetvli a0, a1, e008, m01", "vsetvli a0, a1, e+8", "vsetvli a0, a1, e",
+    "vsetvli a0, a1, e8, mf1", "vsetvli a0, a1, e8, m3", "vsetvli a0, a1, e8, mf16", "vsetvli a0, a1, E8", "vsetvli a0, a1, e8, M1",
+    "vsetvli a0, a1, 7", "vsetvli a0, a1, 7,", "vsetvli a0, a1, 2047", "vsetvli a0, a1, 2048", "vsetvli a0, a1, -1",
+    "vsetvli a0, a1, 0X10", "vsetvli a0, a1, 1<<4", "vsetvli a0, a1, sym", "vsetvli a0, a1, (e8)", "vsetvli a0, 3, e8",
+    "vsetivli a0, 31, e8", "vsetivli a0, 32, e8", "vsetivli a0, -1, e8", "vsetivli a0, 3, 1023", "vsetivli a0, 3, 1024",
+    "vsetivli a0, a1, e8", "vsetvl a0, a1, a2", "vsetvl a0, a1, 3", "vsetvl a0, a1",
+    "vmv2r.v v1, v2", "vmv2r.v v2, v4", "vmv8r.v v8, v16", "vmv8r.v v8, v12", "vl2re8.v v2, (a0)", "vl2re8.v v1, (a0)",
+    "vwadd.vv v2, v2, v4", "vwadd.vv v2, v3, v4", "vlseg8e8.v v28, (a0)", "vlseg3e8.v v30, (a0)", "vlseg2e8.v v0, (a0), v0.t",
+    "vluxseg2ei8.v v1, (a0), v2", "vluxseg2ei8.v v1, (a0), v3", "vsuxseg2ei8.v v2, (a0), v2",
+    "vmsge.vx v1, v2, a0", "vmsge.vx v1, v2, a0, v0.t, v3", "vmsge.vx v1, v2, a0, v0.t, v1", "vmsge.vx v1, v2, a0, v3",
+    "vmsge.vx v0, v2, a0, v0.t", "vmsge.vi v1, v2, 16", "vmsge.vi v1, v2, 17", "vmslt.vi v1, v2, 0", "vmsltu.vi v1, v2, 0",
+    "vmsgeu.vi v1, v2, 0", "vmsge.vi v1, v2, a0", "vmsge.vi v1, v2, 3, v0.t", "vmsge.vi v1, v2, 3, v0",
+]
+
 
 def main():
     arch = 'rv64'

@@ -2,1551 +2,1551 @@
 // tests/TestRiscvDisassembler.cpp. {bits, size, address, encoding, text,
 // no aliases text, assembly text}: LLVM text.
 #define RISCV_TEXT_ROWS \
-    { 32, 4, 0x15138, 0x00c00533, "add a0, zero, a2", "add a0, zero, a2", "add a0, zero, a2" }, \
-    { 32, 2, 0x26c54, 0x0000952e, "add a0, a0, a1", "c.add a0, a1", "c.add a0, a1" }, \
-    { 32, 4, 0x13974, 0x55558513, "addi a0, a1, 1365", "addi a0, a1, 1365", "addi a0, a1, 1365" }, \
-    { 32, 2, 0x2661e, 0x00000555, "addi a0, a0, 21", "c.addi a0, 21", "c.addi a0, 21" }, \
-    { 32, 2, 0x267aa, 0x00006171, "addi sp, sp, 336", "c.addi16sp sp, 336", "c.addi16sp sp, 336" }, \
-    { 32, 2, 0x2653e, 0x000008c8, "addi a0, sp, 84", "c.addi4spn a0, sp, 84", "c.addi4spn a0, sp, 84" }, \
-    { 32, 4, 0x3678c, 0x6ac58533, "aes32dsi a0, a1, a2, 1", "aes32dsi a0, a1, a2, 1", "aes32dsi a0, a1, a2, 1" }, \
-    { 32, 4, 0x36958, 0x6ec58533, "aes32dsmi a0, a1, a2, 1", "aes32dsmi a0, a1, a2, 1", "aes32dsmi a0, a1, a2, 1" }, \
-    { 32, 4, 0x36b24, 0x62c58533, "aes32esi a0, a1, a2, 1", "aes32esi a0, a1, a2, 1", "aes32esi a0, a1, a2, 1" }, \
-    { 32, 4, 0x36cf0, 0x66c58533, "aes32esmi a0, a1, a2, 1", "aes32esmi a0, a1, a2, 1", "aes32esmi a0, a1, a2, 1" }, \
-    { 32, 4, 0x1f3a4, 0x04c5852f, "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f3ac, 0x06c5852f, "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f3a8, 0x02c5852f, "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f3a0, 0x00c5852f, "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)" }, \
-    { 32, 4, 0x2031c, 0x04c5952f, "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20324, 0x06c5952f, "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20320, 0x02c5952f, "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20318, 0x00c5952f, "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1e42c, 0x04c5a52f, "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1e434, 0x06c5a52f, "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e430, 0x02c5a52f, "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e428, 0x00c5a52f, "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1f714, 0x64c5852f, "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f71c, 0x66c5852f, "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f718, 0x62c5852f, "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f710, 0x60c5852f, "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)" }, \
-    { 32, 4, 0x2068c, 0x64c5952f, "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20694, 0x66c5952f, "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20690, 0x62c5952f, "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20688, 0x60c5952f, "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1e79c, 0x64c5a52f, "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1e7a4, 0x66c5a52f, "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e7a0, 0x62c5a52f, "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e798, 0x60c5a52f, "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)" }, \
-    { 32, 4, 0x210dc, 0x2cc5852f, "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x210e4, 0x2ec5852f, "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x210e0, 0x2ac5852f, "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x210d8, 0x28c5852f, "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)" }, \
-    { 32, 4, 0x21604, 0x2ca5b52f, "amocas.d.aq a0, a0, (a1)", "amocas.d.aq a0, a0, (a1)", "amocas.d.aq a0, a0, (a1)" }, \
-    { 32, 4, 0x2160c, 0x2ea5b52f, "amocas.d.aqrl a0, a0, (a1)", "amocas.d.aqrl a0, a0, (a1)", "amocas.d.aqrl a0, a0, (a1)" }, \
-    { 32, 4, 0x21608, 0x2aa5b52f, "amocas.d.rl a0, a0, (a1)", "amocas.d.rl a0, a0, (a1)", "amocas.d.rl a0, a0, (a1)" }, \
-    { 32, 4, 0x21600, 0x28a5b52f, "amocas.d a0, a0, (a1)", "amocas.d a0, a0, (a1)", "amocas.d a0, a0, (a1)" }, \
-    { 32, 4, 0x21294, 0x2cc5952f, "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x2129c, 0x2ec5952f, "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x21298, 0x2ac5952f, "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x21290, 0x28c5952f, "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)" }, \
-    { 32, 4, 0x2144c, 0x2cc5a52f, "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x21454, 0x2ec5a52f, "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x21450, 0x2ac5a52f, "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x21448, 0x28c5a52f, "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1fc3c, 0xa4c5852f, "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1fc44, 0xa6c5852f, "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fc40, 0xa2c5852f, "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fc38, 0xa0c5852f, "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)" }, \
-    { 32, 4, 0x20bb4, 0xa4c5952f, "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20bbc, 0xa6c5952f, "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20bb8, 0xa2c5952f, "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20bb0, 0xa0c5952f, "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1ecc4, 0xa4c5a52f, "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1eccc, 0xa6c5a52f, "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ecc8, 0xa2c5a52f, "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ecc0, 0xa0c5a52f, "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1ffac, 0xe4c5852f, "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1ffb4, 0xe6c5852f, "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ffb0, 0xe2c5852f, "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ffa8, 0xe0c5852f, "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)" }, \
-    { 32, 4, 0x20f24, 0xe4c5952f, "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20f2c, 0xe6c5952f, "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20f28, 0xe2c5952f, "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20f20, 0xe0c5952f, "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1f034, 0xe4c5a52f, "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f03c, 0xe6c5a52f, "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f038, 0xe2c5a52f, "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f030, 0xe0c5a52f, "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1fa84, 0x84c5852f, "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1fa8c, 0x86c5852f, "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fa88, 0x82c5852f, "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fa80, 0x80c5852f, "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)" }, \
-    { 32, 4, 0x209fc, 0x84c5952f, "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20a04, 0x86c5952f, "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20a00, 0x82c5952f, "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x209f8, 0x80c5952f, "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1eb0c, 0x84c5a52f, "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1eb14, 0x86c5a52f, "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1eb10, 0x82c5a52f, "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1eb08, 0x80c5a52f, "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1fdf4, 0xc4c5852f, "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1fdfc, 0xc6c5852f, "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fdf8, 0xc2c5852f, "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1fdf0, 0xc0c5852f, "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)" }, \
-    { 32, 4, 0x20d6c, 0xc4c5952f, "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x20d74, 0xc6c5952f, "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20d70, 0xc2c5952f, "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20d68, 0xc0c5952f, "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1ee7c, 0xc4c5a52f, "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1ee84, 0xc6c5a52f, "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ee80, 0xc2c5a52f, "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1ee78, 0xc0c5a52f, "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1f8cc, 0x44c5852f, "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f8d4, 0x46c5852f, "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f8d0, 0x42c5852f, "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f8c8, 0x40c5852f, "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)" }, \
-    { 32, 4, 0x20844, 0x44c5952f, "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x2084c, 0x46c5952f, "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20848, 0x42c5952f, "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20840, 0x40c5952f, "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1e954, 0x44c5a52f, "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1e95c, 0x46c5a52f, "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e958, 0x42c5a52f, "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e950, 0x40c5a52f, "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1f1ec, 0x0cc5852f, "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f1f4, 0x0ec5852f, "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f1f0, 0x0ac5852f, "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f1e8, 0x08c5852f, "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)" }, \
-    { 32, 4, 0x20164, 0x0cc5952f, "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x2016c, 0x0ec5952f, "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x20168, 0x0ac5952f, "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x20160, 0x08c5952f, "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1e274, 0x0cc5a52f, "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1e27c, 0x0ec5a52f, "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e278, 0x0ac5a52f, "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e270, 0x08c5a52f, "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1f55c, 0x24c5852f, "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1f564, 0x26c5852f, "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f560, 0x22c5852f, "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1f558, 0x20c5852f, "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)" }, \
-    { 32, 4, 0x204d4, 0x24c5952f, "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x204dc, 0x26c5952f, "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x204d8, 0x22c5952f, "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x204d0, 0x20c5952f, "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)" }, \
-    { 32, 4, 0x1e5e4, 0x24c5a52f, "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x1e5ec, 0x26c5a52f, "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e5e8, 0x22c5a52f, "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x1e5e0, 0x20c5a52f, "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)" }, \
-    { 32, 4, 0x1621c, 0x00c5f533, "and a0, a1, a2", "and a0, a1, a2", "and a0, a1, a2" }, \
-    { 32, 2, 0x2690c, 0x00008de9, "and a1, a1, a0", "c.and a1, a0", "c.and a1, a0" }, \
-    { 32, 4, 0x146d0, 0x5555f513, "andi a0, a1, 1365", "andi a0, a1, 1365", "andi a0, a1, 1365" }, \
-    { 32, 2, 0x26870, 0x000089d5, "andi a1, a1, 21", "c.andi a1, 21", "c.andi a1, 21" }, \
-    { 32, 4, 0x2206c, 0x40c5f533, "andn a0, a1, a2", "andn a0, a1, a2", "andn a0, a1, a2" }, \
+    { 32, 4, 0x15330, 0x00c00533, "add a0, zero, a2", "add a0, zero, a2", "add a0, zero, a2" }, \
+    { 32, 2, 0x26e4c, 0x0000952e, "add a0, a0, a1", "c.add a0, a1", "c.add a0, a1" }, \
+    { 32, 4, 0x13b6c, 0x55558513, "addi a0, a1, 1365", "addi a0, a1, 1365", "addi a0, a1, 1365" }, \
+    { 32, 2, 0x26816, 0x00000555, "addi a0, a0, 21", "c.addi a0, 21", "c.addi a0, 21" }, \
+    { 32, 2, 0x269a2, 0x00006171, "addi sp, sp, 336", "c.addi16sp sp, 336", "c.addi16sp sp, 336" }, \
+    { 32, 2, 0x26736, 0x000008c8, "addi a0, sp, 84", "c.addi4spn a0, sp, 84", "c.addi4spn a0, sp, 84" }, \
+    { 32, 4, 0x36984, 0x6ac58533, "aes32dsi a0, a1, a2, 1", "aes32dsi a0, a1, a2, 1", "aes32dsi a0, a1, a2, 1" }, \
+    { 32, 4, 0x36b50, 0x6ec58533, "aes32dsmi a0, a1, a2, 1", "aes32dsmi a0, a1, a2, 1", "aes32dsmi a0, a1, a2, 1" }, \
+    { 32, 4, 0x36d1c, 0x62c58533, "aes32esi a0, a1, a2, 1", "aes32esi a0, a1, a2, 1", "aes32esi a0, a1, a2, 1" }, \
+    { 32, 4, 0x36ee8, 0x66c58533, "aes32esmi a0, a1, a2, 1", "aes32esmi a0, a1, a2, 1", "aes32esmi a0, a1, a2, 1" }, \
+    { 32, 4, 0x1f59c, 0x04c5852f, "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f5a4, 0x06c5852f, "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f5a0, 0x02c5852f, "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f598, 0x00c5852f, "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20514, 0x04c5952f, "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x2051c, 0x06c5952f, "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20518, 0x02c5952f, "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20510, 0x00c5952f, "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1e624, 0x04c5a52f, "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1e62c, 0x06c5a52f, "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e628, 0x02c5a52f, "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e620, 0x00c5a52f, "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1f90c, 0x64c5852f, "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f914, 0x66c5852f, "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f910, 0x62c5852f, "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f908, 0x60c5852f, "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20884, 0x64c5952f, "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x2088c, 0x66c5952f, "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20888, 0x62c5952f, "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20880, 0x60c5952f, "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1e994, 0x64c5a52f, "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1e99c, 0x66c5a52f, "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e998, 0x62c5a52f, "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e990, 0x60c5a52f, "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)" }, \
+    { 32, 4, 0x212d4, 0x2cc5852f, "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x212dc, 0x2ec5852f, "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x212d8, 0x2ac5852f, "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x212d0, 0x28c5852f, "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)" }, \
+    { 32, 4, 0x217fc, 0x2ca5b52f, "amocas.d.aq a0, a0, (a1)", "amocas.d.aq a0, a0, (a1)", "amocas.d.aq a0, a0, (a1)" }, \
+    { 32, 4, 0x21804, 0x2ea5b52f, "amocas.d.aqrl a0, a0, (a1)", "amocas.d.aqrl a0, a0, (a1)", "amocas.d.aqrl a0, a0, (a1)" }, \
+    { 32, 4, 0x21800, 0x2aa5b52f, "amocas.d.rl a0, a0, (a1)", "amocas.d.rl a0, a0, (a1)", "amocas.d.rl a0, a0, (a1)" }, \
+    { 32, 4, 0x217f8, 0x28a5b52f, "amocas.d a0, a0, (a1)", "amocas.d a0, a0, (a1)", "amocas.d a0, a0, (a1)" }, \
+    { 32, 4, 0x2148c, 0x2cc5952f, "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x21494, 0x2ec5952f, "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x21490, 0x2ac5952f, "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x21488, 0x28c5952f, "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)" }, \
+    { 32, 4, 0x21644, 0x2cc5a52f, "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x2164c, 0x2ec5a52f, "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x21648, 0x2ac5a52f, "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x21640, 0x28c5a52f, "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1fe34, 0xa4c5852f, "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1fe3c, 0xa6c5852f, "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fe38, 0xa2c5852f, "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fe30, 0xa0c5852f, "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20dac, 0xa4c5952f, "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x20db4, 0xa6c5952f, "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20db0, 0xa2c5952f, "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20da8, 0xa0c5952f, "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1eebc, 0xa4c5a52f, "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1eec4, 0xa6c5a52f, "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1eec0, 0xa2c5a52f, "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1eeb8, 0xa0c5a52f, "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)" }, \
+    { 32, 4, 0x201a4, 0xe4c5852f, "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x201ac, 0xe6c5852f, "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x201a8, 0xe2c5852f, "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x201a0, 0xe0c5852f, "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)" }, \
+    { 32, 4, 0x2111c, 0xe4c5952f, "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x21124, 0xe6c5952f, "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x21120, 0xe2c5952f, "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x21118, 0xe0c5952f, "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1f22c, 0xe4c5a52f, "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f234, 0xe6c5a52f, "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f230, 0xe2c5a52f, "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f228, 0xe0c5a52f, "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1fc7c, 0x84c5852f, "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1fc84, 0x86c5852f, "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fc80, 0x82c5852f, "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fc78, 0x80c5852f, "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20bf4, 0x84c5952f, "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x20bfc, 0x86c5952f, "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20bf8, 0x82c5952f, "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20bf0, 0x80c5952f, "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1ed04, 0x84c5a52f, "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1ed0c, 0x86c5a52f, "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1ed08, 0x82c5a52f, "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1ed00, 0x80c5a52f, "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1ffec, 0xc4c5852f, "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1fff4, 0xc6c5852f, "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fff0, 0xc2c5852f, "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1ffe8, 0xc0c5852f, "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20f64, 0xc4c5952f, "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x20f6c, 0xc6c5952f, "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20f68, 0xc2c5952f, "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20f60, 0xc0c5952f, "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1f074, 0xc4c5a52f, "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f07c, 0xc6c5a52f, "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f078, 0xc2c5a52f, "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f070, 0xc0c5a52f, "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1fac4, 0x44c5852f, "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1facc, 0x46c5852f, "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fac8, 0x42c5852f, "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1fac0, 0x40c5852f, "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)" }, \
+    { 32, 4, 0x20a3c, 0x44c5952f, "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x20a44, 0x46c5952f, "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20a40, 0x42c5952f, "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20a38, 0x40c5952f, "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1eb4c, 0x44c5a52f, "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1eb54, 0x46c5a52f, "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1eb50, 0x42c5a52f, "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1eb48, 0x40c5a52f, "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1f3e4, 0x0cc5852f, "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f3ec, 0x0ec5852f, "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f3e8, 0x0ac5852f, "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f3e0, 0x08c5852f, "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)" }, \
+    { 32, 4, 0x2035c, 0x0cc5952f, "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x20364, 0x0ec5952f, "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x20360, 0x0ac5952f, "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x20358, 0x08c5952f, "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1e46c, 0x0cc5a52f, "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1e474, 0x0ec5a52f, "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e470, 0x0ac5a52f, "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e468, 0x08c5a52f, "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)" }, \
+    { 32, 4, 0x1f754, 0x24c5852f, "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1f75c, 0x26c5852f, "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f758, 0x22c5852f, "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1f750, 0x20c5852f, "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)" }, \
+    { 32, 4, 0x206cc, 0x24c5952f, "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x206d4, 0x26c5952f, "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x206d0, 0x22c5952f, "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x206c8, 0x20c5952f, "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)" }, \
+    { 32, 4, 0x1e7dc, 0x24c5a52f, "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x1e7e4, 0x26c5a52f, "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e7e0, 0x22c5a52f, "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x1e7d8, 0x20c5a52f, "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)" }, \
+    { 32, 4, 0x16414, 0x00c5f533, "and a0, a1, a2", "and a0, a1, a2", "and a0, a1, a2" }, \
+    { 32, 2, 0x26b04, 0x00008de9, "and a1, a1, a0", "c.and a1, a0", "c.and a1, a0" }, \
+    { 32, 4, 0x148c8, 0x5555f513, "andi a0, a1, 1365", "andi a0, a1, 1365", "andi a0, a1, 1365" }, \
+    { 32, 2, 0x26a68, 0x000089d5, "andi a1, a1, 21", "c.andi a1, 21", "c.andi a1, 21" }, \
+    { 32, 4, 0x22264, 0x40c5f533, "andn a0, a1, a2", "andn a0, a1, a2", "andn a0, a1, a2" }, \
     { 32, 4, 0x10110, 0x12345517, "auipc a0, 74565", "auipc a0, 74565", "auipc a0, 74565" }, \
-    { 32, 4, 0x2593c, 0x48c59533, "bclr a0, a1, a2", "bclr a0, a1, a2", "bclr a0, a1, a2" }, \
-    { 32, 4, 0x2603c, 0x49559513, "bclri a0, a1, 21", "bclri a0, a1, 21", "bclri a0, a1, 21" }, \
-    { 32, 4, 0x11428, 0x2ac585e3, "beq a1, a2, 0x11ed2", "beq a1, a2, 0x11ed2", "beq a1, a2, 2730" }, \
-    { 32, 4, 0x10be8, 0x2a0585e3, "beqz a1, 0x11692", "beq a1, zero, 0x11692", "beqz a1, 2730" }, \
-    { 32, 2, 0x2698c, 0x0000c58d, "beqz a1, 0x269b6", "c.beqz a1, 0x269b6", "c.beqz a1, 42" }, \
-    { 32, 4, 0x25afc, 0x48c5d533, "bext a0, a1, a2", "bext a0, a1, a2", "bext a0, a1, a2" }, \
-    { 32, 4, 0x2617c, 0x4955d513, "bexti a0, a1, 21", "bexti a0, a1, 21", "bexti a0, a1, 21" }, \
-    { 32, 4, 0x11a1c, 0x2ac5d5e3, "bge a1, a2, 0x124c6", "bge a1, a2, 0x124c6", "bge a1, a2, 2730" }, \
-    { 32, 4, 0x11e14, 0x2ac5f5e3, "bgeu a1, a2, 0x128be", "bgeu a1, a2, 0x128be", "bgeu a1, a2, 2730" }, \
-    { 32, 4, 0x11008, 0x2a05d5e3, "bgez a1, 0x11ab2", "bge a1, zero, 0x11ab2", "bgez a1, 2730" }, \
-    { 32, 4, 0x112c8, 0x2ac045e3, "bgtz a2, 0x11d72", "blt zero, a2, 0x11d72", "bgtz a2, 2730" }, \
-    { 32, 4, 0x25cbc, 0x68c59533, "binv a0, a1, a2", "binv a0, a1, a2", "binv a0, a1, a2" }, \
-    { 32, 4, 0x262bc, 0x69559513, "binvi a0, a1, 21", "binvi a0, a1, 21", "binvi a0, a1, 21" }, \
-    { 32, 4, 0x10ea8, 0x2ac055e3, "blez a2, 0x11952", "bge zero, a2, 0x11952", "blez a2, 2730" }, \
-    { 32, 4, 0x11820, 0x2ac5c5e3, "blt a1, a2, 0x122ca", "blt a1, a2, 0x122ca", "blt a1, a2, 2730" }, \
-    { 32, 4, 0x11c18, 0x2ac5e5e3, "bltu a1, a2, 0x126c2", "bltu a1, a2, 0x126c2", "bltu a1, a2, 2730" }, \
-    { 32, 4, 0x11168, 0x2a05c5e3, "bltz a1, 0x11c12", "blt a1, zero, 0x11c12", "bltz a1, 2730" }, \
-    { 32, 4, 0x11624, 0x2ac595e3, "bne a1, a2, 0x120ce", "bne a1, a2, 0x120ce", "bne a1, a2, 2730" }, \
-    { 32, 4, 0x10d48, 0x2a0595e3, "bnez a1, 0x117f2", "bne a1, zero, 0x117f2", "bnez a1, 2730" }, \
-    { 32, 2, 0x269e2, 0x0000e58d, "bnez a1, 0x26a0c", "c.bnez a1, 0x26a0c", "c.bnez a1, 42" }, \
-    { 32, 4, 0x24eb8, 0x6875d513, "brev8 a0, a1", "brev8 a0, a1", "brev8 a0, a1" }, \
-    { 32, 4, 0x25e7c, 0x28c59533, "bset a0, a1, a2", "bset a0, a1, a2", "bset a0, a1, a2" }, \
-    { 32, 4, 0x13844, 0x28b01513, "bseti a0, zero, 11", "bseti a0, zero, 11", "bseti a0, zero, 11" }, \
-    { 32, 2, 0x26c56, 0x0000902e, "c.add zero, a1", "c.add zero, a1", "c.add zero, a1" }, \
-    { 32, 2, 0x2667e, 0x00000501, "c.addi a0, 0", "c.addi a0, 0", "c.addi a0, 0" }, \
-    { 32, 2, 0x266fe, 0x00004055, "c.li zero, 21", "c.li zero, 21", "c.li zero, 21" }, \
-    { 32, 2, 0x267de, 0x00006055, "c.lui zero, 21", "c.lui zero, 21", "c.lui zero, 21" }, \
-    { 32, 2, 0x2712a, 0x00006581, "c.mop.11", "c.mop.11", "c.mop.11" }, \
-    { 32, 2, 0x2712c, 0x00006681, "c.mop.13", "c.mop.13", "c.mop.13" }, \
-    { 32, 2, 0x2712e, 0x00006781, "c.mop.15", "c.mop.15", "c.mop.15" }, \
-    { 32, 2, 0x27122, 0x00006181, "c.mop.3", "c.mop.3", "c.mop.3" }, \
-    { 32, 2, 0x27126, 0x00006381, "c.mop.7", "c.mop.7", "c.mop.7" }, \
-    { 32, 2, 0x27128, 0x00006481, "c.mop.9", "c.mop.9", "c.mop.9" }, \
-    { 32, 2, 0x26b3a, 0x0000802e, "c.mv zero, a1", "c.mv zero, a1", "c.mv zero, a1" }, \
-    { 32, 2, 0x265ec, 0x00000055, "c.nop 21", "c.nop 21", "c.nop 21" }, \
-    { 32, 2, 0x26cec, 0x00009016, "c.ntl.all", "c.add zero, t0", "c.add zero, t0" }, \
-    { 32, 2, 0x26ce6, 0x0000900a, "c.ntl.p1", "c.add zero, sp", "c.add zero, sp" }, \
-    { 32, 2, 0x26ce8, 0x0000900e, "c.ntl.pall", "c.add zero, gp", "c.add zero, gp" }, \
-    { 32, 2, 0x26cea, 0x00009012, "c.ntl.s1", "c.add zero, tp", "c.add zero, tp" }, \
-    { 32, 2, 0x26a3a, 0x00000056, "c.slli zero, 21", "c.slli zero, 21", "c.slli zero, 21" }, \
-    { 32, 2, 0x26866, 0x00008581, "c.srai a1, 0", "c.srai a1, 0", "c.srai a1, 0" }, \
-    { 32, 2, 0x2684c, 0x00008181, "c.srli a1, 0", "c.srli a1, 0", "c.srli a1, 0" }, \
-    { 32, 4, 0x2c458, 0x0015a00f, "cbo.clean (a1)", "cbo.clean (a1)", "cbo.clean (a1)" }, \
-    { 32, 4, 0x2c4dc, 0x0025a00f, "cbo.flush (a1)", "cbo.flush (a1)", "cbo.flush (a1)" }, \
-    { 32, 4, 0x2c560, 0x0005a00f, "cbo.inval (a1)", "cbo.inval (a1)", "cbo.inval (a1)" }, \
-    { 32, 4, 0x2c8cc, 0x0045a00f, "cbo.zero (a1)", "cbo.zero (a1)", "cbo.zero (a1)" }, \
-    { 32, 4, 0x239a0, 0x0ac59533, "clmul a0, a1, a2", "clmul a0, a1, a2", "clmul a0, a1, a2" }, \
-    { 32, 4, 0x23b60, 0x0ac5b533, "clmulh a0, a1, a2", "clmulh a0, a1, a2", "clmulh a0, a1, a2" }, \
-    { 32, 4, 0x23d20, 0x0ac5a533, "clmulr a0, a1, a2", "clmulr a0, a1, a2", "clmulr a0, a1, a2" }, \
-    { 32, 4, 0x22b98, 0x60059513, "clz a0, a1", "clz a0, a1", "clz a0, a1" }, \
-    { 32, 4, 0x22df0, 0x60259513, "cpop a0, a1", "cpop a0, a1", "cpop a0, a1" }, \
-    { 32, 4, 0x2f74c, 0x5555b073, "csrc 1365, a1", "csrrc zero, 1365, a1", "csrc 1365, a1" }, \
-    { 32, 4, 0x2f750, 0x0015b073, "csrc fflags, a1", "csrrc zero, fflags, a1", "csrc fflags, a1" }, \
-    { 32, 4, 0x2f754, 0x0025b073, "csrc frm, a1", "csrrc zero, frm, a1", "csrc frm, a1" }, \
-    { 32, 4, 0x324f4, 0x5552f073, "csrci 1365, 5", "csrrci zero, 1365, 5", "csrci 1365, 5" }, \
-    { 32, 4, 0x324f8, 0x0012f073, "csrci fflags, 5", "csrrci zero, fflags, 5", "csrci fflags, 5" }, \
-    { 32, 4, 0x324fc, 0x0022f073, "csrci frm, 5", "csrrci zero, frm, 5", "csrci frm, 5" }, \
-    { 32, 4, 0x2d04c, 0x55502573, "csrr a0, 1365", "csrrs a0, 1365, zero", "csrr a0, 1365" }, \
-    { 32, 4, 0x2d0ec, 0x00802573, "csrr a0, vstart", "csrrs a0, vstart, zero", "csrr a0, vstart" }, \
-    { 32, 4, 0x2d0f0, 0x00902573, "csrr a0, vxsat", "csrrs a0, vxsat, zero", "csrr a0, vxsat" }, \
-    { 32, 4, 0x2fedc, 0x5555b573, "csrrc a0, 1365, a1", "csrrc a0, 1365, a1", "csrrc a0, 1365, a1" }, \
-    { 32, 4, 0x2ff70, 0x0015b573, "csrrc a0, fflags, a1", "csrrc a0, fflags, a1", "csrrc a0, fflags, a1" }, \
-    { 32, 4, 0x2ff74, 0x0025b573, "csrrc a0, frm, a1", "csrrc a0, frm, a1", "csrrc a0, frm, a1" }, \
-    { 32, 4, 0x32c28, 0x5552f573, "csrrci a0, 1365, 5", "csrrci a0, 1365, 5", "csrrci a0, 1365, 5" }, \
-    { 32, 4, 0x32cbc, 0x0012f573, "csrrci a0, fflags, 5", "csrrci a0, fflags, 5", "csrrci a0, fflags, 5" }, \
-    { 32, 4, 0x32cc0, 0x0022f573, "csrrci a0, frm, 5", "csrrci a0, frm, 5", "csrrci a0, frm, 5" }, \
-    { 32, 4, 0x2df6c, 0x5555a573, "csrrs a0, 1365, a1", "csrrs a0, 1365, a1", "csrrs a0, 1365, a1" }, \
-    { 32, 4, 0x2e000, 0x0015a573, "csrrs a0, fflags, a1", "csrrs a0, fflags, a1", "csrrs a0, fflags, a1" }, \
-    { 32, 4, 0x2e004, 0x0025a573, "csrrs a0, frm, a1", "csrrs a0, frm, a1", "csrrs a0, frm, a1" }, \
-    { 32, 4, 0x31d30, 0x5552e573, "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5" }, \
-    { 32, 4, 0x31dc4, 0x0012e573, "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5" }, \
-    { 32, 4, 0x31dc8, 0x0022e573, "csrrsi a0, frm, 5", "csrrsi a0, frm, 5", "csrrsi a0, frm, 5" }, \
-    { 32, 4, 0x2ef24, 0x55559573, "csrrw a0, 1365, a1", "csrrw a0, 1365, a1", "csrrw a0, 1365, a1" }, \
-    { 32, 4, 0x2efc4, 0x00859573, "csrrw a0, vstart, a1", "csrrw a0, vstart, a1", "csrrw a0, vstart, a1" }, \
-    { 32, 4, 0x2efc8, 0x00959573, "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1" }, \
-    { 32, 4, 0x30e38, 0x5552d573, "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5" }, \
-    { 32, 4, 0x30ed4, 0x0032d573, "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5" }, \
-    { 32, 4, 0x30ed8, 0x0082d573, "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5" }, \
-    { 32, 4, 0x2d7dc, 0x5555a073, "csrs 1365, a1", "csrrs zero, 1365, a1", "csrs 1365, a1" }, \
-    { 32, 4, 0x2d7e0, 0x0015a073, "csrs fflags, a1", "csrrs zero, fflags, a1", "csrs fflags, a1" }, \
-    { 32, 4, 0x2d7e4, 0x0025a073, "csrs frm, a1", "csrrs zero, frm, a1", "csrs frm, a1" }, \
-    { 32, 4, 0x315fc, 0x5552e073, "csrsi 1365, 5", "csrrsi zero, 1365, 5", "csrsi 1365, 5" }, \
-    { 32, 4, 0x31600, 0x0012e073, "csrsi fflags, 5", "csrrsi zero, fflags, 5", "csrsi fflags, 5" }, \
-    { 32, 4, 0x31604, 0x0022e073, "csrsi frm, 5", "csrrsi zero, frm, 5", "csrsi frm, 5" }, \
-    { 32, 4, 0x2e794, 0x55559073, "csrw 1365, a1", "csrrw zero, 1365, a1", "csrw 1365, a1" }, \
-    { 32, 4, 0x2e7a4, 0x00859073, "csrw vstart, a1", "csrrw zero, vstart, a1", "csrw vstart, a1" }, \
-    { 32, 4, 0x2e7a8, 0x00959073, "csrw vxsat, a1", "csrrw zero, vxsat, a1", "csrw vxsat, a1" }, \
-    { 32, 4, 0x30704, 0x5552d073, "csrwi 1365, 5", "csrrwi zero, 1365, 5", "csrwi 1365, 5" }, \
-    { 32, 4, 0x30710, 0x0032d073, "csrwi fcsr, 5", "csrrwi zero, fcsr, 5", "csrwi fcsr, 5" }, \
-    { 32, 4, 0x30714, 0x0082d073, "csrwi vstart, 5", "csrrwi zero, vstart, 5", "csrwi vstart, 5" }, \
-    { 32, 4, 0x22cc4, 0x60159513, "ctz a0, a1", "ctz a0, a1", "ctz a0, a1" }, \
-    { 32, 4, 0x2ccc8, 0x0ec5d533, "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2" }, \
-    { 32, 4, 0x2ce88, 0x0ec5f533, "czero.nez a0, a1, a2", "czero.nez a0, a1, a2", "czero.nez a0, a1, a2" }, \
-    { 32, 4, 0x1c7ac, 0x02c5c533, "div a0, a1, a2", "div a0, a1, a2", "div a0, a1, a2" }, \
-    { 32, 4, 0x1c96c, 0x02c5d533, "divu a0, a1, a2", "divu a0, a1, a2", "divu a0, a1, a2" }, \
-    { 32, 2, 0x26c0c, 0x00009002, "ebreak", "c.ebreak", "c.ebreak" }, \
-    { 32, 4, 0x16464, 0x00100073, "ebreak", "ebreak", "ebreak" }, \
-    { 32, 4, 0x16460, 0x00000073, "ecall", "ecall", "ecall" }, \
-    { 32, 4, 0x176d0, 0x22b5a553, "fabs.d fa0, fa1", "fsgnjx.d fa0, fa1, fa1", "fabs.d fa0, fa1" }, \
-    { 32, 4, 0x2a690, 0x24b5a553, "fabs.h fa0, fa1", "fsgnjx.h fa0, fa1, fa1", "fabs.h fa0, fa1" }, \
-    { 32, 4, 0x1ae64, 0x20b5a553, "fabs.s fa0, fa1", "fsgnjx.s fa0, fa1, fa1", "fabs.s fa0, fa1" }, \
-    { 32, 4, 0x16d08, 0x02c59553, "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x16e98, 0x02c58553, "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x16e9c, 0x02c5a553, "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x29cc8, 0x04c59553, "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x29e58, 0x04c58553, "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x29e5c, 0x04c5a553, "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x1a49c, 0x00c59553, "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x1a62c, 0x00c58553, "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x1a630, 0x00c5a553, "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x18480, 0xe2059553, "fclass.d a0, fa1", "fclass.d a0, fa1", "fclass.d a0, fa1" }, \
-    { 32, 4, 0x2b440, 0xe4059553, "fclass.h a0, fa1", "fclass.h a0, fa1", "fclass.h a0, fa1" }, \
-    { 32, 4, 0x1bc14, 0xe0059553, "fclass.s a0, fa1", "fclass.s a0, fa1", "fclass.s a0, fa1" }, \
-    { 32, 4, 0x291e8, 0x44859553, "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x292f4, 0x44858553, "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne" }, \
-    { 32, 4, 0x292f8, 0x4485a553, "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x2be78, 0x42259553, "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz" }, \
-    { 32, 4, 0x2bf84, 0x42258553, "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1" }, \
-    { 32, 4, 0x2bf88, 0x4225a553, "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn" }, \
-    { 32, 4, 0x18b68, 0x42059553, "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x18c74, 0x42058553, "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1" }, \
-    { 32, 4, 0x18c78, 0x4205a553, "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x187f0, 0xd2059553, "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz" }, \
-    { 32, 4, 0x18908, 0xd2058553, "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1" }, \
-    { 32, 4, 0x1890c, 0xd205a553, "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn" }, \
-    { 32, 4, 0x1891c, 0xd2159553, "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz" }, \
-    { 32, 4, 0x18a34, 0xd2158553, "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1" }, \
-    { 32, 4, 0x18a38, 0xd215a553, "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn" }, \
-    { 32, 4, 0x2bf98, 0x44159553, "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz" }, \
-    { 32, 4, 0x2c0a4, 0x44158553, "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne" }, \
-    { 32, 4, 0x2c0a8, 0x4415a553, "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn" }, \
-    { 32, 4, 0x2bd58, 0x44059553, "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x2be64, 0x44058553, "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne" }, \
-    { 32, 4, 0x2be68, 0x4405a553, "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x2b7b0, 0xd4059553, "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz" }, \
-    { 32, 4, 0x2b8c8, 0xd4058553, "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne" }, \
-    { 32, 4, 0x2b8cc, 0xd405a553, "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn" }, \
-    { 32, 4, 0x2b8dc, 0xd4159553, "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz" }, \
-    { 32, 4, 0x2b9f4, 0xd4158553, "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne" }, \
-    { 32, 4, 0x2b9f8, 0xd415a553, "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn" }, \
-    { 32, 4, 0x29308, 0x40659553, "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz" }, \
-    { 32, 4, 0x29414, 0x40658553, "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1" }, \
-    { 32, 4, 0x29418, 0x4065a553, "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn" }, \
-    { 32, 4, 0x18a48, 0x40159553, "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz" }, \
-    { 32, 4, 0x18b54, 0x40158553, "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne" }, \
-    { 32, 4, 0x18b58, 0x4015a553, "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn" }, \
-    { 32, 4, 0x2bc38, 0x40259553, "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz" }, \
-    { 32, 4, 0x2bd44, 0x40258553, "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1" }, \
-    { 32, 4, 0x2bd48, 0x4025a553, "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn" }, \
-    { 32, 4, 0x1bf84, 0xd0059553, "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz" }, \
-    { 32, 4, 0x1c09c, 0xd0058553, "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne" }, \
-    { 32, 4, 0x1c0a0, 0xd005a553, "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn" }, \
-    { 32, 4, 0x1c0b0, 0xd0159553, "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz" }, \
-    { 32, 4, 0x1c1c8, 0xd0158553, "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne" }, \
-    { 32, 4, 0x1c1cc, 0xd015a553, "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn" }, \
-    { 32, 4, 0x18598, 0xc2059553, "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz" }, \
-    { 32, 4, 0x186b0, 0xc2058553, "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne" }, \
-    { 32, 4, 0x186b4, 0xc205a553, "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn" }, \
-    { 32, 4, 0x2b558, 0xc4059553, "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz" }, \
-    { 32, 4, 0x2b670, 0xc4058553, "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne" }, \
-    { 32, 4, 0x2b674, 0xc405a553, "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn" }, \
-    { 32, 4, 0x1bd2c, 0xc0059553, "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz" }, \
-    { 32, 4, 0x1be44, 0xc0058553, "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne" }, \
-    { 32, 4, 0x1be48, 0xc005a553, "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn" }, \
-    { 32, 4, 0x186c4, 0xc2159553, "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz" }, \
-    { 32, 4, 0x187dc, 0xc2158553, "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne" }, \
-    { 32, 4, 0x187e0, 0xc215a553, "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn" }, \
-    { 32, 4, 0x2b684, 0xc4159553, "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz" }, \
-    { 32, 4, 0x2b79c, 0xc4158553, "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne" }, \
-    { 32, 4, 0x2b7a0, 0xc415a553, "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn" }, \
-    { 32, 4, 0x1be58, 0xc0159553, "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz" }, \
-    { 32, 4, 0x1bf70, 0xc0158553, "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne" }, \
-    { 32, 4, 0x1bf74, 0xc015a553, "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn" }, \
-    { 32, 4, 0x28e04, 0xc2859553, "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz" }, \
-    { 32, 4, 0x171f4, 0x1ac59553, "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x17384, 0x1ac58553, "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x17388, 0x1ac5a553, "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x2a1b4, 0x1cc59553, "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x2a344, 0x1cc58553, "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x2a348, 0x1cc5a553, "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x1a988, 0x18c59553, "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x1ab18, 0x18c58553, "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x1ab1c, 0x18c5a553, "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x333ec, 0x0000100f, "fence.i", "fence.i", "fence.i" }, \
-    { 32, 4, 0x163dc, 0x8330000f, "fence.tso", "fence.tso", "fence.tso" }, \
-    { 32, 4, 0x163e0, 0x0ff0000f, "fence", "fence iorw, iorw", "fence" }, \
-    { 32, 4, 0x163e4, 0x0a30000f, "fence ir, rw", "fence ir, rw", "fence ir, rw" }, \
-    { 32, 4, 0x163e8, 0x0130000f, "fence w, rw", "fence w, rw", "fence w, rw" }, \
-    { 32, 4, 0x17fac, 0xa2c5a553, "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2" }, \
-    { 32, 4, 0x2af6c, 0xa4c5a553, "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2" }, \
-    { 32, 4, 0x1b740, 0xa0c5a553, "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2" }, \
-    { 32, 2, 0x26ea8, 0x000035c8, "fld fa0, 168(a1)", "c.fld fa0, 168(a1)", "c.fld fa0, 168(a1)" }, \
-    { 32, 2, 0x26f1c, 0x0000352a, "fld fa0, 168(sp)", "c.fldsp fa0, 168(sp)", "c.fldsp fa0, 168(sp)" }, \
-    { 32, 4, 0x18c88, 0x5555b507, "fld fa0, 1365(a1)", "fld fa0, 1365(a1)", "fld fa0, 1365(a1)" }, \
-    { 32, 4, 0x182e4, 0xa2c58553, "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2" }, \
-    { 32, 4, 0x2b2a4, 0xa4c58553, "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2" }, \
-    { 32, 4, 0x1ba78, 0xa0c58553, "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2" }, \
-    { 32, 4, 0x28130, 0xa2c5c553, "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2" }, \
-    { 32, 4, 0x28acc, 0xa4c5c553, "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2" }, \
-    { 32, 4, 0x27794, 0xa0c5c553, "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2" }, \
-    { 32, 4, 0x2c0b8, 0x55559507, "flh fa0, 1365(a1)", "flh fa0, 1365(a1)", "flh fa0, 1365(a1)" }, \
-    { 32, 4, 0x27acc, 0xf2180553, "fli.d fa0, 1.0", "fli.d fa0, 1.0", "fli.d fa0, 1.0" }, \
-    { 32, 4, 0x27b58, 0xf2108553, "fli.d fa0, min", "fli.d fa0, min", "fli.d fa0, min" }, \
-    { 32, 4, 0x27b5c, 0xf2110553, "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05" }, \
-    { 32, 4, 0x28468, 0xf4180553, "fli.h fa0, 1.0", "fli.h fa0, 1.0", "fli.h fa0, 1.0" }, \
-    { 32, 4, 0x284f4, 0xf4108553, "fli.h fa0, min", "fli.h fa0, min", "fli.h fa0, min" }, \
-    { 32, 4, 0x284f8, 0xf4110553, "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05" }, \
-    { 32, 4, 0x27130, 0xf0180553, "fli.s fa0, 1.0", "fli.s fa0, 1.0", "fli.s fa0, 1.0" }, \
-    { 32, 4, 0x271bc, 0xf0108553, "fli.s fa0, min", "fli.s fa0, min", "fli.s fa0, min" }, \
-    { 32, 4, 0x271c0, 0xf0110553, "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05" }, \
-    { 32, 4, 0x18148, 0xa2c59553, "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2" }, \
-    { 32, 4, 0x2b108, 0xa4c59553, "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2" }, \
-    { 32, 4, 0x1b8dc, 0xa0c59553, "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2" }, \
-    { 32, 4, 0x282cc, 0xa2c5d553, "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2" }, \
-    { 32, 4, 0x28c68, 0xa4c5d553, "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2" }, \
-    { 32, 4, 0x27930, 0xa0c5d553, "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2" }, \
-    { 32, 2, 0x26fe4, 0x000069e8, "flw fa0, 84(a1)", "c.flw fa0, 84(a1)", "c.flw fa0, 84(a1)" }, \
-    { 32, 2, 0x27058, 0x00006556, "flw fa0, 84(sp)", "c.flwsp fa0, 84(sp)", "c.flwsp fa0, 84(sp)" }, \
-    { 32, 4, 0x1c40c, 0x5555a507, "flw fa0, 1365(a1)", "flw fa0, 1365(a1)", "flw fa0, 1365(a1)" }, \
-    { 32, 4, 0x16468, 0x6ac59543, "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x1667c, 0x6ac58543, "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x16680, 0x6ac5a543, "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x29428, 0x6cc59543, "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x2963c, 0x6cc58543, "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x29640, 0x6cc5a543, "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x19bfc, 0x68c59543, "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x19e10, 0x68c58543, "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x19e14, 0x68c5a543, "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x17e1c, 0x2ac59553, "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2addc, 0x2cc59553, "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x1b5b0, 0x28c59553, "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x27d60, 0x2ac5b553, "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x286fc, 0x2cc5b553, "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x273c4, 0x28c5b553, "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x17c8c, 0x2ac58553, "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2ac4c, 0x2cc58553, "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x1b420, 0x28c58553, "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x27bd0, 0x2ac5a553, "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2856c, 0x2cc5a553, "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x27234, 0x28c5a553, "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x16690, 0x6ac59547, "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x168a4, 0x6ac58547, "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x168a8, 0x6ac5a547, "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x29650, 0x6cc59547, "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x29864, 0x6cc58547, "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x29868, 0x6cc5a547, "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x19e24, 0x68c59547, "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x1a038, 0x68c58547, "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x1a03c, 0x68c5a547, "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x17050, 0x12c59553, "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x171e0, 0x12c58553, "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x171e4, 0x12c5a553, "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x2a010, 0x14c59553, "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x2a1a0, 0x14c58553, "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x2a1a4, 0x14c5a553, "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x1a7e4, 0x10c59553, "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x1a974, 0x10c58553, "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x1a978, 0x10c5a553, "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x174b8, 0x22b58553, "fmv.d fa0, fa1", "fsgnj.d fa0, fa1, fa1", "fmv.d fa0, fa1" }, \
-    { 32, 4, 0x2bb20, 0xf4058553, "fmv.h.x fa0, a1", "fmv.h.x fa0, a1", "fmv.h.x fa0, a1" }, \
-    { 32, 4, 0x2a478, 0x24b58553, "fmv.h fa0, fa1", "fsgnj.h fa0, fa1, fa1", "fmv.h fa0, fa1" }, \
-    { 32, 4, 0x1ac4c, 0x20b58553, "fmv.s fa0, fa1", "fsgnj.s fa0, fa1, fa1", "fmv.s fa0, fa1" }, \
-    { 32, 4, 0x1c2f4, 0xf0058553, "fmv.w.x fa0, a1", "fmv.w.x fa0, a1", "fmv.w.x fa0, a1" }, \
-    { 32, 4, 0x2ba08, 0xe4058553, "fmv.x.h a0, fa1", "fmv.x.h a0, fa1", "fmv.x.h a0, fa1" }, \
-    { 32, 4, 0x1c1dc, 0xe0058553, "fmv.x.w a0, fa1", "fmv.x.w a0, fa1", "fmv.x.w a0, fa1" }, \
-    { 32, 4, 0x28f1c, 0xe2158553, "fmvh.x.d a0, fa1", "fmvh.x.d a0, fa1", "fmvh.x.d a0, fa1" }, \
-    { 32, 4, 0x29034, 0xb2c58553, "fmvp.d.x fa0, a1, a2", "fmvp.d.x fa0, a1, a2", "fmvp.d.x fa0, a1, a2" }, \
-    { 32, 4, 0x175c4, 0x22b59553, "fneg.d fa0, fa1", "fsgnjn.d fa0, fa1, fa1", "fneg.d fa0, fa1" }, \
-    { 32, 4, 0x2a584, 0x24b59553, "fneg.h fa0, fa1", "fsgnjn.h fa0, fa1, fa1", "fneg.h fa0, fa1" }, \
-    { 32, 4, 0x1ad58, 0x20b59553, "fneg.s fa0, fa1", "fsgnjn.s fa0, fa1, fa1", "fneg.s fa0, fa1" }, \
-    { 32, 4, 0x16ae0, 0x6ac5954f, "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x16cf4, 0x6ac5854f, "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x16cf8, 0x6ac5a54f, "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x29aa0, 0x6cc5954f, "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x29cb4, 0x6cc5854f, "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x29cb8, 0x6cc5a54f, "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x1a274, 0x68c5954f, "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x1a488, 0x68c5854f, "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x1a48c, 0x68c5a54f, "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x168b8, 0x6ac5954b, "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x16acc, 0x6ac5854b, "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x16ad0, 0x6ac5a54b, "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x29878, 0x6cc5954b, "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x29a8c, 0x6cc5854b, "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x29a90, 0x6cc5a54b, "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x1a04c, 0x68c5954b, "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 32, 4, 0x1a260, 0x68c5854b, "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne" }, \
-    { 32, 4, 0x1a264, 0x68c5a54b, "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 32, 4, 0x19300, 0x00302573, "frcsr a0", "csrrs a0, fcsr, zero", "frcsr a0" }, \
-    { 32, 4, 0x19428, 0x00102573, "frflags a0", "csrrs a0, fflags, zero", "frflags a0" }, \
-    { 32, 4, 0x27ef0, 0x42459553, "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz" }, \
-    { 32, 4, 0x27ffc, 0x42458553, "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne" }, \
-    { 32, 4, 0x28000, 0x4245a553, "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn" }, \
-    { 32, 4, 0x2888c, 0x44459553, "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz" }, \
-    { 32, 4, 0x28998, 0x44458553, "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne" }, \
-    { 32, 4, 0x2899c, 0x4445a553, "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn" }, \
-    { 32, 4, 0x27554, 0x40459553, "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x27660, 0x40458553, "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne" }, \
-    { 32, 4, 0x27664, 0x4045a553, "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x28010, 0x42559553, "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz" }, \
-    { 32, 4, 0x2811c, 0x42558553, "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne" }, \
-    { 32, 4, 0x28120, 0x4255a553, "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn" }, \
-    { 32, 4, 0x289ac, 0x44559553, "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz" }, \
-    { 32, 4, 0x28ab8, 0x44558553, "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne" }, \
-    { 32, 4, 0x28abc, 0x4455a553, "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn" }, \
-    { 32, 4, 0x27674, 0x40559553, "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x27780, 0x40558553, "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne" }, \
-    { 32, 4, 0x27784, 0x4055a553, "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x19394, 0x00202573, "frrm a0", "csrrs a0, frm, zero", "frrm a0" }, \
-    { 32, 4, 0x194bc, 0x00359073, "fscsr a1", "csrrw zero, fcsr, a1", "fscsr a1" }, \
-    { 32, 4, 0x19550, 0x00359573, "fscsr a0, a1", "csrrw a0, fcsr, a1", "fscsr a0, a1" }, \
-    { 32, 2, 0x26ee2, 0x0000b5c8, "fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)" }, \
-    { 32, 2, 0x26f80, 0x0000b52e, "fsd fa1, 168(sp)", "c.fsdsp fa1, 168(sp)", "c.fsdsp fa1, 168(sp)" }, \
-    { 32, 4, 0x18e58, 0x54c5baa7, "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)" }, \
-    { 32, 4, 0x1983c, 0x00159073, "fsflags a1", "csrrw zero, fflags, a1", "fsflags a1" }, \
-    { 32, 4, 0x198d0, 0x00159573, "fsflags a0, a1", "csrrw a0, fflags, a1", "fsflags a0, a1" }, \
-    { 32, 4, 0x19afc, 0x0012d073, "fsflagsi 5", "csrrwi zero, fflags, 5", "fsflagsi 5" }, \
-    { 32, 4, 0x19b34, 0x0012d573, "fsflagsi a0, 5", "csrrwi a0, fflags, 5", "fsflagsi a0, 5" }, \
-    { 32, 4, 0x177dc, 0x22c58553, "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2a79c, 0x24c58553, "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x1af70, 0x20c58553, "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x1796c, 0x22c59553, "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2a92c, 0x24c59553, "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x1b100, 0x20c59553, "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x17afc, 0x22c5a553, "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2" }, \
-    { 32, 4, 0x2aabc, 0x24c5a553, "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2" }, \
-    { 32, 4, 0x1b290, 0x20c5a553, "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2" }, \
-    { 32, 4, 0x2c288, 0x54c59aa7, "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)" }, \
-    { 32, 4, 0x17398, 0x5a059553, "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz" }, \
-    { 32, 4, 0x174a4, 0x5a058553, "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne" }, \
-    { 32, 4, 0x174a8, 0x5a05a553, "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn" }, \
-    { 32, 4, 0x2a358, 0x5c059553, "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz" }, \
-    { 32, 4, 0x2a464, 0x5c058553, "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne" }, \
-    { 32, 4, 0x2a468, 0x5c05a553, "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn" }, \
-    { 32, 4, 0x1ab2c, 0x58059553, "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz" }, \
-    { 32, 4, 0x1ac38, 0x58058553, "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne" }, \
-    { 32, 4, 0x1ac3c, 0x5805a553, "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn" }, \
-    { 32, 4, 0x1967c, 0x00259073, "fsrm a1", "csrrw zero, frm, a1", "fsrm a1" }, \
-    { 32, 4, 0x19710, 0x00259573, "fsrm a0, a1", "csrrw a0, frm, a1", "fsrm a0, a1" }, \
-    { 32, 4, 0x199fc, 0x0022d073, "fsrmi 5", "csrrwi zero, frm, 5", "fsrmi 5" }, \
-    { 32, 4, 0x19a34, 0x0022d573, "fsrmi a0, 5", "csrrwi a0, frm, 5", "fsrmi a0, 5" }, \
-    { 32, 4, 0x16eac, 0x0ac59553, "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x1703c, 0x0ac58553, "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x17040, 0x0ac5a553, "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x29e6c, 0x0cc59553, "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x29ffc, 0x0cc58553, "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x2a000, 0x0cc5a553, "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn" }, \
-    { 32, 4, 0x1a640, 0x08c59553, "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz" }, \
-    { 32, 4, 0x1a7d0, 0x08c58553, "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne" }, \
-    { 32, 4, 0x1a7d4, 0x08c5a553, "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn" }, \
-    { 32, 2, 0x2701e, 0x0000e9e8, "fsw fa0, 84(a1)", "c.fsw fa0, 84(a1)", "c.fsw fa0, 84(a1)" }, \
-    { 32, 2, 0x270bc, 0x0000eaae, "fsw fa1, 84(sp)", "c.fswsp fa1, 84(sp)", "c.fswsp fa1, 84(sp)" }, \
-    { 32, 4, 0x1c5dc, 0x54c5aaa7, "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)" }, \
-    { 32, 4, 0x1d380, 0x62000073, "hfence.gvma", "hfence.gvma zero, zero", "hfence.gvma" }, \
-    { 32, 4, 0x1d384, 0x62058073, "hfence.gvma a1", "hfence.gvma a1, zero", "hfence.gvma a1" }, \
-    { 32, 4, 0x1d418, 0x62c58073, "hfence.gvma a1, a2", "hfence.gvma a1, a2", "hfence.gvma a1, a2" }, \
-    { 32, 4, 0x1d1b8, 0x22000073, "hfence.vvma", "hfence.vvma zero, zero", "hfence.vvma" }, \
-    { 32, 4, 0x1d1bc, 0x22058073, "hfence.vvma a1", "hfence.vvma a1, zero", "hfence.vvma a1" }, \
-    { 32, 4, 0x1d250, 0x22c58073, "hfence.vvma a1, a2", "hfence.vvma a1, a2", "hfence.vvma a1, a2" }, \
-    { 32, 4, 0x1d678, 0x66c58073, "hinval.gvma a1, a2", "hinval.gvma a1, a2", "hinval.gvma a1, a2" }, \
-    { 32, 4, 0x1d548, 0x26c58073, "hinval.vvma a1, a2", "hinval.vvma a1, a2", "hinval.vvma a1, a2" }, \
-    { 32, 4, 0x1d7a8, 0x6005c573, "hlv.b a0, (a1)", "hlv.b a0, (a1)", "hlv.b a0, (a1)" }, \
-    { 32, 4, 0x1d8bc, 0x6015c573, "hlv.bu a0, (a1)", "hlv.bu a0, (a1)", "hlv.bu a0, (a1)" }, \
-    { 32, 4, 0x1d9d0, 0x6405c573, "hlv.h a0, (a1)", "hlv.h a0, (a1)", "hlv.h a0, (a1)" }, \
-    { 32, 4, 0x1dae4, 0x6415c573, "hlv.hu a0, (a1)", "hlv.hu a0, (a1)", "hlv.hu a0, (a1)" }, \
-    { 32, 4, 0x1dd0c, 0x6805c573, "hlv.w a0, (a1)", "hlv.w a0, (a1)", "hlv.w a0, (a1)" }, \
-    { 32, 4, 0x1dbf8, 0x6435c573, "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)" }, \
-    { 32, 4, 0x1de20, 0x6835c573, "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)" }, \
-    { 32, 4, 0x1df34, 0x62c5c073, "hsv.b a2, (a1)", "hsv.b a2, (a1)", "hsv.b a2, (a1)" }, \
-    { 32, 4, 0x1e048, 0x66c5c073, "hsv.h a2, (a1)", "hsv.h a2, (a1)", "hsv.h a2, (a1)" }, \
-    { 32, 4, 0x1e15c, 0x6ac5c073, "hsv.w a2, (a1)", "hsv.w a2, (a1)", "hsv.w a2, (a1)" }, \
-    { 32, 2, 0x2692a, 0x0000a46d, "j 0x26bd4", "c.j 0x26bd4", "c.j 682" }, \
+    { 32, 4, 0x25b34, 0x48c59533, "bclr a0, a1, a2", "bclr a0, a1, a2", "bclr a0, a1, a2" }, \
+    { 32, 4, 0x26234, 0x49559513, "bclri a0, a1, 21", "bclri a0, a1, 21", "bclri a0, a1, 21" }, \
+    { 32, 4, 0x11620, 0x2ac585e3, "beq a1, a2, 0x120ca", "beq a1, a2, 0x120ca", "beq a1, a2, 2730" }, \
+    { 32, 4, 0x10de0, 0x2a0585e3, "beqz a1, 0x1188a", "beq a1, zero, 0x1188a", "beqz a1, 2730" }, \
+    { 32, 2, 0x26b84, 0x0000c58d, "beqz a1, 0x26bae", "c.beqz a1, 0x26bae", "c.beqz a1, 42" }, \
+    { 32, 4, 0x25cf4, 0x48c5d533, "bext a0, a1, a2", "bext a0, a1, a2", "bext a0, a1, a2" }, \
+    { 32, 4, 0x26374, 0x4955d513, "bexti a0, a1, 21", "bexti a0, a1, 21", "bexti a0, a1, 21" }, \
+    { 32, 4, 0x11c14, 0x2ac5d5e3, "bge a1, a2, 0x126be", "bge a1, a2, 0x126be", "bge a1, a2, 2730" }, \
+    { 32, 4, 0x1200c, 0x2ac5f5e3, "bgeu a1, a2, 0x12ab6", "bgeu a1, a2, 0x12ab6", "bgeu a1, a2, 2730" }, \
+    { 32, 4, 0x11200, 0x2a05d5e3, "bgez a1, 0x11caa", "bge a1, zero, 0x11caa", "bgez a1, 2730" }, \
+    { 32, 4, 0x114c0, 0x2ac045e3, "bgtz a2, 0x11f6a", "blt zero, a2, 0x11f6a", "bgtz a2, 2730" }, \
+    { 32, 4, 0x25eb4, 0x68c59533, "binv a0, a1, a2", "binv a0, a1, a2", "binv a0, a1, a2" }, \
+    { 32, 4, 0x264b4, 0x69559513, "binvi a0, a1, 21", "binvi a0, a1, 21", "binvi a0, a1, 21" }, \
+    { 32, 4, 0x110a0, 0x2ac055e3, "blez a2, 0x11b4a", "bge zero, a2, 0x11b4a", "blez a2, 2730" }, \
+    { 32, 4, 0x11a18, 0x2ac5c5e3, "blt a1, a2, 0x124c2", "blt a1, a2, 0x124c2", "blt a1, a2, 2730" }, \
+    { 32, 4, 0x11e10, 0x2ac5e5e3, "bltu a1, a2, 0x128ba", "bltu a1, a2, 0x128ba", "bltu a1, a2, 2730" }, \
+    { 32, 4, 0x11360, 0x2a05c5e3, "bltz a1, 0x11e0a", "blt a1, zero, 0x11e0a", "bltz a1, 2730" }, \
+    { 32, 4, 0x1181c, 0x2ac595e3, "bne a1, a2, 0x122c6", "bne a1, a2, 0x122c6", "bne a1, a2, 2730" }, \
+    { 32, 4, 0x10f40, 0x2a0595e3, "bnez a1, 0x119ea", "bne a1, zero, 0x119ea", "bnez a1, 2730" }, \
+    { 32, 2, 0x26bda, 0x0000e58d, "bnez a1, 0x26c04", "c.bnez a1, 0x26c04", "c.bnez a1, 42" }, \
+    { 32, 4, 0x250b0, 0x6875d513, "brev8 a0, a1", "brev8 a0, a1", "brev8 a0, a1" }, \
+    { 32, 4, 0x26074, 0x28c59533, "bset a0, a1, a2", "bset a0, a1, a2", "bset a0, a1, a2" }, \
+    { 32, 4, 0x13a3c, 0x28b01513, "bseti a0, zero, 11", "bseti a0, zero, 11", "bseti a0, zero, 11" }, \
+    { 32, 2, 0x26e4e, 0x0000902e, "c.add zero, a1", "c.add zero, a1", "c.add zero, a1" }, \
+    { 32, 2, 0x26876, 0x00000501, "c.addi a0, 0", "c.addi a0, 0", "c.addi a0, 0" }, \
+    { 32, 2, 0x268f6, 0x00004055, "c.li zero, 21", "c.li zero, 21", "c.li zero, 21" }, \
+    { 32, 2, 0x269d6, 0x00006055, "c.lui zero, 21", "c.lui zero, 21", "c.lui zero, 21" }, \
+    { 32, 2, 0x27322, 0x00006581, "c.mop.11", "c.mop.11", "c.mop.11" }, \
+    { 32, 2, 0x27324, 0x00006681, "c.mop.13", "c.mop.13", "c.mop.13" }, \
+    { 32, 2, 0x27326, 0x00006781, "c.mop.15", "c.mop.15", "c.mop.15" }, \
+    { 32, 2, 0x2731a, 0x00006181, "c.mop.3", "c.mop.3", "c.mop.3" }, \
+    { 32, 2, 0x2731e, 0x00006381, "c.mop.7", "c.mop.7", "c.mop.7" }, \
+    { 32, 2, 0x27320, 0x00006481, "c.mop.9", "c.mop.9", "c.mop.9" }, \
+    { 32, 2, 0x26d32, 0x0000802e, "c.mv zero, a1", "c.mv zero, a1", "c.mv zero, a1" }, \
+    { 32, 2, 0x267e4, 0x00000055, "c.nop 21", "c.nop 21", "c.nop 21" }, \
+    { 32, 2, 0x26ee4, 0x00009016, "c.ntl.all", "c.add zero, t0", "c.add zero, t0" }, \
+    { 32, 2, 0x26ede, 0x0000900a, "c.ntl.p1", "c.add zero, sp", "c.add zero, sp" }, \
+    { 32, 2, 0x26ee0, 0x0000900e, "c.ntl.pall", "c.add zero, gp", "c.add zero, gp" }, \
+    { 32, 2, 0x26ee2, 0x00009012, "c.ntl.s1", "c.add zero, tp", "c.add zero, tp" }, \
+    { 32, 2, 0x26c32, 0x00000056, "c.slli zero, 21", "c.slli zero, 21", "c.slli zero, 21" }, \
+    { 32, 2, 0x26a5e, 0x00008581, "c.srai a1, 0", "c.srai a1, 0", "c.srai a1, 0" }, \
+    { 32, 2, 0x26a44, 0x00008181, "c.srli a1, 0", "c.srli a1, 0", "c.srli a1, 0" }, \
+    { 32, 4, 0x2c650, 0x0015a00f, "cbo.clean (a1)", "cbo.clean (a1)", "cbo.clean (a1)" }, \
+    { 32, 4, 0x2c6d4, 0x0025a00f, "cbo.flush (a1)", "cbo.flush (a1)", "cbo.flush (a1)" }, \
+    { 32, 4, 0x2c758, 0x0005a00f, "cbo.inval (a1)", "cbo.inval (a1)", "cbo.inval (a1)" }, \
+    { 32, 4, 0x2cac4, 0x0045a00f, "cbo.zero (a1)", "cbo.zero (a1)", "cbo.zero (a1)" }, \
+    { 32, 4, 0x23b98, 0x0ac59533, "clmul a0, a1, a2", "clmul a0, a1, a2", "clmul a0, a1, a2" }, \
+    { 32, 4, 0x23d58, 0x0ac5b533, "clmulh a0, a1, a2", "clmulh a0, a1, a2", "clmulh a0, a1, a2" }, \
+    { 32, 4, 0x23f18, 0x0ac5a533, "clmulr a0, a1, a2", "clmulr a0, a1, a2", "clmulr a0, a1, a2" }, \
+    { 32, 4, 0x22d90, 0x60059513, "clz a0, a1", "clz a0, a1", "clz a0, a1" }, \
+    { 32, 4, 0x22fe8, 0x60259513, "cpop a0, a1", "cpop a0, a1", "cpop a0, a1" }, \
+    { 32, 4, 0x2f944, 0x5555b073, "csrc 1365, a1", "csrrc zero, 1365, a1", "csrc 1365, a1" }, \
+    { 32, 4, 0x2f948, 0x0015b073, "csrc fflags, a1", "csrrc zero, fflags, a1", "csrc fflags, a1" }, \
+    { 32, 4, 0x2f94c, 0x0025b073, "csrc frm, a1", "csrrc zero, frm, a1", "csrc frm, a1" }, \
+    { 32, 4, 0x326ec, 0x5552f073, "csrci 1365, 5", "csrrci zero, 1365, 5", "csrci 1365, 5" }, \
+    { 32, 4, 0x326f0, 0x0012f073, "csrci fflags, 5", "csrrci zero, fflags, 5", "csrci fflags, 5" }, \
+    { 32, 4, 0x326f4, 0x0022f073, "csrci frm, 5", "csrrci zero, frm, 5", "csrci frm, 5" }, \
+    { 32, 4, 0x2d244, 0x55502573, "csrr a0, 1365", "csrrs a0, 1365, zero", "csrr a0, 1365" }, \
+    { 32, 4, 0x2d2e4, 0x00802573, "csrr a0, vstart", "csrrs a0, vstart, zero", "csrr a0, vstart" }, \
+    { 32, 4, 0x2d2e8, 0x00902573, "csrr a0, vxsat", "csrrs a0, vxsat, zero", "csrr a0, vxsat" }, \
+    { 32, 4, 0x300d4, 0x5555b573, "csrrc a0, 1365, a1", "csrrc a0, 1365, a1", "csrrc a0, 1365, a1" }, \
+    { 32, 4, 0x30168, 0x0015b573, "csrrc a0, fflags, a1", "csrrc a0, fflags, a1", "csrrc a0, fflags, a1" }, \
+    { 32, 4, 0x3016c, 0x0025b573, "csrrc a0, frm, a1", "csrrc a0, frm, a1", "csrrc a0, frm, a1" }, \
+    { 32, 4, 0x32e20, 0x5552f573, "csrrci a0, 1365, 5", "csrrci a0, 1365, 5", "csrrci a0, 1365, 5" }, \
+    { 32, 4, 0x32eb4, 0x0012f573, "csrrci a0, fflags, 5", "csrrci a0, fflags, 5", "csrrci a0, fflags, 5" }, \
+    { 32, 4, 0x32eb8, 0x0022f573, "csrrci a0, frm, 5", "csrrci a0, frm, 5", "csrrci a0, frm, 5" }, \
+    { 32, 4, 0x2e164, 0x5555a573, "csrrs a0, 1365, a1", "csrrs a0, 1365, a1", "csrrs a0, 1365, a1" }, \
+    { 32, 4, 0x2e1f8, 0x0015a573, "csrrs a0, fflags, a1", "csrrs a0, fflags, a1", "csrrs a0, fflags, a1" }, \
+    { 32, 4, 0x2e1fc, 0x0025a573, "csrrs a0, frm, a1", "csrrs a0, frm, a1", "csrrs a0, frm, a1" }, \
+    { 32, 4, 0x31f28, 0x5552e573, "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5" }, \
+    { 32, 4, 0x31fbc, 0x0012e573, "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5" }, \
+    { 32, 4, 0x31fc0, 0x0022e573, "csrrsi a0, frm, 5", "csrrsi a0, frm, 5", "csrrsi a0, frm, 5" }, \
+    { 32, 4, 0x2f11c, 0x55559573, "csrrw a0, 1365, a1", "csrrw a0, 1365, a1", "csrrw a0, 1365, a1" }, \
+    { 32, 4, 0x2f1bc, 0x00859573, "csrrw a0, vstart, a1", "csrrw a0, vstart, a1", "csrrw a0, vstart, a1" }, \
+    { 32, 4, 0x2f1c0, 0x00959573, "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1" }, \
+    { 32, 4, 0x31030, 0x5552d573, "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5" }, \
+    { 32, 4, 0x310cc, 0x0032d573, "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5" }, \
+    { 32, 4, 0x310d0, 0x0082d573, "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5" }, \
+    { 32, 4, 0x2d9d4, 0x5555a073, "csrs 1365, a1", "csrrs zero, 1365, a1", "csrs 1365, a1" }, \
+    { 32, 4, 0x2d9d8, 0x0015a073, "csrs fflags, a1", "csrrs zero, fflags, a1", "csrs fflags, a1" }, \
+    { 32, 4, 0x2d9dc, 0x0025a073, "csrs frm, a1", "csrrs zero, frm, a1", "csrs frm, a1" }, \
+    { 32, 4, 0x317f4, 0x5552e073, "csrsi 1365, 5", "csrrsi zero, 1365, 5", "csrsi 1365, 5" }, \
+    { 32, 4, 0x317f8, 0x0012e073, "csrsi fflags, 5", "csrrsi zero, fflags, 5", "csrsi fflags, 5" }, \
+    { 32, 4, 0x317fc, 0x0022e073, "csrsi frm, 5", "csrrsi zero, frm, 5", "csrsi frm, 5" }, \
+    { 32, 4, 0x2e98c, 0x55559073, "csrw 1365, a1", "csrrw zero, 1365, a1", "csrw 1365, a1" }, \
+    { 32, 4, 0x2e99c, 0x00859073, "csrw vstart, a1", "csrrw zero, vstart, a1", "csrw vstart, a1" }, \
+    { 32, 4, 0x2e9a0, 0x00959073, "csrw vxsat, a1", "csrrw zero, vxsat, a1", "csrw vxsat, a1" }, \
+    { 32, 4, 0x308fc, 0x5552d073, "csrwi 1365, 5", "csrrwi zero, 1365, 5", "csrwi 1365, 5" }, \
+    { 32, 4, 0x30908, 0x0032d073, "csrwi fcsr, 5", "csrrwi zero, fcsr, 5", "csrwi fcsr, 5" }, \
+    { 32, 4, 0x3090c, 0x0082d073, "csrwi vstart, 5", "csrrwi zero, vstart, 5", "csrwi vstart, 5" }, \
+    { 32, 4, 0x22ebc, 0x60159513, "ctz a0, a1", "ctz a0, a1", "ctz a0, a1" }, \
+    { 32, 4, 0x2cec0, 0x0ec5d533, "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2" }, \
+    { 32, 4, 0x2d080, 0x0ec5f533, "czero.nez a0, a1, a2", "czero.nez a0, a1, a2", "czero.nez a0, a1, a2" }, \
+    { 32, 4, 0x1c9a4, 0x02c5c533, "div a0, a1, a2", "div a0, a1, a2", "div a0, a1, a2" }, \
+    { 32, 4, 0x1cb64, 0x02c5d533, "divu a0, a1, a2", "divu a0, a1, a2", "divu a0, a1, a2" }, \
+    { 32, 2, 0x26e04, 0x00009002, "ebreak", "c.ebreak", "c.ebreak" }, \
+    { 32, 4, 0x1665c, 0x00100073, "ebreak", "ebreak", "ebreak" }, \
+    { 32, 4, 0x16658, 0x00000073, "ecall", "ecall", "ecall" }, \
+    { 32, 4, 0x178c8, 0x22b5a553, "fabs.d fa0, fa1", "fsgnjx.d fa0, fa1, fa1", "fabs.d fa0, fa1" }, \
+    { 32, 4, 0x2a888, 0x24b5a553, "fabs.h fa0, fa1", "fsgnjx.h fa0, fa1, fa1", "fabs.h fa0, fa1" }, \
+    { 32, 4, 0x1b05c, 0x20b5a553, "fabs.s fa0, fa1", "fsgnjx.s fa0, fa1, fa1", "fabs.s fa0, fa1" }, \
+    { 32, 4, 0x16f00, 0x02c59553, "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x17090, 0x02c58553, "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x17094, 0x02c5a553, "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x29ec0, 0x04c59553, "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x2a050, 0x04c58553, "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x2a054, 0x04c5a553, "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x1a694, 0x00c59553, "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x1a824, 0x00c58553, "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x1a828, 0x00c5a553, "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x18678, 0xe2059553, "fclass.d a0, fa1", "fclass.d a0, fa1", "fclass.d a0, fa1" }, \
+    { 32, 4, 0x2b638, 0xe4059553, "fclass.h a0, fa1", "fclass.h a0, fa1", "fclass.h a0, fa1" }, \
+    { 32, 4, 0x1be0c, 0xe0059553, "fclass.s a0, fa1", "fclass.s a0, fa1", "fclass.s a0, fa1" }, \
+    { 32, 4, 0x293e0, 0x44859553, "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x294ec, 0x44858553, "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne" }, \
+    { 32, 4, 0x294f0, 0x4485a553, "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x2c070, 0x42259553, "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz" }, \
+    { 32, 4, 0x2c17c, 0x42258553, "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1" }, \
+    { 32, 4, 0x2c180, 0x4225a553, "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn" }, \
+    { 32, 4, 0x18d60, 0x42059553, "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x18e6c, 0x42058553, "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1" }, \
+    { 32, 4, 0x18e70, 0x4205a553, "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x189e8, 0xd2059553, "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz" }, \
+    { 32, 4, 0x18b00, 0xd2058553, "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1" }, \
+    { 32, 4, 0x18b04, 0xd205a553, "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn" }, \
+    { 32, 4, 0x18b14, 0xd2159553, "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz" }, \
+    { 32, 4, 0x18c2c, 0xd2158553, "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1" }, \
+    { 32, 4, 0x18c30, 0xd215a553, "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn" }, \
+    { 32, 4, 0x2c190, 0x44159553, "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz" }, \
+    { 32, 4, 0x2c29c, 0x44158553, "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne" }, \
+    { 32, 4, 0x2c2a0, 0x4415a553, "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn" }, \
+    { 32, 4, 0x2bf50, 0x44059553, "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x2c05c, 0x44058553, "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne" }, \
+    { 32, 4, 0x2c060, 0x4405a553, "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x2b9a8, 0xd4059553, "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz" }, \
+    { 32, 4, 0x2bac0, 0xd4058553, "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne" }, \
+    { 32, 4, 0x2bac4, 0xd405a553, "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn" }, \
+    { 32, 4, 0x2bad4, 0xd4159553, "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz" }, \
+    { 32, 4, 0x2bbec, 0xd4158553, "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne" }, \
+    { 32, 4, 0x2bbf0, 0xd415a553, "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn" }, \
+    { 32, 4, 0x29500, 0x40659553, "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz" }, \
+    { 32, 4, 0x2960c, 0x40658553, "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1" }, \
+    { 32, 4, 0x29610, 0x4065a553, "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn" }, \
+    { 32, 4, 0x18c40, 0x40159553, "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz" }, \
+    { 32, 4, 0x18d4c, 0x40158553, "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne" }, \
+    { 32, 4, 0x18d50, 0x4015a553, "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn" }, \
+    { 32, 4, 0x2be30, 0x40259553, "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz" }, \
+    { 32, 4, 0x2bf3c, 0x40258553, "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1" }, \
+    { 32, 4, 0x2bf40, 0x4025a553, "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn" }, \
+    { 32, 4, 0x1c17c, 0xd0059553, "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz" }, \
+    { 32, 4, 0x1c294, 0xd0058553, "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne" }, \
+    { 32, 4, 0x1c298, 0xd005a553, "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn" }, \
+    { 32, 4, 0x1c2a8, 0xd0159553, "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz" }, \
+    { 32, 4, 0x1c3c0, 0xd0158553, "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne" }, \
+    { 32, 4, 0x1c3c4, 0xd015a553, "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn" }, \
+    { 32, 4, 0x18790, 0xc2059553, "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz" }, \
+    { 32, 4, 0x188a8, 0xc2058553, "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne" }, \
+    { 32, 4, 0x188ac, 0xc205a553, "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn" }, \
+    { 32, 4, 0x2b750, 0xc4059553, "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz" }, \
+    { 32, 4, 0x2b868, 0xc4058553, "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne" }, \
+    { 32, 4, 0x2b86c, 0xc405a553, "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn" }, \
+    { 32, 4, 0x1bf24, 0xc0059553, "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz" }, \
+    { 32, 4, 0x1c03c, 0xc0058553, "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne" }, \
+    { 32, 4, 0x1c040, 0xc005a553, "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn" }, \
+    { 32, 4, 0x188bc, 0xc2159553, "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz" }, \
+    { 32, 4, 0x189d4, 0xc2158553, "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne" }, \
+    { 32, 4, 0x189d8, 0xc215a553, "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn" }, \
+    { 32, 4, 0x2b87c, 0xc4159553, "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz" }, \
+    { 32, 4, 0x2b994, 0xc4158553, "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne" }, \
+    { 32, 4, 0x2b998, 0xc415a553, "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn" }, \
+    { 32, 4, 0x1c050, 0xc0159553, "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz" }, \
+    { 32, 4, 0x1c168, 0xc0158553, "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne" }, \
+    { 32, 4, 0x1c16c, 0xc015a553, "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn" }, \
+    { 32, 4, 0x28ffc, 0xc2859553, "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz" }, \
+    { 32, 4, 0x173ec, 0x1ac59553, "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x1757c, 0x1ac58553, "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x17580, 0x1ac5a553, "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x2a3ac, 0x1cc59553, "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x2a53c, 0x1cc58553, "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x2a540, 0x1cc5a553, "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x1ab80, 0x18c59553, "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x1ad10, 0x18c58553, "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x1ad14, 0x18c5a553, "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x335e4, 0x0000100f, "fence.i", "fence.i", "fence.i" }, \
+    { 32, 4, 0x165d4, 0x8330000f, "fence.tso", "fence.tso", "fence.tso" }, \
+    { 32, 4, 0x165d8, 0x0ff0000f, "fence", "fence iorw, iorw", "fence" }, \
+    { 32, 4, 0x165dc, 0x0a30000f, "fence ir, rw", "fence ir, rw", "fence ir, rw" }, \
+    { 32, 4, 0x165e0, 0x0130000f, "fence w, rw", "fence w, rw", "fence w, rw" }, \
+    { 32, 4, 0x181a4, 0xa2c5a553, "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2" }, \
+    { 32, 4, 0x2b164, 0xa4c5a553, "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2" }, \
+    { 32, 4, 0x1b938, 0xa0c5a553, "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2" }, \
+    { 32, 2, 0x270a0, 0x000035c8, "fld fa0, 168(a1)", "c.fld fa0, 168(a1)", "c.fld fa0, 168(a1)" }, \
+    { 32, 2, 0x27114, 0x0000352a, "fld fa0, 168(sp)", "c.fldsp fa0, 168(sp)", "c.fldsp fa0, 168(sp)" }, \
+    { 32, 4, 0x18e80, 0x5555b507, "fld fa0, 1365(a1)", "fld fa0, 1365(a1)", "fld fa0, 1365(a1)" }, \
+    { 32, 4, 0x184dc, 0xa2c58553, "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2" }, \
+    { 32, 4, 0x2b49c, 0xa4c58553, "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2" }, \
+    { 32, 4, 0x1bc70, 0xa0c58553, "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2" }, \
+    { 32, 4, 0x28328, 0xa2c5c553, "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2" }, \
+    { 32, 4, 0x28cc4, 0xa4c5c553, "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2" }, \
+    { 32, 4, 0x2798c, 0xa0c5c553, "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2" }, \
+    { 32, 4, 0x2c2b0, 0x55559507, "flh fa0, 1365(a1)", "flh fa0, 1365(a1)", "flh fa0, 1365(a1)" }, \
+    { 32, 4, 0x27cc4, 0xf2180553, "fli.d fa0, 1.0", "fli.d fa0, 1.0", "fli.d fa0, 1.0" }, \
+    { 32, 4, 0x27d50, 0xf2108553, "fli.d fa0, min", "fli.d fa0, min", "fli.d fa0, min" }, \
+    { 32, 4, 0x27d54, 0xf2110553, "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05" }, \
+    { 32, 4, 0x28660, 0xf4180553, "fli.h fa0, 1.0", "fli.h fa0, 1.0", "fli.h fa0, 1.0" }, \
+    { 32, 4, 0x286ec, 0xf4108553, "fli.h fa0, min", "fli.h fa0, min", "fli.h fa0, min" }, \
+    { 32, 4, 0x286f0, 0xf4110553, "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05" }, \
+    { 32, 4, 0x27328, 0xf0180553, "fli.s fa0, 1.0", "fli.s fa0, 1.0", "fli.s fa0, 1.0" }, \
+    { 32, 4, 0x273b4, 0xf0108553, "fli.s fa0, min", "fli.s fa0, min", "fli.s fa0, min" }, \
+    { 32, 4, 0x273b8, 0xf0110553, "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05" }, \
+    { 32, 4, 0x18340, 0xa2c59553, "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2" }, \
+    { 32, 4, 0x2b300, 0xa4c59553, "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2" }, \
+    { 32, 4, 0x1bad4, 0xa0c59553, "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2" }, \
+    { 32, 4, 0x284c4, 0xa2c5d553, "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2" }, \
+    { 32, 4, 0x28e60, 0xa4c5d553, "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2" }, \
+    { 32, 4, 0x27b28, 0xa0c5d553, "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2" }, \
+    { 32, 2, 0x271dc, 0x000069e8, "flw fa0, 84(a1)", "c.flw fa0, 84(a1)", "c.flw fa0, 84(a1)" }, \
+    { 32, 2, 0x27250, 0x00006556, "flw fa0, 84(sp)", "c.flwsp fa0, 84(sp)", "c.flwsp fa0, 84(sp)" }, \
+    { 32, 4, 0x1c604, 0x5555a507, "flw fa0, 1365(a1)", "flw fa0, 1365(a1)", "flw fa0, 1365(a1)" }, \
+    { 32, 4, 0x16660, 0x6ac59543, "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x16874, 0x6ac58543, "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x16878, 0x6ac5a543, "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x29620, 0x6cc59543, "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x29834, 0x6cc58543, "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x29838, 0x6cc5a543, "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x19df4, 0x68c59543, "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x1a008, 0x68c58543, "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x1a00c, 0x68c5a543, "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x18014, 0x2ac59553, "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x2afd4, 0x2cc59553, "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x1b7a8, 0x28c59553, "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x27f58, 0x2ac5b553, "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x288f4, 0x2cc5b553, "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x275bc, 0x28c5b553, "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x17e84, 0x2ac58553, "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x2ae44, 0x2cc58553, "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x1b618, 0x28c58553, "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x27dc8, 0x2ac5a553, "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x28764, 0x2cc5a553, "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x2742c, 0x28c5a553, "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x16888, 0x6ac59547, "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x16a9c, 0x6ac58547, "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x16aa0, 0x6ac5a547, "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x29848, 0x6cc59547, "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x29a5c, 0x6cc58547, "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x29a60, 0x6cc5a547, "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x1a01c, 0x68c59547, "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x1a230, 0x68c58547, "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x1a234, 0x68c5a547, "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x17248, 0x12c59553, "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x173d8, 0x12c58553, "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x173dc, 0x12c5a553, "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x2a208, 0x14c59553, "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x2a398, 0x14c58553, "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x2a39c, 0x14c5a553, "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x1a9dc, 0x10c59553, "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x1ab6c, 0x10c58553, "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x1ab70, 0x10c5a553, "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x176b0, 0x22b58553, "fmv.d fa0, fa1", "fsgnj.d fa0, fa1, fa1", "fmv.d fa0, fa1" }, \
+    { 32, 4, 0x2bd18, 0xf4058553, "fmv.h.x fa0, a1", "fmv.h.x fa0, a1", "fmv.h.x fa0, a1" }, \
+    { 32, 4, 0x2a670, 0x24b58553, "fmv.h fa0, fa1", "fsgnj.h fa0, fa1, fa1", "fmv.h fa0, fa1" }, \
+    { 32, 4, 0x1ae44, 0x20b58553, "fmv.s fa0, fa1", "fsgnj.s fa0, fa1, fa1", "fmv.s fa0, fa1" }, \
+    { 32, 4, 0x1c4ec, 0xf0058553, "fmv.w.x fa0, a1", "fmv.w.x fa0, a1", "fmv.w.x fa0, a1" }, \
+    { 32, 4, 0x2bc00, 0xe4058553, "fmv.x.h a0, fa1", "fmv.x.h a0, fa1", "fmv.x.h a0, fa1" }, \
+    { 32, 4, 0x1c3d4, 0xe0058553, "fmv.x.w a0, fa1", "fmv.x.w a0, fa1", "fmv.x.w a0, fa1" }, \
+    { 32, 4, 0x29114, 0xe2158553, "fmvh.x.d a0, fa1", "fmvh.x.d a0, fa1", "fmvh.x.d a0, fa1" }, \
+    { 32, 4, 0x2922c, 0xb2c58553, "fmvp.d.x fa0, a1, a2", "fmvp.d.x fa0, a1, a2", "fmvp.d.x fa0, a1, a2" }, \
+    { 32, 4, 0x177bc, 0x22b59553, "fneg.d fa0, fa1", "fsgnjn.d fa0, fa1, fa1", "fneg.d fa0, fa1" }, \
+    { 32, 4, 0x2a77c, 0x24b59553, "fneg.h fa0, fa1", "fsgnjn.h fa0, fa1, fa1", "fneg.h fa0, fa1" }, \
+    { 32, 4, 0x1af50, 0x20b59553, "fneg.s fa0, fa1", "fsgnjn.s fa0, fa1, fa1", "fneg.s fa0, fa1" }, \
+    { 32, 4, 0x16cd8, 0x6ac5954f, "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x16eec, 0x6ac5854f, "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x16ef0, 0x6ac5a54f, "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x29c98, 0x6cc5954f, "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x29eac, 0x6cc5854f, "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x29eb0, 0x6cc5a54f, "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x1a46c, 0x68c5954f, "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x1a680, 0x68c5854f, "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x1a684, 0x68c5a54f, "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x16ab0, 0x6ac5954b, "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x16cc4, 0x6ac5854b, "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x16cc8, 0x6ac5a54b, "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x29a70, 0x6cc5954b, "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x29c84, 0x6cc5854b, "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x29c88, 0x6cc5a54b, "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x1a244, 0x68c5954b, "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 32, 4, 0x1a458, 0x68c5854b, "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne" }, \
+    { 32, 4, 0x1a45c, 0x68c5a54b, "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 32, 4, 0x194f8, 0x00302573, "frcsr a0", "csrrs a0, fcsr, zero", "frcsr a0" }, \
+    { 32, 4, 0x19620, 0x00102573, "frflags a0", "csrrs a0, fflags, zero", "frflags a0" }, \
+    { 32, 4, 0x280e8, 0x42459553, "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz" }, \
+    { 32, 4, 0x281f4, 0x42458553, "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne" }, \
+    { 32, 4, 0x281f8, 0x4245a553, "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn" }, \
+    { 32, 4, 0x28a84, 0x44459553, "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz" }, \
+    { 32, 4, 0x28b90, 0x44458553, "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne" }, \
+    { 32, 4, 0x28b94, 0x4445a553, "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn" }, \
+    { 32, 4, 0x2774c, 0x40459553, "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x27858, 0x40458553, "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne" }, \
+    { 32, 4, 0x2785c, 0x4045a553, "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x28208, 0x42559553, "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz" }, \
+    { 32, 4, 0x28314, 0x42558553, "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne" }, \
+    { 32, 4, 0x28318, 0x4255a553, "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn" }, \
+    { 32, 4, 0x28ba4, 0x44559553, "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz" }, \
+    { 32, 4, 0x28cb0, 0x44558553, "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne" }, \
+    { 32, 4, 0x28cb4, 0x4455a553, "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn" }, \
+    { 32, 4, 0x2786c, 0x40559553, "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x27978, 0x40558553, "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne" }, \
+    { 32, 4, 0x2797c, 0x4055a553, "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x1958c, 0x00202573, "frrm a0", "csrrs a0, frm, zero", "frrm a0" }, \
+    { 32, 4, 0x196b4, 0x00359073, "fscsr a1", "csrrw zero, fcsr, a1", "fscsr a1" }, \
+    { 32, 4, 0x19748, 0x00359573, "fscsr a0, a1", "csrrw a0, fcsr, a1", "fscsr a0, a1" }, \
+    { 32, 2, 0x270da, 0x0000b5c8, "fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)" }, \
+    { 32, 2, 0x27178, 0x0000b52e, "fsd fa1, 168(sp)", "c.fsdsp fa1, 168(sp)", "c.fsdsp fa1, 168(sp)" }, \
+    { 32, 4, 0x19050, 0x54c5baa7, "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)" }, \
+    { 32, 4, 0x19a34, 0x00159073, "fsflags a1", "csrrw zero, fflags, a1", "fsflags a1" }, \
+    { 32, 4, 0x19ac8, 0x00159573, "fsflags a0, a1", "csrrw a0, fflags, a1", "fsflags a0, a1" }, \
+    { 32, 4, 0x19cf4, 0x0012d073, "fsflagsi 5", "csrrwi zero, fflags, 5", "fsflagsi 5" }, \
+    { 32, 4, 0x19d2c, 0x0012d573, "fsflagsi a0, 5", "csrrwi a0, fflags, 5", "fsflagsi a0, 5" }, \
+    { 32, 4, 0x179d4, 0x22c58553, "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x2a994, 0x24c58553, "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x1b168, 0x20c58553, "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x17b64, 0x22c59553, "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x2ab24, 0x24c59553, "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x1b2f8, 0x20c59553, "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x17cf4, 0x22c5a553, "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2" }, \
+    { 32, 4, 0x2acb4, 0x24c5a553, "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2" }, \
+    { 32, 4, 0x1b488, 0x20c5a553, "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2" }, \
+    { 32, 4, 0x2c480, 0x54c59aa7, "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)" }, \
+    { 32, 4, 0x17590, 0x5a059553, "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz" }, \
+    { 32, 4, 0x1769c, 0x5a058553, "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne" }, \
+    { 32, 4, 0x176a0, 0x5a05a553, "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn" }, \
+    { 32, 4, 0x2a550, 0x5c059553, "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz" }, \
+    { 32, 4, 0x2a65c, 0x5c058553, "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne" }, \
+    { 32, 4, 0x2a660, 0x5c05a553, "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn" }, \
+    { 32, 4, 0x1ad24, 0x58059553, "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz" }, \
+    { 32, 4, 0x1ae30, 0x58058553, "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne" }, \
+    { 32, 4, 0x1ae34, 0x5805a553, "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn" }, \
+    { 32, 4, 0x19874, 0x00259073, "fsrm a1", "csrrw zero, frm, a1", "fsrm a1" }, \
+    { 32, 4, 0x19908, 0x00259573, "fsrm a0, a1", "csrrw a0, frm, a1", "fsrm a0, a1" }, \
+    { 32, 4, 0x19bf4, 0x0022d073, "fsrmi 5", "csrrwi zero, frm, 5", "fsrmi 5" }, \
+    { 32, 4, 0x19c2c, 0x0022d573, "fsrmi a0, 5", "csrrwi a0, frm, 5", "fsrmi a0, 5" }, \
+    { 32, 4, 0x170a4, 0x0ac59553, "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x17234, 0x0ac58553, "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x17238, 0x0ac5a553, "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x2a064, 0x0cc59553, "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x2a1f4, 0x0cc58553, "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x2a1f8, 0x0cc5a553, "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn" }, \
+    { 32, 4, 0x1a838, 0x08c59553, "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz" }, \
+    { 32, 4, 0x1a9c8, 0x08c58553, "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne" }, \
+    { 32, 4, 0x1a9cc, 0x08c5a553, "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn" }, \
+    { 32, 2, 0x27216, 0x0000e9e8, "fsw fa0, 84(a1)", "c.fsw fa0, 84(a1)", "c.fsw fa0, 84(a1)" }, \
+    { 32, 2, 0x272b4, 0x0000eaae, "fsw fa1, 84(sp)", "c.fswsp fa1, 84(sp)", "c.fswsp fa1, 84(sp)" }, \
+    { 32, 4, 0x1c7d4, 0x54c5aaa7, "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)" }, \
+    { 32, 4, 0x1d578, 0x62000073, "hfence.gvma", "hfence.gvma zero, zero", "hfence.gvma" }, \
+    { 32, 4, 0x1d57c, 0x62058073, "hfence.gvma a1", "hfence.gvma a1, zero", "hfence.gvma a1" }, \
+    { 32, 4, 0x1d610, 0x62c58073, "hfence.gvma a1, a2", "hfence.gvma a1, a2", "hfence.gvma a1, a2" }, \
+    { 32, 4, 0x1d3b0, 0x22000073, "hfence.vvma", "hfence.vvma zero, zero", "hfence.vvma" }, \
+    { 32, 4, 0x1d3b4, 0x22058073, "hfence.vvma a1", "hfence.vvma a1, zero", "hfence.vvma a1" }, \
+    { 32, 4, 0x1d448, 0x22c58073, "hfence.vvma a1, a2", "hfence.vvma a1, a2", "hfence.vvma a1, a2" }, \
+    { 32, 4, 0x1d870, 0x66c58073, "hinval.gvma a1, a2", "hinval.gvma a1, a2", "hinval.gvma a1, a2" }, \
+    { 32, 4, 0x1d740, 0x26c58073, "hinval.vvma a1, a2", "hinval.vvma a1, a2", "hinval.vvma a1, a2" }, \
+    { 32, 4, 0x1d9a0, 0x6005c573, "hlv.b a0, (a1)", "hlv.b a0, (a1)", "hlv.b a0, (a1)" }, \
+    { 32, 4, 0x1dab4, 0x6015c573, "hlv.bu a0, (a1)", "hlv.bu a0, (a1)", "hlv.bu a0, (a1)" }, \
+    { 32, 4, 0x1dbc8, 0x6405c573, "hlv.h a0, (a1)", "hlv.h a0, (a1)", "hlv.h a0, (a1)" }, \
+    { 32, 4, 0x1dcdc, 0x6415c573, "hlv.hu a0, (a1)", "hlv.hu a0, (a1)", "hlv.hu a0, (a1)" }, \
+    { 32, 4, 0x1df04, 0x6805c573, "hlv.w a0, (a1)", "hlv.w a0, (a1)", "hlv.w a0, (a1)" }, \
+    { 32, 4, 0x1ddf0, 0x6435c573, "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)" }, \
+    { 32, 4, 0x1e018, 0x6835c573, "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)" }, \
+    { 32, 4, 0x1e12c, 0x62c5c073, "hsv.b a2, (a1)", "hsv.b a2, (a1)", "hsv.b a2, (a1)" }, \
+    { 32, 4, 0x1e240, 0x66c5c073, "hsv.h a2, (a1)", "hsv.h a2, (a1)", "hsv.h a2, (a1)" }, \
+    { 32, 4, 0x1e354, 0x6ac5c073, "hsv.w a2, (a1)", "hsv.w a2, (a1)", "hsv.w a2, (a1)" }, \
+    { 32, 2, 0x26b22, 0x0000a46d, "j 0x26dcc", "c.j 0x26dcc", "c.j 682" }, \
     { 32, 4, 0x10220, 0x2ab0006f, "j 0x10cca", "jal zero, 0x10cca", "j 2730" }, \
-    { 32, 2, 0x2669a, 0x0000246d, "jal 0x26944", "c.jal 0x26944", "c.jal 682" }, \
+    { 32, 2, 0x26892, 0x0000246d, "jal 0x26b3c", "c.jal 0x26b3c", "c.jal 682" }, \
     { 32, 4, 0x102f0, 0x2ab000ef, "jal 0x10d9a", "jal ra, 0x10d9a", "jal 2730" }, \
     { 32, 4, 0x103c0, 0x2ab0056f, "jal a0, 0x10e6a", "jal a0, 0x10e6a", "jal a0, 2730" }, \
-    { 32, 2, 0x26c0e, 0x00009502, "jalr a0", "c.jalr a0", "c.jalr a0" }, \
+    { 32, 2, 0x26e06, 0x00009502, "jalr a0", "c.jalr a0", "c.jalr a0" }, \
     { 32, 4, 0x10704, 0x000580e7, "jalr a1", "jalr ra, 0(a1)", "jalr a1" }, \
     { 32, 4, 0x10798, 0x555580e7, "jalr 1365(a1)", "jalr ra, 1365(a1)", "jalr 1365(a1)" }, \
     { 32, 4, 0x108e4, 0x00058567, "jalr a0, a1", "jalr a0, 0(a1)", "jalr a0, a1" }, \
-    { 32, 2, 0x26af4, 0x00008502, "jr a0", "c.jr a0", "c.jr a0" }, \
+    { 32, 2, 0x26cec, 0x00008502, "jr a0", "c.jr a0", "c.jr a0" }, \
     { 32, 4, 0x10524, 0x00058067, "jr a1", "jalr zero, 0(a1)", "jr a1" }, \
     { 32, 4, 0x105b8, 0x55558067, "jr 1365(a1)", "jalr zero, 1365(a1)", "jr 1365(a1)" }, \
-    { 32, 4, 0x12800, 0x55558503, "lb a0, 1365(a1)", "lb a0, 1365(a1)", "lb a0, 1365(a1)" }, \
-    { 32, 2, 0x26d92, 0x000081c8, "lbu a0, 1(a1)", "c.lbu a0, 1(a1)", "c.lbu a0, 1(a1)" }, \
-    { 32, 4, 0x12d94, 0x5555c503, "lbu a0, 1365(a1)", "lbu a0, 1365(a1)", "lbu a0, 1365(a1)" }, \
-    { 32, 2, 0x26dd6, 0x000085c8, "lh a0, 0(a1)", "c.lh a0, 0(a1)", "c.lh a0, 0(a1)" }, \
-    { 32, 4, 0x129dc, 0x55559503, "lh a0, 1365(a1)", "lh a0, 1365(a1)", "lh a0, 1365(a1)" }, \
-    { 32, 2, 0x26db6, 0x00008588, "lhu a0, 0(a1)", "c.lhu a0, 0(a1)", "c.lhu a0, 0(a1)" }, \
-    { 32, 4, 0x12f70, 0x5555d503, "lhu a0, 1365(a1)", "lhu a0, 1365(a1)", "lhu a0, 1365(a1)" }, \
-    { 32, 4, 0x136e4, 0x55500513, "li a0, 1365", "addi a0, zero, 1365", "li a0, 1365" }, \
-    { 32, 2, 0x266fc, 0x00004555, "li a0, 21", "c.li a0, 21", "c.li a0, 21" }, \
+    { 32, 4, 0x129f8, 0x55558503, "lb a0, 1365(a1)", "lb a0, 1365(a1)", "lb a0, 1365(a1)" }, \
+    { 32, 2, 0x26f8a, 0x000081c8, "lbu a0, 1(a1)", "c.lbu a0, 1(a1)", "c.lbu a0, 1(a1)" }, \
+    { 32, 4, 0x12f8c, 0x5555c503, "lbu a0, 1365(a1)", "lbu a0, 1365(a1)", "lbu a0, 1365(a1)" }, \
+    { 32, 2, 0x26fce, 0x000085c8, "lh a0, 0(a1)", "c.lh a0, 0(a1)", "c.lh a0, 0(a1)" }, \
+    { 32, 4, 0x12bd4, 0x55559503, "lh a0, 1365(a1)", "lh a0, 1365(a1)", "lh a0, 1365(a1)" }, \
+    { 32, 2, 0x26fae, 0x00008588, "lhu a0, 0(a1)", "c.lhu a0, 0(a1)", "c.lhu a0, 0(a1)" }, \
+    { 32, 4, 0x13168, 0x5555d503, "lhu a0, 1365(a1)", "lhu a0, 1365(a1)", "lhu a0, 1365(a1)" }, \
+    { 32, 4, 0x138dc, 0x55500513, "li a0, 1365", "addi a0, zero, 1365", "li a0, 1365" }, \
+    { 32, 2, 0x268f4, 0x00004555, "li a0, 21", "c.li a0, 21", "c.li a0, 21" }, \
     { 32, 4, 0x10114, 0x12345017, "lpad 74565", "auipc zero, 74565", "lpad 74565" }, \
-    { 32, 4, 0x21724, 0x1405a52f, "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)" }, \
-    { 32, 4, 0x2172c, 0x1605a52f, "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)" }, \
-    { 32, 4, 0x21728, 0x1205a52f, "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)" }, \
-    { 32, 4, 0x21720, 0x1005a52f, "lr.w a0, (a1)", "lr.w a0, (a1)", "lr.w a0, (a1)" }, \
-    { 32, 2, 0x267dc, 0x00006555, "lui a0, 21", "c.lui a0, 21", "c.lui a0, 21" }, \
+    { 32, 4, 0x2191c, 0x1405a52f, "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)" }, \
+    { 32, 4, 0x21924, 0x1605a52f, "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)" }, \
+    { 32, 4, 0x21920, 0x1205a52f, "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)" }, \
+    { 32, 4, 0x21918, 0x1005a52f, "lr.w a0, (a1)", "lr.w a0, (a1)", "lr.w a0, (a1)" }, \
+    { 32, 2, 0x269d4, 0x00006555, "lui a0, 21", "c.lui a0, 21", "c.lui a0, 21" }, \
     { 32, 4, 0x10000, 0x12345537, "lui a0, 74565", "lui a0, 74565", "lui a0, 74565" }, \
-    { 32, 2, 0x26576, 0x000049e8, "lw a0, 84(a1)", "c.lw a0, 84(a1)", "c.lw a0, 84(a1)" }, \
-    { 32, 2, 0x26a8c, 0x00004556, "lw a0, 84(sp)", "c.lwsp a0, 84(sp)", "c.lwsp a0, 84(sp)" }, \
-    { 32, 4, 0x12bb8, 0x5555a503, "lw a0, 1365(a1)", "lw a0, 1365(a1)", "lw a0, 1365(a1)" }, \
-    { 32, 4, 0x232a0, 0x0ac5e533, "max a0, a1, a2", "max a0, a1, a2", "max a0, a1, a2" }, \
-    { 32, 4, 0x23460, 0x0ac5f533, "maxu a0, a1, a2", "maxu a0, a1, a2", "maxu a0, a1, a2" }, \
-    { 32, 4, 0x23620, 0x0ac5c533, "min a0, a1, a2", "min a0, a1, a2", "min a0, a1, a2" }, \
-    { 32, 4, 0x237e0, 0x0ac5d533, "minu a0, a1, a2", "minu a0, a1, a2", "minu a0, a1, a2" }, \
-    { 32, 4, 0x3340c, 0x81c5c573, "mop.r.0 a0, a1", "mop.r.0 a0, a1", "mop.r.0 a0, a1" }, \
-    { 32, 4, 0x33538, 0x81d5c573, "mop.r.1 a0, a1", "mop.r.1 a0, a1", "mop.r.1 a0, a1" }, \
-    { 32, 4, 0x33fc4, 0x89e5c573, "mop.r.10 a0, a1", "mop.r.10 a0, a1", "mop.r.10 a0, a1" }, \
-    { 32, 4, 0x340f0, 0x89f5c573, "mop.r.11 a0, a1", "mop.r.11 a0, a1", "mop.r.11 a0, a1" }, \
-    { 32, 4, 0x3421c, 0x8dc5c573, "mop.r.12 a0, a1", "mop.r.12 a0, a1", "mop.r.12 a0, a1" }, \
-    { 32, 4, 0x34348, 0x8dd5c573, "mop.r.13 a0, a1", "mop.r.13 a0, a1", "mop.r.13 a0, a1" }, \
-    { 32, 4, 0x34474, 0x8de5c573, "mop.r.14 a0, a1", "mop.r.14 a0, a1", "mop.r.14 a0, a1" }, \
-    { 32, 4, 0x345a0, 0x8df5c573, "mop.r.15 a0, a1", "mop.r.15 a0, a1", "mop.r.15 a0, a1" }, \
-    { 32, 4, 0x346cc, 0xc1c5c573, "mop.r.16 a0, a1", "mop.r.16 a0, a1", "mop.r.16 a0, a1" }, \
-    { 32, 4, 0x347f8, 0xc1d5c573, "mop.r.17 a0, a1", "mop.r.17 a0, a1", "mop.r.17 a0, a1" }, \
-    { 32, 4, 0x34924, 0xc1e5c573, "mop.r.18 a0, a1", "mop.r.18 a0, a1", "mop.r.18 a0, a1" }, \
-    { 32, 4, 0x34a50, 0xc1f5c573, "mop.r.19 a0, a1", "mop.r.19 a0, a1", "mop.r.19 a0, a1" }, \
-    { 32, 4, 0x33664, 0x81e5c573, "mop.r.2 a0, a1", "mop.r.2 a0, a1", "mop.r.2 a0, a1" }, \
-    { 32, 4, 0x34b7c, 0xc5c5c573, "mop.r.20 a0, a1", "mop.r.20 a0, a1", "mop.r.20 a0, a1" }, \
-    { 32, 4, 0x34ca8, 0xc5d5c573, "mop.r.21 a0, a1", "mop.r.21 a0, a1", "mop.r.21 a0, a1" }, \
-    { 32, 4, 0x34dd4, 0xc5e5c573, "mop.r.22 a0, a1", "mop.r.22 a0, a1", "mop.r.22 a0, a1" }, \
-    { 32, 4, 0x34f00, 0xc5f5c573, "mop.r.23 a0, a1", "mop.r.23 a0, a1", "mop.r.23 a0, a1" }, \
-    { 32, 4, 0x3502c, 0xc9c5c573, "mop.r.24 a0, a1", "mop.r.24 a0, a1", "mop.r.24 a0, a1" }, \
-    { 32, 4, 0x35158, 0xc9d5c573, "mop.r.25 a0, a1", "mop.r.25 a0, a1", "mop.r.25 a0, a1" }, \
-    { 32, 4, 0x35284, 0xc9e5c573, "mop.r.26 a0, a1", "mop.r.26 a0, a1", "mop.r.26 a0, a1" }, \
-    { 32, 4, 0x353b0, 0xc9f5c573, "mop.r.27 a0, a1", "mop.r.27 a0, a1", "mop.r.27 a0, a1" }, \
-    { 32, 4, 0x354dc, 0xcdc5c573, "mop.r.28 a0, a1", "mop.r.28 a0, a1", "mop.r.28 a0, a1" }, \
-    { 32, 4, 0x35608, 0xcdd5c573, "mop.r.29 a0, a1", "mop.r.29 a0, a1", "mop.r.29 a0, a1" }, \
-    { 32, 4, 0x33790, 0x81f5c573, "mop.r.3 a0, a1", "mop.r.3 a0, a1", "mop.r.3 a0, a1" }, \
-    { 32, 4, 0x35734, 0xcde5c573, "mop.r.30 a0, a1", "mop.r.30 a0, a1", "mop.r.30 a0, a1" }, \
-    { 32, 4, 0x35860, 0xcdf5c573, "mop.r.31 a0, a1", "mop.r.31 a0, a1", "mop.r.31 a0, a1" }, \
-    { 32, 4, 0x338bc, 0x85c5c573, "mop.r.4 a0, a1", "mop.r.4 a0, a1", "mop.r.4 a0, a1" }, \
-    { 32, 4, 0x339e8, 0x85d5c573, "mop.r.5 a0, a1", "mop.r.5 a0, a1", "mop.r.5 a0, a1" }, \
-    { 32, 4, 0x33b14, 0x85e5c573, "mop.r.6 a0, a1", "mop.r.6 a0, a1", "mop.r.6 a0, a1" }, \
-    { 32, 4, 0x33c40, 0x85f5c573, "mop.r.7 a0, a1", "mop.r.7 a0, a1", "mop.r.7 a0, a1" }, \
-    { 32, 4, 0x33d6c, 0x89c5c573, "mop.r.8 a0, a1", "mop.r.8 a0, a1", "mop.r.8 a0, a1" }, \
-    { 32, 4, 0x33e98, 0x89d5c573, "mop.r.9 a0, a1", "mop.r.9 a0, a1", "mop.r.9 a0, a1" }, \
-    { 32, 4, 0x3598c, 0x82c5c573, "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2" }, \
-    { 32, 4, 0x35b4c, 0x86c5c573, "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2" }, \
-    { 32, 4, 0x35d0c, 0x8ac5c573, "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2" }, \
-    { 32, 4, 0x35ecc, 0x8ec5c573, "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2" }, \
-    { 32, 4, 0x3608c, 0xc2c5c573, "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2" }, \
-    { 32, 4, 0x3624c, 0xc6c5c573, "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2" }, \
-    { 32, 4, 0x3640c, 0xcac5c573, "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2" }, \
-    { 32, 4, 0x365cc, 0xcec5c573, "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2" }, \
-    { 32, 4, 0x1ceac, 0x30200073, "mret", "mret", "mret" }, \
-    { 32, 2, 0x26e3a, 0x00009dc9, "mul a1, a1, a0", "c.mul a1, a0", "c.mul a1, a0" }, \
-    { 32, 4, 0x383dc, 0x02c58533, "mul a0, a1, a2", "mul a0, a1, a2", "mul a0, a1, a2" }, \
-    { 32, 4, 0x3859c, 0x02c59533, "mulh a0, a1, a2", "mulh a0, a1, a2", "mulh a0, a1, a2" }, \
-    { 32, 4, 0x3875c, 0x02c5a533, "mulhsu a0, a1, a2", "mulhsu a0, a1, a2", "mulhsu a0, a1, a2" }, \
-    { 32, 4, 0x3891c, 0x02c5b533, "mulhu a0, a1, a2", "mulhu a0, a1, a2", "mulhu a0, a1, a2" }, \
-    { 32, 4, 0x13848, 0x00058513, "mv a0, a1", "addi a0, a1, 0", "mv a0, a1" }, \
-    { 32, 2, 0x26b38, 0x0000852e, "mv a0, a1", "c.mv a0, a1", "c.mv a0, a1" }, \
-    { 32, 4, 0x14c88, 0x40c00533, "neg a0, a2", "sub a0, zero, a2", "neg a0, a2" }, \
-    { 32, 4, 0x136e0, 0x00000013, "nop", "addi zero, zero, 0", "nop" }, \
-    { 32, 2, 0x265ea, 0x00000001, "nop", "c.nop", "c.nop" }, \
-    { 32, 2, 0x26e98, 0x00009df5, "not a1, a1", "c.not a1", "c.not a1" }, \
-    { 32, 4, 0x14088, 0xfff5c513, "not a0, a1", "xori a0, a1, -1", "not a0, a1" }, \
-    { 32, 4, 0x333fc, 0x00500033, "ntl.all", "add zero, zero, t0", "ntl.all" }, \
-    { 32, 4, 0x333f0, 0x00200033, "ntl.p1", "add zero, zero, sp", "ntl.p1" }, \
-    { 32, 4, 0x333f4, 0x00300033, "ntl.pall", "add zero, zero, gp", "ntl.pall" }, \
-    { 32, 4, 0x333f8, 0x00400033, "ntl.s1", "add zero, zero, tp", "ntl.s1" }, \
-    { 32, 2, 0x268ee, 0x00008dc9, "or a1, a1, a0", "c.or a1, a0", "c.or a1, a0" }, \
-    { 32, 4, 0x1605c, 0x00c5e533, "or a0, a1, a2", "or a0, a1, a2", "or a0, a1, a2" }, \
-    { 32, 4, 0x23174, 0x2875d513, "orc.b a0, a1", "orc.b a0, a1", "orc.b a0, a1" }, \
-    { 32, 4, 0x143ac, 0x5555e513, "ori a0, a1, 1365", "ori a0, a1, 1365", "ori a0, a1, 1365" }, \
-    { 32, 4, 0x2222c, 0x40c5e533, "orn a0, a1, a2", "orn a0, a1, a2", "orn a0, a1, a2" }, \
-    { 32, 4, 0x24b38, 0x08c5c533, "pack a0, a1, a2", "pack a0, a1, a2", "pack a0, a1, a2" }, \
-    { 32, 4, 0x24cf8, 0x08c5f533, "packh a0, a1, a2", "packh a0, a1, a2", "packh a0, a1, a2" }, \
-    { 32, 4, 0x33408, 0x0100000f, "pause", "fence w, 0", "pause" }, \
-    { 32, 4, 0x2c5e4, 0x0205e013, "prefetch.i 32(a1)", "prefetch.i 32(a1)", "prefetch.i 32(a1)" }, \
-    { 32, 4, 0x2c6dc, 0x0215e013, "prefetch.r 32(a1)", "prefetch.r 32(a1)", "prefetch.r 32(a1)" }, \
-    { 32, 4, 0x2c7d4, 0x0235e013, "prefetch.w 32(a1)", "prefetch.w 32(a1)", "prefetch.w 32(a1)" }, \
-    { 32, 4, 0x2c950, 0xc0002573, "rdcycle a0", "csrrs a0, cycle, zero", "rdcycle a0" }, \
-    { 32, 4, 0x2cb0c, 0xc8002573, "rdcycleh a0", "csrrs a0, cycleh, zero", "rdcycleh a0" }, \
-    { 32, 4, 0x2ca78, 0xc0202573, "rdinstret a0", "csrrs a0, instret, zero", "rdinstret a0" }, \
-    { 32, 4, 0x2cc34, 0xc8202573, "rdinstreth a0", "csrrs a0, instreth, zero", "rdinstreth a0" }, \
-    { 32, 4, 0x2c9e4, 0xc0102573, "rdtime a0", "csrrs a0, time, zero", "rdtime a0" }, \
-    { 32, 4, 0x2cba0, 0xc8102573, "rdtimeh a0", "csrrs a0, timeh, zero", "rdtimeh a0" }, \
-    { 32, 4, 0x1cb2c, 0x02c5e533, "rem a0, a1, a2", "rem a0, a1, a2", "rem a0, a1, a2" }, \
-    { 32, 4, 0x1ccec, 0x02c5f533, "remu a0, a1, a2", "remu a0, a1, a2", "remu a0, a1, a2" }, \
-    { 32, 2, 0x26af2, 0x00008082, "ret", "c.jr ra", "c.jr ra" }, \
+    { 32, 2, 0x2676e, 0x000049e8, "lw a0, 84(a1)", "c.lw a0, 84(a1)", "c.lw a0, 84(a1)" }, \
+    { 32, 2, 0x26c84, 0x00004556, "lw a0, 84(sp)", "c.lwsp a0, 84(sp)", "c.lwsp a0, 84(sp)" }, \
+    { 32, 4, 0x12db0, 0x5555a503, "lw a0, 1365(a1)", "lw a0, 1365(a1)", "lw a0, 1365(a1)" }, \
+    { 32, 4, 0x23498, 0x0ac5e533, "max a0, a1, a2", "max a0, a1, a2", "max a0, a1, a2" }, \
+    { 32, 4, 0x23658, 0x0ac5f533, "maxu a0, a1, a2", "maxu a0, a1, a2", "maxu a0, a1, a2" }, \
+    { 32, 4, 0x23818, 0x0ac5c533, "min a0, a1, a2", "min a0, a1, a2", "min a0, a1, a2" }, \
+    { 32, 4, 0x239d8, 0x0ac5d533, "minu a0, a1, a2", "minu a0, a1, a2", "minu a0, a1, a2" }, \
+    { 32, 4, 0x33604, 0x81c5c573, "mop.r.0 a0, a1", "mop.r.0 a0, a1", "mop.r.0 a0, a1" }, \
+    { 32, 4, 0x33730, 0x81d5c573, "mop.r.1 a0, a1", "mop.r.1 a0, a1", "mop.r.1 a0, a1" }, \
+    { 32, 4, 0x341bc, 0x89e5c573, "mop.r.10 a0, a1", "mop.r.10 a0, a1", "mop.r.10 a0, a1" }, \
+    { 32, 4, 0x342e8, 0x89f5c573, "mop.r.11 a0, a1", "mop.r.11 a0, a1", "mop.r.11 a0, a1" }, \
+    { 32, 4, 0x34414, 0x8dc5c573, "mop.r.12 a0, a1", "mop.r.12 a0, a1", "mop.r.12 a0, a1" }, \
+    { 32, 4, 0x34540, 0x8dd5c573, "mop.r.13 a0, a1", "mop.r.13 a0, a1", "mop.r.13 a0, a1" }, \
+    { 32, 4, 0x3466c, 0x8de5c573, "mop.r.14 a0, a1", "mop.r.14 a0, a1", "mop.r.14 a0, a1" }, \
+    { 32, 4, 0x34798, 0x8df5c573, "mop.r.15 a0, a1", "mop.r.15 a0, a1", "mop.r.15 a0, a1" }, \
+    { 32, 4, 0x348c4, 0xc1c5c573, "mop.r.16 a0, a1", "mop.r.16 a0, a1", "mop.r.16 a0, a1" }, \
+    { 32, 4, 0x349f0, 0xc1d5c573, "mop.r.17 a0, a1", "mop.r.17 a0, a1", "mop.r.17 a0, a1" }, \
+    { 32, 4, 0x34b1c, 0xc1e5c573, "mop.r.18 a0, a1", "mop.r.18 a0, a1", "mop.r.18 a0, a1" }, \
+    { 32, 4, 0x34c48, 0xc1f5c573, "mop.r.19 a0, a1", "mop.r.19 a0, a1", "mop.r.19 a0, a1" }, \
+    { 32, 4, 0x3385c, 0x81e5c573, "mop.r.2 a0, a1", "mop.r.2 a0, a1", "mop.r.2 a0, a1" }, \
+    { 32, 4, 0x34d74, 0xc5c5c573, "mop.r.20 a0, a1", "mop.r.20 a0, a1", "mop.r.20 a0, a1" }, \
+    { 32, 4, 0x34ea0, 0xc5d5c573, "mop.r.21 a0, a1", "mop.r.21 a0, a1", "mop.r.21 a0, a1" }, \
+    { 32, 4, 0x34fcc, 0xc5e5c573, "mop.r.22 a0, a1", "mop.r.22 a0, a1", "mop.r.22 a0, a1" }, \
+    { 32, 4, 0x350f8, 0xc5f5c573, "mop.r.23 a0, a1", "mop.r.23 a0, a1", "mop.r.23 a0, a1" }, \
+    { 32, 4, 0x35224, 0xc9c5c573, "mop.r.24 a0, a1", "mop.r.24 a0, a1", "mop.r.24 a0, a1" }, \
+    { 32, 4, 0x35350, 0xc9d5c573, "mop.r.25 a0, a1", "mop.r.25 a0, a1", "mop.r.25 a0, a1" }, \
+    { 32, 4, 0x3547c, 0xc9e5c573, "mop.r.26 a0, a1", "mop.r.26 a0, a1", "mop.r.26 a0, a1" }, \
+    { 32, 4, 0x355a8, 0xc9f5c573, "mop.r.27 a0, a1", "mop.r.27 a0, a1", "mop.r.27 a0, a1" }, \
+    { 32, 4, 0x356d4, 0xcdc5c573, "mop.r.28 a0, a1", "mop.r.28 a0, a1", "mop.r.28 a0, a1" }, \
+    { 32, 4, 0x35800, 0xcdd5c573, "mop.r.29 a0, a1", "mop.r.29 a0, a1", "mop.r.29 a0, a1" }, \
+    { 32, 4, 0x33988, 0x81f5c573, "mop.r.3 a0, a1", "mop.r.3 a0, a1", "mop.r.3 a0, a1" }, \
+    { 32, 4, 0x3592c, 0xcde5c573, "mop.r.30 a0, a1", "mop.r.30 a0, a1", "mop.r.30 a0, a1" }, \
+    { 32, 4, 0x35a58, 0xcdf5c573, "mop.r.31 a0, a1", "mop.r.31 a0, a1", "mop.r.31 a0, a1" }, \
+    { 32, 4, 0x33ab4, 0x85c5c573, "mop.r.4 a0, a1", "mop.r.4 a0, a1", "mop.r.4 a0, a1" }, \
+    { 32, 4, 0x33be0, 0x85d5c573, "mop.r.5 a0, a1", "mop.r.5 a0, a1", "mop.r.5 a0, a1" }, \
+    { 32, 4, 0x33d0c, 0x85e5c573, "mop.r.6 a0, a1", "mop.r.6 a0, a1", "mop.r.6 a0, a1" }, \
+    { 32, 4, 0x33e38, 0x85f5c573, "mop.r.7 a0, a1", "mop.r.7 a0, a1", "mop.r.7 a0, a1" }, \
+    { 32, 4, 0x33f64, 0x89c5c573, "mop.r.8 a0, a1", "mop.r.8 a0, a1", "mop.r.8 a0, a1" }, \
+    { 32, 4, 0x34090, 0x89d5c573, "mop.r.9 a0, a1", "mop.r.9 a0, a1", "mop.r.9 a0, a1" }, \
+    { 32, 4, 0x35b84, 0x82c5c573, "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2" }, \
+    { 32, 4, 0x35d44, 0x86c5c573, "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2" }, \
+    { 32, 4, 0x35f04, 0x8ac5c573, "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2" }, \
+    { 32, 4, 0x360c4, 0x8ec5c573, "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2" }, \
+    { 32, 4, 0x36284, 0xc2c5c573, "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2" }, \
+    { 32, 4, 0x36444, 0xc6c5c573, "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2" }, \
+    { 32, 4, 0x36604, 0xcac5c573, "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2" }, \
+    { 32, 4, 0x367c4, 0xcec5c573, "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2" }, \
+    { 32, 4, 0x1d0a4, 0x30200073, "mret", "mret", "mret" }, \
+    { 32, 2, 0x27032, 0x00009dc9, "mul a1, a1, a0", "c.mul a1, a0", "c.mul a1, a0" }, \
+    { 32, 4, 0x385d4, 0x02c58533, "mul a0, a1, a2", "mul a0, a1, a2", "mul a0, a1, a2" }, \
+    { 32, 4, 0x38794, 0x02c59533, "mulh a0, a1, a2", "mulh a0, a1, a2", "mulh a0, a1, a2" }, \
+    { 32, 4, 0x38954, 0x02c5a533, "mulhsu a0, a1, a2", "mulhsu a0, a1, a2", "mulhsu a0, a1, a2" }, \
+    { 32, 4, 0x38b14, 0x02c5b533, "mulhu a0, a1, a2", "mulhu a0, a1, a2", "mulhu a0, a1, a2" }, \
+    { 32, 4, 0x13a40, 0x00058513, "mv a0, a1", "addi a0, a1, 0", "mv a0, a1" }, \
+    { 32, 2, 0x26d30, 0x0000852e, "mv a0, a1", "c.mv a0, a1", "c.mv a0, a1" }, \
+    { 32, 4, 0x14e80, 0x40c00533, "neg a0, a2", "sub a0, zero, a2", "neg a0, a2" }, \
+    { 32, 4, 0x138d8, 0x00000013, "nop", "addi zero, zero, 0", "nop" }, \
+    { 32, 2, 0x267e2, 0x00000001, "nop", "c.nop", "c.nop" }, \
+    { 32, 2, 0x27090, 0x00009df5, "not a1, a1", "c.not a1", "c.not a1" }, \
+    { 32, 4, 0x14280, 0xfff5c513, "not a0, a1", "xori a0, a1, -1", "not a0, a1" }, \
+    { 32, 4, 0x335f4, 0x00500033, "ntl.all", "add zero, zero, t0", "ntl.all" }, \
+    { 32, 4, 0x335e8, 0x00200033, "ntl.p1", "add zero, zero, sp", "ntl.p1" }, \
+    { 32, 4, 0x335ec, 0x00300033, "ntl.pall", "add zero, zero, gp", "ntl.pall" }, \
+    { 32, 4, 0x335f0, 0x00400033, "ntl.s1", "add zero, zero, tp", "ntl.s1" }, \
+    { 32, 2, 0x26ae6, 0x00008dc9, "or a1, a1, a0", "c.or a1, a0", "c.or a1, a0" }, \
+    { 32, 4, 0x16254, 0x00c5e533, "or a0, a1, a2", "or a0, a1, a2", "or a0, a1, a2" }, \
+    { 32, 4, 0x2336c, 0x2875d513, "orc.b a0, a1", "orc.b a0, a1", "orc.b a0, a1" }, \
+    { 32, 4, 0x145a4, 0x5555e513, "ori a0, a1, 1365", "ori a0, a1, 1365", "ori a0, a1, 1365" }, \
+    { 32, 4, 0x22424, 0x40c5e533, "orn a0, a1, a2", "orn a0, a1, a2", "orn a0, a1, a2" }, \
+    { 32, 4, 0x24d30, 0x08c5c533, "pack a0, a1, a2", "pack a0, a1, a2", "pack a0, a1, a2" }, \
+    { 32, 4, 0x24ef0, 0x08c5f533, "packh a0, a1, a2", "packh a0, a1, a2", "packh a0, a1, a2" }, \
+    { 32, 4, 0x33600, 0x0100000f, "pause", "fence w, 0", "pause" }, \
+    { 32, 4, 0x2c7dc, 0x0205e013, "prefetch.i 32(a1)", "prefetch.i 32(a1)", "prefetch.i 32(a1)" }, \
+    { 32, 4, 0x2c8d4, 0x0215e013, "prefetch.r 32(a1)", "prefetch.r 32(a1)", "prefetch.r 32(a1)" }, \
+    { 32, 4, 0x2c9cc, 0x0235e013, "prefetch.w 32(a1)", "prefetch.w 32(a1)", "prefetch.w 32(a1)" }, \
+    { 32, 4, 0x2cb48, 0xc0002573, "rdcycle a0", "csrrs a0, cycle, zero", "rdcycle a0" }, \
+    { 32, 4, 0x2cd04, 0xc8002573, "rdcycleh a0", "csrrs a0, cycleh, zero", "rdcycleh a0" }, \
+    { 32, 4, 0x2cc70, 0xc0202573, "rdinstret a0", "csrrs a0, instret, zero", "rdinstret a0" }, \
+    { 32, 4, 0x2ce2c, 0xc8202573, "rdinstreth a0", "csrrs a0, instreth, zero", "rdinstreth a0" }, \
+    { 32, 4, 0x2cbdc, 0xc0102573, "rdtime a0", "csrrs a0, time, zero", "rdtime a0" }, \
+    { 32, 4, 0x2cd98, 0xc8102573, "rdtimeh a0", "csrrs a0, timeh, zero", "rdtimeh a0" }, \
+    { 32, 4, 0x1cd24, 0x02c5e533, "rem a0, a1, a2", "rem a0, a1, a2", "rem a0, a1, a2" }, \
+    { 32, 4, 0x1cee4, 0x02c5f533, "remu a0, a1, a2", "remu a0, a1, a2", "remu a0, a1, a2" }, \
+    { 32, 2, 0x26cea, 0x00008082, "ret", "c.jr ra", "c.jr ra" }, \
     { 32, 4, 0x10520, 0x00008067, "ret", "jalr zero, 0(ra)", "ret" }, \
-    { 32, 4, 0x22a6c, 0x6985d513, "rev8 a0, a1", "rev8 a0, a1", "rev8 a0, a1" }, \
-    { 32, 4, 0x225ac, 0x60c59533, "rol a0, a1, a2", "rol a0, a1, a2", "rol a0, a1, a2" }, \
-    { 32, 4, 0x2276c, 0x60c5d533, "ror a0, a1, a2", "ror a0, a1, a2", "ror a0, a1, a2" }, \
-    { 32, 4, 0x2292c, 0x6155d513, "rori a0, a1, 21", "rori a0, a1, 21", "rori a0, a1, 21" }, \
-    { 32, 2, 0x26df6, 0x000089c8, "sb a0, 1(a1)", "c.sb a0, 1(a1)", "c.sb a0, 1(a1)" }, \
-    { 32, 4, 0x1314c, 0x54c58aa3, "sb a2, 1365(a1)", "sb a2, 1365(a1)", "sb a2, 1365(a1)" }, \
-    { 32, 4, 0x21844, 0x1cc5a52f, "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x2184c, 0x1ec5a52f, "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x21848, 0x1ac5a52f, "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x21840, 0x18c5a52f, "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)" }, \
-    { 32, 4, 0x13d64, 0x0015b513, "seqz a0, a1", "sltiu a0, a1, 1", "seqz a0, a1" }, \
-    { 32, 2, 0x26e68, 0x00009de5, "sext.b a1, a1", "c.sext.b a1", "c.sext.b a1" }, \
-    { 32, 4, 0x22f1c, 0x60459513, "sext.b a0, a1", "sext.b a0, a1", "sext.b a0, a1" }, \
-    { 32, 2, 0x26e88, 0x00009ded, "sext.h a1, a1", "c.sext.h a1", "c.sext.h a1" }, \
-    { 32, 4, 0x23048, 0x60559513, "sext.h a0, a1", "sext.h a0, a1", "sext.h a0, a1" }, \
-    { 32, 4, 0x1d1b4, 0x18100073, "sfence.inval.ir", "sfence.inval.ir", "sfence.inval.ir" }, \
-    { 32, 4, 0x1ceb8, 0x12000073, "sfence.vma", "sfence.vma zero, zero", "sfence.vma" }, \
-    { 32, 4, 0x1cebc, 0x12058073, "sfence.vma a1", "sfence.vma a1, zero", "sfence.vma a1" }, \
-    { 32, 4, 0x1cf50, 0x12c58073, "sfence.vma a1, a2", "sfence.vma a1, a2", "sfence.vma a1, a2" }, \
-    { 32, 4, 0x1d1b0, 0x18000073, "sfence.w.inval", "sfence.w.inval", "sfence.w.inval" }, \
-    { 32, 4, 0x1500c, 0x00c02533, "sgtz a0, a2", "slt a0, zero, a2", "sgtz a0, a2" }, \
-    { 32, 2, 0x26e1a, 0x00008d88, "sh a0, 0(a1)", "c.sh a0, 0(a1)", "c.sh a0, 0(a1)" }, \
-    { 32, 4, 0x13328, 0x54c59aa3, "sh a2, 1365(a1)", "sh a2, 1365(a1)", "sh a2, 1365(a1)" }, \
-    { 32, 4, 0x21a00, 0x20c5a533, "sh1add a0, a1, a2", "sh1add a0, a1, a2", "sh1add a0, a1, a2" }, \
-    { 32, 4, 0x21bc0, 0x20c5c533, "sh2add a0, a1, a2", "sh2add a0, a1, a2", "sh2add a0, a1, a2" }, \
-    { 32, 4, 0x21d80, 0x20c5e533, "sh3add a0, a1, a2", "sh3add a0, a1, a2", "sh3add a0, a1, a2" }, \
-    { 32, 4, 0x36ebc, 0x10259513, "sha256sig0 a0, a1", "sha256sig0 a0, a1", "sha256sig0 a0, a1" }, \
-    { 32, 4, 0x36fe8, 0x10359513, "sha256sig1 a0, a1", "sha256sig1 a0, a1", "sha256sig1 a0, a1" }, \
-    { 32, 4, 0x37114, 0x10059513, "sha256sum0 a0, a1", "sha256sum0 a0, a1", "sha256sum0 a0, a1" }, \
-    { 32, 4, 0x37240, 0x10159513, "sha256sum1 a0, a1", "sha256sum1 a0, a1", "sha256sum1 a0, a1" }, \
-    { 32, 4, 0x3736c, 0x5cc58533, "sha512sig0h a0, a1, a2", "sha512sig0h a0, a1, a2", "sha512sig0h a0, a1, a2" }, \
-    { 32, 4, 0x3752c, 0x54c58533, "sha512sig0l a0, a1, a2", "sha512sig0l a0, a1, a2", "sha512sig0l a0, a1, a2" }, \
-    { 32, 4, 0x376ec, 0x5ec58533, "sha512sig1h a0, a1, a2", "sha512sig1h a0, a1, a2", "sha512sig1h a0, a1, a2" }, \
-    { 32, 4, 0x378ac, 0x56c58533, "sha512sig1l a0, a1, a2", "sha512sig1l a0, a1, a2", "sha512sig1l a0, a1, a2" }, \
-    { 32, 4, 0x37a6c, 0x50c58533, "sha512sum0r a0, a1, a2", "sha512sum0r a0, a1, a2", "sha512sum0r a0, a1, a2" }, \
-    { 32, 4, 0x37c2c, 0x52c58533, "sha512sum1r a0, a1, a2", "sha512sum1r a0, a1, a2", "sha512sum1r a0, a1, a2" }, \
-    { 32, 4, 0x1d080, 0x16c58073, "sinval.vma a1, a2", "sinval.vma a1, a2", "sinval.vma a1, a2" }, \
-    { 32, 4, 0x155dc, 0x00c59533, "sll a0, a1, a2", "sll a0, a1, a2", "sll a0, a1, a2" }, \
-    { 32, 2, 0x26a38, 0x00000556, "slli a0, a0, 21", "c.slli a0, 21", "c.slli a0, 21" }, \
-    { 32, 4, 0x148c8, 0x01559513, "slli a0, a1, 21", "slli a0, a1, 21", "slli a0, a1, 21" }, \
-    { 32, 4, 0x1579c, 0x00c5a533, "slt a0, a1, a2", "slt a0, a1, a2", "slt a0, a1, a2" }, \
-    { 32, 4, 0x13b6c, 0x5555a513, "slti a0, a1, 1365", "slti a0, a1, 1365", "slti a0, a1, 1365" }, \
-    { 32, 4, 0x13e90, 0x5555b513, "sltiu a0, a1, 1365", "sltiu a0, a1, 1365", "sltiu a0, a1, 1365" }, \
-    { 32, 4, 0x1595c, 0x00c5b533, "sltu a0, a1, a2", "sltu a0, a1, a2", "sltu a0, a1, a2" }, \
-    { 32, 4, 0x14ee0, 0x0005a533, "sltz a0, a1", "slt a0, a1, zero", "sltz a0, a1" }, \
-    { 32, 4, 0x38184, 0x10859513, "sm3p0 a0, a1", "sm3p0 a0, a1", "sm3p0 a0, a1" }, \
-    { 32, 4, 0x382b0, 0x10959513, "sm3p1 a0, a1", "sm3p1 a0, a1", "sm3p1 a0, a1" }, \
-    { 32, 4, 0x37dec, 0x70c58533, "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1" }, \
-    { 32, 4, 0x37fb8, 0x74c58533, "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1" }, \
-    { 32, 4, 0x14db4, 0x00c03533, "snez a0, a2", "sltu a0, zero, a2", "snez a0, a2" }, \
-    { 32, 4, 0x15e9c, 0x40c5d533, "sra a0, a1, a2", "sra a0, a1, a2", "sra a0, a1, a2" }, \
-    { 32, 2, 0x26856, 0x000085d5, "srai a1, a1, 21", "c.srai a1, 21", "c.srai a1, 21" }, \
-    { 32, 4, 0x14b48, 0x4155d513, "srai a0, a1, 21", "srai a0, a1, 21", "srai a0, a1, 21" }, \
-    { 32, 4, 0x1ceb0, 0x10200073, "sret", "sret", "sret" }, \
-    { 32, 4, 0x15cdc, 0x00c5d533, "srl a0, a1, a2", "srl a0, a1, a2", "srl a0, a1, a2" }, \
-    { 32, 2, 0x2683c, 0x000081d5, "srli a1, a1, 21", "c.srli a1, 21", "c.srli a1, 21" }, \
-    { 32, 4, 0x14a08, 0x0155d513, "srli a0, a1, 21", "srli a0, a1, 21", "srli a0, a1, 21" }, \
-    { 32, 4, 0x190ac, 0x4cc5a52f, "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)" }, \
-    { 32, 4, 0x190b4, 0x4ec5a52f, "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)" }, \
-    { 32, 4, 0x190b0, 0x4ac5a52f, "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)" }, \
-    { 32, 4, 0x190a8, 0x48c5a52f, "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)" }, \
-    { 32, 2, 0x192fe, 0x00006281, "sspopchk t0", "c.sspopchk t0", "c.sspopchk t0" }, \
-    { 32, 4, 0x19268, 0xcdc0c073, "sspopchk ra", "sspopchk ra", "sspopchk ra" }, \
-    { 32, 2, 0x192fc, 0x00006081, "sspush ra", "c.sspush ra", "c.sspush ra" }, \
-    { 32, 4, 0x19260, 0xce104073, "sspush ra", "sspush ra", "sspush ra" }, \
-    { 32, 4, 0x19270, 0xcdc04573, "ssrdp a0", "ssrdp a0", "ssrdp a0" }, \
-    { 32, 2, 0x268b2, 0x00008d89, "sub a1, a1, a0", "c.sub a1, a0", "c.sub a1, a0" }, \
-    { 32, 4, 0x1541c, 0x40c58533, "sub a0, a1, a2", "sub a0, a1, a2", "sub a0, a1, a2" }, \
-    { 32, 2, 0x265b0, 0x0000c9e8, "sw a0, 84(a1)", "c.sw a0, 84(a1)", "c.sw a0, 84(a1)" }, \
-    { 32, 2, 0x26d28, 0x0000caae, "sw a1, 84(sp)", "c.swsp a1, 84(sp)", "c.swsp a1, 84(sp)" }, \
-    { 32, 4, 0x13504, 0x54c5aaa3, "sw a2, 1365(a1)", "sw a2, 1365(a1)", "sw a2, 1365(a1)" }, \
-    { 32, 2, 0x2653c, 0x00000000, "unimp", "c.unimp", "c.unimp" }, \
-    { 32, 4, 0x2d048, 0xc0001073, "unimp", "unimp", "unimp" }, \
-    { 32, 4, 0x25110, 0x08f5d513, "unzip a0, a1", "unzip a0, a1", "unzip a0, a1" }, \
-    { 32, 4, 0x1ceb4, 0x10500073, "wfi", "wfi", "wfi" }, \
-    { 32, 4, 0x219f8, 0x00d00073, "wrs.nto", "wrs.nto", "wrs.nto" }, \
-    { 32, 4, 0x219fc, 0x01d00073, "wrs.sto", "wrs.sto", "wrs.sto" }, \
-    { 32, 4, 0x223ec, 0x40c5c533, "xnor a0, a1, a2", "xnor a0, a1, a2", "xnor a0, a1, a2" }, \
-    { 32, 2, 0x268d0, 0x00008da9, "xor a1, a1, a0", "c.xor a1, a0", "c.xor a1, a0" }, \
-    { 32, 4, 0x15b1c, 0x00c5c533, "xor a0, a1, a2", "xor a0, a1, a2", "xor a0, a1, a2" }, \
-    { 32, 4, 0x141b4, 0x5555c513, "xori a0, a1, 1365", "xori a0, a1, 1365", "xori a0, a1, 1365" }, \
-    { 32, 4, 0x255bc, 0x28c5a533, "xperm4 a0, a1, a2", "xperm4 a0, a1, a2", "xperm4 a0, a1, a2" }, \
-    { 32, 4, 0x2577c, 0x28c5c533, "xperm8 a0, a1, a2", "xperm8 a0, a1, a2", "xperm8 a0, a1, a2" }, \
-    { 32, 4, 0x145a4, 0x0ff5f513, "zext.b a0, a1", "andi a0, a1, 255", "zext.b a0, a1" }, \
-    { 32, 2, 0x26e58, 0x00009de1, "zext.b a1, a1", "c.zext.b a1", "c.zext.b a1" }, \
-    { 32, 2, 0x26e78, 0x00009de9, "zext.h a1, a1", "c.zext.h a1", "c.zext.h a1" }, \
-    { 32, 4, 0x21f40, 0x0805c533, "zext.h a0, a1", "zext.h a0, a1", "zext.h a0, a1" }, \
-    { 32, 4, 0x24fe4, 0x08f59513, "zip a0, a1", "zip a0, a1", "zip a0, a1" }, \
-    { 64, 4, 0x26274, 0x08c5853b, "add.uw a0, a1, a2", "add.uw a0, a1, a2", "add.uw a0, a1, a2" }, \
-    { 64, 4, 0x15ef4, 0x00c00533, "add a0, zero, a2", "add a0, zero, a2", "add a0, zero, a2" }, \
-    { 64, 2, 0x2c5be, 0x0000952e, "add a0, a0, a1", "c.add a0, a1", "c.add a0, a1" }, \
-    { 64, 4, 0x13f08, 0x55558513, "addi a0, a1, 1365", "addi a0, a1, 1365", "addi a0, a1, 1365" }, \
-    { 64, 2, 0x2bebe, 0x00000555, "addi a0, a0, 21", "c.addi a0, 21", "c.addi a0, 21" }, \
-    { 64, 2, 0x2c060, 0x00006171, "addi sp, sp, 336", "c.addi16sp sp, 336", "c.addi16sp sp, 336" }, \
-    { 64, 2, 0x2bd6a, 0x000008c8, "addi a0, sp, 84", "c.addi4spn a0, sp, 84", "c.addi4spn a0, sp, 84" }, \
-    { 64, 4, 0x1536c, 0x5555851b, "addiw a0, a1, 1365", "addiw a0, a1, 1365", "addiw a0, a1, 1365" }, \
-    { 64, 2, 0x2bf3a, 0x00002555, "addiw a0, a0, 21", "c.addiw a0, 21", "c.addiw a0, 21" }, \
-    { 64, 4, 0x17198, 0x00c5853b, "addw a0, a1, a2", "addw a0, a1, a2", "addw a0, a1, a2" }, \
-    { 64, 2, 0x2c20a, 0x00009da9, "addw a1, a1, a0", "c.addw a1, a0", "c.addw a1, a0" }, \
-    { 64, 4, 0x3a558, 0x3ac58533, "aes64ds a0, a1, a2", "aes64ds a0, a1, a2", "aes64ds a0, a1, a2" }, \
-    { 64, 4, 0x3a718, 0x3ec58533, "aes64dsm a0, a1, a2", "aes64dsm a0, a1, a2", "aes64dsm a0, a1, a2" }, \
-    { 64, 4, 0x3ad18, 0x32c58533, "aes64es a0, a1, a2", "aes64es a0, a1, a2", "aes64es a0, a1, a2" }, \
-    { 64, 4, 0x3aed8, 0x36c58533, "aes64esm a0, a1, a2", "aes64esm a0, a1, a2", "aes64esm a0, a1, a2" }, \
-    { 64, 4, 0x3a8d8, 0x30059513, "aes64im a0, a1", "aes64im a0, a1", "aes64im a0, a1" }, \
-    { 64, 4, 0x3aa04, 0x31559513, "aes64ks1i a0, a1, 5", "aes64ks1i a0, a1, 5", "aes64ks1i a0, a1, 5" }, \
-    { 64, 4, 0x3ab58, 0x7ec58533, "aes64ks2 a0, a1, a2", "aes64ks2 a0, a1, a2", "aes64ks2 a0, a1, a2" }, \
-    { 64, 4, 0x2311c, 0x04c5852f, "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23124, 0x06c5852f, "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23120, 0x02c5852f, "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23118, 0x00c5852f, "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)" }, \
-    { 64, 4, 0x221a4, 0x04c5b52f, "amoadd.d.aq a0, a2, (a1)", "amoadd.d.aq a0, a2, (a1)", "amoadd.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x221ac, 0x06c5b52f, "amoadd.d.aqrl a0, a2, (a1)", "amoadd.d.aqrl a0, a2, (a1)", "amoadd.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x221a8, 0x02c5b52f, "amoadd.d.rl a0, a2, (a1)", "amoadd.d.rl a0, a2, (a1)", "amoadd.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x221a0, 0x00c5b52f, "amoadd.d a0, a2, (a1)", "amoadd.d a0, a2, (a1)", "amoadd.d a0, a2, (a1)" }, \
-    { 64, 4, 0x24094, 0x04c5952f, "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2409c, 0x06c5952f, "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24098, 0x02c5952f, "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24090, 0x00c5952f, "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)" }, \
-    { 64, 4, 0x2122c, 0x04c5a52f, "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21234, 0x06c5a52f, "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21230, 0x02c5a52f, "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21228, 0x00c5a52f, "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)" }, \
-    { 64, 4, 0x2348c, 0x64c5852f, "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23494, 0x66c5852f, "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23490, 0x62c5852f, "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23488, 0x60c5852f, "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)" }, \
-    { 64, 4, 0x22514, 0x64c5b52f, "amoand.d.aq a0, a2, (a1)", "amoand.d.aq a0, a2, (a1)", "amoand.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2251c, 0x66c5b52f, "amoand.d.aqrl a0, a2, (a1)", "amoand.d.aqrl a0, a2, (a1)", "amoand.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22518, 0x62c5b52f, "amoand.d.rl a0, a2, (a1)", "amoand.d.rl a0, a2, (a1)", "amoand.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22510, 0x60c5b52f, "amoand.d a0, a2, (a1)", "amoand.d a0, a2, (a1)", "amoand.d a0, a2, (a1)" }, \
-    { 64, 4, 0x24404, 0x64c5952f, "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2440c, 0x66c5952f, "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24408, 0x62c5952f, "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24400, 0x60c5952f, "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)" }, \
-    { 64, 4, 0x2159c, 0x64c5a52f, "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x215a4, 0x66c5a52f, "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x215a0, 0x62c5a52f, "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21598, 0x60c5a52f, "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)" }, \
-    { 64, 4, 0x24e54, 0x2cc5852f, "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x24e5c, 0x2ec5852f, "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24e58, 0x2ac5852f, "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24e50, 0x28c5852f, "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)" }, \
-    { 64, 4, 0x2537c, 0x2cc5b52f, "amocas.d.aq a0, a2, (a1)", "amocas.d.aq a0, a2, (a1)", "amocas.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x25384, 0x2ec5b52f, "amocas.d.aqrl a0, a2, (a1)", "amocas.d.aqrl a0, a2, (a1)", "amocas.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x25380, 0x2ac5b52f, "amocas.d.rl a0, a2, (a1)", "amocas.d.rl a0, a2, (a1)", "amocas.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x25378, 0x28c5b52f, "amocas.d a0, a2, (a1)", "amocas.d a0, a2, (a1)", "amocas.d a0, a2, (a1)" }, \
-    { 64, 4, 0x2500c, 0x2cc5952f, "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x25014, 0x2ec5952f, "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x25010, 0x2ac5952f, "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x25008, 0x28c5952f, "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)" }, \
-    { 64, 4, 0x25534, 0x2ca5c52f, "amocas.q.aq a0, a0, (a1)", "amocas.q.aq a0, a0, (a1)", "amocas.q.aq a0, a0, (a1)" }, \
-    { 64, 4, 0x2553c, 0x2ea5c52f, "amocas.q.aqrl a0, a0, (a1)", "amocas.q.aqrl a0, a0, (a1)", "amocas.q.aqrl a0, a0, (a1)" }, \
-    { 64, 4, 0x25538, 0x2aa5c52f, "amocas.q.rl a0, a0, (a1)", "amocas.q.rl a0, a0, (a1)", "amocas.q.rl a0, a0, (a1)" }, \
-    { 64, 4, 0x25530, 0x28a5c52f, "amocas.q a0, a0, (a1)", "amocas.q a0, a0, (a1)", "amocas.q a0, a0, (a1)" }, \
-    { 64, 4, 0x251c4, 0x2cc5a52f, "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x251cc, 0x2ec5a52f, "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x251c8, 0x2ac5a52f, "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x251c0, 0x28c5a52f, "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)" }, \
-    { 64, 4, 0x239b4, 0xa4c5852f, "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x239bc, 0xa6c5852f, "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x239b8, 0xa2c5852f, "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x239b0, 0xa0c5852f, "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)" }, \
-    { 64, 4, 0x22a3c, 0xa4c5b52f, "amomax.d.aq a0, a2, (a1)", "amomax.d.aq a0, a2, (a1)", "amomax.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x22a44, 0xa6c5b52f, "amomax.d.aqrl a0, a2, (a1)", "amomax.d.aqrl a0, a2, (a1)", "amomax.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22a40, 0xa2c5b52f, "amomax.d.rl a0, a2, (a1)", "amomax.d.rl a0, a2, (a1)", "amomax.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22a38, 0xa0c5b52f, "amomax.d a0, a2, (a1)", "amomax.d a0, a2, (a1)", "amomax.d a0, a2, (a1)" }, \
-    { 64, 4, 0x2492c, 0xa4c5952f, "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x24934, 0xa6c5952f, "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24930, 0xa2c5952f, "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24928, 0xa0c5952f, "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)" }, \
-    { 64, 4, 0x21ac4, 0xa4c5a52f, "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21acc, 0xa6c5a52f, "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21ac8, 0xa2c5a52f, "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21ac0, 0xa0c5a52f, "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)" }, \
-    { 64, 4, 0x23d24, 0xe4c5852f, "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23d2c, 0xe6c5852f, "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23d28, 0xe2c5852f, "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23d20, 0xe0c5852f, "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)" }, \
-    { 64, 4, 0x22dac, 0xe4c5b52f, "amomaxu.d.aq a0, a2, (a1)", "amomaxu.d.aq a0, a2, (a1)", "amomaxu.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x22db4, 0xe6c5b52f, "amomaxu.d.aqrl a0, a2, (a1)", "amomaxu.d.aqrl a0, a2, (a1)", "amomaxu.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22db0, 0xe2c5b52f, "amomaxu.d.rl a0, a2, (a1)", "amomaxu.d.rl a0, a2, (a1)", "amomaxu.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22da8, 0xe0c5b52f, "amomaxu.d a0, a2, (a1)", "amomaxu.d a0, a2, (a1)", "amomaxu.d a0, a2, (a1)" }, \
-    { 64, 4, 0x24c9c, 0xe4c5952f, "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x24ca4, 0xe6c5952f, "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24ca0, 0xe2c5952f, "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24c98, 0xe0c5952f, "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)" }, \
-    { 64, 4, 0x21e34, 0xe4c5a52f, "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21e3c, 0xe6c5a52f, "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21e38, 0xe2c5a52f, "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21e30, 0xe0c5a52f, "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)" }, \
-    { 64, 4, 0x237fc, 0x84c5852f, "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23804, 0x86c5852f, "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23800, 0x82c5852f, "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x237f8, 0x80c5852f, "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)" }, \
-    { 64, 4, 0x22884, 0x84c5b52f, "amomin.d.aq a0, a2, (a1)", "amomin.d.aq a0, a2, (a1)", "amomin.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2288c, 0x86c5b52f, "amomin.d.aqrl a0, a2, (a1)", "amomin.d.aqrl a0, a2, (a1)", "amomin.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22888, 0x82c5b52f, "amomin.d.rl a0, a2, (a1)", "amomin.d.rl a0, a2, (a1)", "amomin.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22880, 0x80c5b52f, "amomin.d a0, a2, (a1)", "amomin.d a0, a2, (a1)", "amomin.d a0, a2, (a1)" }, \
-    { 64, 4, 0x24774, 0x84c5952f, "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2477c, 0x86c5952f, "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24778, 0x82c5952f, "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24770, 0x80c5952f, "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)" }, \
-    { 64, 4, 0x2190c, 0x84c5a52f, "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21914, 0x86c5a52f, "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21910, 0x82c5a52f, "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21908, 0x80c5a52f, "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)" }, \
-    { 64, 4, 0x23b6c, 0xc4c5852f, "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23b74, 0xc6c5852f, "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23b70, 0xc2c5852f, "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23b68, 0xc0c5852f, "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)" }, \
-    { 64, 4, 0x22bf4, 0xc4c5b52f, "amominu.d.aq a0, a2, (a1)", "amominu.d.aq a0, a2, (a1)", "amominu.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x22bfc, 0xc6c5b52f, "amominu.d.aqrl a0, a2, (a1)", "amominu.d.aqrl a0, a2, (a1)", "amominu.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22bf8, 0xc2c5b52f, "amominu.d.rl a0, a2, (a1)", "amominu.d.rl a0, a2, (a1)", "amominu.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22bf0, 0xc0c5b52f, "amominu.d a0, a2, (a1)", "amominu.d a0, a2, (a1)", "amominu.d a0, a2, (a1)" }, \
-    { 64, 4, 0x24ae4, 0xc4c5952f, "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x24aec, 0xc6c5952f, "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24ae8, 0xc2c5952f, "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24ae0, 0xc0c5952f, "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)" }, \
-    { 64, 4, 0x21c7c, 0xc4c5a52f, "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21c84, 0xc6c5a52f, "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21c80, 0xc2c5a52f, "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21c78, 0xc0c5a52f, "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)" }, \
-    { 64, 4, 0x23644, 0x44c5852f, "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2364c, 0x46c5852f, "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23648, 0x42c5852f, "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23640, 0x40c5852f, "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)" }, \
-    { 64, 4, 0x226cc, 0x44c5b52f, "amoor.d.aq a0, a2, (a1)", "amoor.d.aq a0, a2, (a1)", "amoor.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x226d4, 0x46c5b52f, "amoor.d.aqrl a0, a2, (a1)", "amoor.d.aqrl a0, a2, (a1)", "amoor.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x226d0, 0x42c5b52f, "amoor.d.rl a0, a2, (a1)", "amoor.d.rl a0, a2, (a1)", "amoor.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x226c8, 0x40c5b52f, "amoor.d a0, a2, (a1)", "amoor.d a0, a2, (a1)", "amoor.d a0, a2, (a1)" }, \
-    { 64, 4, 0x245bc, 0x44c5952f, "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x245c4, 0x46c5952f, "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x245c0, 0x42c5952f, "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x245b8, 0x40c5952f, "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)" }, \
-    { 64, 4, 0x21754, 0x44c5a52f, "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2175c, 0x46c5a52f, "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21758, 0x42c5a52f, "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21750, 0x40c5a52f, "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)" }, \
-    { 64, 4, 0x22f64, 0x0cc5852f, "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x22f6c, 0x0ec5852f, "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22f68, 0x0ac5852f, "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22f60, 0x08c5852f, "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)" }, \
-    { 64, 4, 0x21fec, 0x0cc5b52f, "amoswap.d.aq a0, a2, (a1)", "amoswap.d.aq a0, a2, (a1)", "amoswap.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x21ff4, 0x0ec5b52f, "amoswap.d.aqrl a0, a2, (a1)", "amoswap.d.aqrl a0, a2, (a1)", "amoswap.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21ff0, 0x0ac5b52f, "amoswap.d.rl a0, a2, (a1)", "amoswap.d.rl a0, a2, (a1)", "amoswap.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21fe8, 0x08c5b52f, "amoswap.d a0, a2, (a1)", "amoswap.d a0, a2, (a1)", "amoswap.d a0, a2, (a1)" }, \
-    { 64, 4, 0x23edc, 0x0cc5952f, "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x23ee4, 0x0ec5952f, "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x23ee0, 0x0ac5952f, "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x23ed8, 0x08c5952f, "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)" }, \
-    { 64, 4, 0x21074, 0x0cc5a52f, "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2107c, 0x0ec5a52f, "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x21078, 0x0ac5a52f, "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x21070, 0x08c5a52f, "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)" }, \
-    { 64, 4, 0x232d4, 0x24c5852f, "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x232dc, 0x26c5852f, "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x232d8, 0x22c5852f, "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x232d0, 0x20c5852f, "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)" }, \
-    { 64, 4, 0x2235c, 0x24c5b52f, "amoxor.d.aq a0, a2, (a1)", "amoxor.d.aq a0, a2, (a1)", "amoxor.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x22364, 0x26c5b52f, "amoxor.d.aqrl a0, a2, (a1)", "amoxor.d.aqrl a0, a2, (a1)", "amoxor.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x22360, 0x22c5b52f, "amoxor.d.rl a0, a2, (a1)", "amoxor.d.rl a0, a2, (a1)", "amoxor.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x22358, 0x20c5b52f, "amoxor.d a0, a2, (a1)", "amoxor.d a0, a2, (a1)", "amoxor.d a0, a2, (a1)" }, \
-    { 64, 4, 0x2424c, 0x24c5952f, "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x24254, 0x26c5952f, "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x24250, 0x22c5952f, "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x24248, 0x20c5952f, "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)" }, \
-    { 64, 4, 0x213e4, 0x24c5a52f, "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x213ec, 0x26c5a52f, "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x213e8, 0x22c5a52f, "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x213e0, 0x20c5a52f, "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)" }, \
-    { 64, 4, 0x16fd8, 0x00c5f533, "and a0, a1, a2", "and a0, a1, a2", "and a0, a1, a2" }, \
-    { 64, 2, 0x2c1ce, 0x00008de9, "and a1, a1, a0", "c.and a1, a0", "c.and a1, a0" }, \
-    { 64, 4, 0x14c64, 0x5555f513, "andi a0, a1, 1365", "andi a0, a1, 1365", "andi a0, a1, 1365" }, \
-    { 64, 2, 0x2c132, 0x000089d5, "andi a1, a1, 21", "c.andi a1, 21", "c.andi a1, 21" }, \
-    { 64, 4, 0x26bec, 0x40c5f533, "andn a0, a1, a2", "andn a0, a1, a2", "andn a0, a1, a2" }, \
+    { 32, 4, 0x22c64, 0x6985d513, "rev8 a0, a1", "rev8 a0, a1", "rev8 a0, a1" }, \
+    { 32, 4, 0x227a4, 0x60c59533, "rol a0, a1, a2", "rol a0, a1, a2", "rol a0, a1, a2" }, \
+    { 32, 4, 0x22964, 0x60c5d533, "ror a0, a1, a2", "ror a0, a1, a2", "ror a0, a1, a2" }, \
+    { 32, 4, 0x22b24, 0x6155d513, "rori a0, a1, 21", "rori a0, a1, 21", "rori a0, a1, 21" }, \
+    { 32, 2, 0x26fee, 0x000089c8, "sb a0, 1(a1)", "c.sb a0, 1(a1)", "c.sb a0, 1(a1)" }, \
+    { 32, 4, 0x13344, 0x54c58aa3, "sb a2, 1365(a1)", "sb a2, 1365(a1)", "sb a2, 1365(a1)" }, \
+    { 32, 4, 0x21a3c, 0x1cc5a52f, "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x21a44, 0x1ec5a52f, "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x21a40, 0x1ac5a52f, "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x21a38, 0x18c5a52f, "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)" }, \
+    { 32, 4, 0x13f5c, 0x0015b513, "seqz a0, a1", "sltiu a0, a1, 1", "seqz a0, a1" }, \
+    { 32, 2, 0x27060, 0x00009de5, "sext.b a1, a1", "c.sext.b a1", "c.sext.b a1" }, \
+    { 32, 4, 0x23114, 0x60459513, "sext.b a0, a1", "sext.b a0, a1", "sext.b a0, a1" }, \
+    { 32, 2, 0x27080, 0x00009ded, "sext.h a1, a1", "c.sext.h a1", "c.sext.h a1" }, \
+    { 32, 4, 0x23240, 0x60559513, "sext.h a0, a1", "sext.h a0, a1", "sext.h a0, a1" }, \
+    { 32, 4, 0x1d3ac, 0x18100073, "sfence.inval.ir", "sfence.inval.ir", "sfence.inval.ir" }, \
+    { 32, 4, 0x1d0b0, 0x12000073, "sfence.vma", "sfence.vma zero, zero", "sfence.vma" }, \
+    { 32, 4, 0x1d0b4, 0x12058073, "sfence.vma a1", "sfence.vma a1, zero", "sfence.vma a1" }, \
+    { 32, 4, 0x1d148, 0x12c58073, "sfence.vma a1, a2", "sfence.vma a1, a2", "sfence.vma a1, a2" }, \
+    { 32, 4, 0x1d3a8, 0x18000073, "sfence.w.inval", "sfence.w.inval", "sfence.w.inval" }, \
+    { 32, 4, 0x15204, 0x00c02533, "sgtz a0, a2", "slt a0, zero, a2", "sgtz a0, a2" }, \
+    { 32, 2, 0x27012, 0x00008d88, "sh a0, 0(a1)", "c.sh a0, 0(a1)", "c.sh a0, 0(a1)" }, \
+    { 32, 4, 0x13520, 0x54c59aa3, "sh a2, 1365(a1)", "sh a2, 1365(a1)", "sh a2, 1365(a1)" }, \
+    { 32, 4, 0x21bf8, 0x20c5a533, "sh1add a0, a1, a2", "sh1add a0, a1, a2", "sh1add a0, a1, a2" }, \
+    { 32, 4, 0x21db8, 0x20c5c533, "sh2add a0, a1, a2", "sh2add a0, a1, a2", "sh2add a0, a1, a2" }, \
+    { 32, 4, 0x21f78, 0x20c5e533, "sh3add a0, a1, a2", "sh3add a0, a1, a2", "sh3add a0, a1, a2" }, \
+    { 32, 4, 0x370b4, 0x10259513, "sha256sig0 a0, a1", "sha256sig0 a0, a1", "sha256sig0 a0, a1" }, \
+    { 32, 4, 0x371e0, 0x10359513, "sha256sig1 a0, a1", "sha256sig1 a0, a1", "sha256sig1 a0, a1" }, \
+    { 32, 4, 0x3730c, 0x10059513, "sha256sum0 a0, a1", "sha256sum0 a0, a1", "sha256sum0 a0, a1" }, \
+    { 32, 4, 0x37438, 0x10159513, "sha256sum1 a0, a1", "sha256sum1 a0, a1", "sha256sum1 a0, a1" }, \
+    { 32, 4, 0x37564, 0x5cc58533, "sha512sig0h a0, a1, a2", "sha512sig0h a0, a1, a2", "sha512sig0h a0, a1, a2" }, \
+    { 32, 4, 0x37724, 0x54c58533, "sha512sig0l a0, a1, a2", "sha512sig0l a0, a1, a2", "sha512sig0l a0, a1, a2" }, \
+    { 32, 4, 0x378e4, 0x5ec58533, "sha512sig1h a0, a1, a2", "sha512sig1h a0, a1, a2", "sha512sig1h a0, a1, a2" }, \
+    { 32, 4, 0x37aa4, 0x56c58533, "sha512sig1l a0, a1, a2", "sha512sig1l a0, a1, a2", "sha512sig1l a0, a1, a2" }, \
+    { 32, 4, 0x37c64, 0x50c58533, "sha512sum0r a0, a1, a2", "sha512sum0r a0, a1, a2", "sha512sum0r a0, a1, a2" }, \
+    { 32, 4, 0x37e24, 0x52c58533, "sha512sum1r a0, a1, a2", "sha512sum1r a0, a1, a2", "sha512sum1r a0, a1, a2" }, \
+    { 32, 4, 0x1d278, 0x16c58073, "sinval.vma a1, a2", "sinval.vma a1, a2", "sinval.vma a1, a2" }, \
+    { 32, 4, 0x157d4, 0x00c59533, "sll a0, a1, a2", "sll a0, a1, a2", "sll a0, a1, a2" }, \
+    { 32, 2, 0x26c30, 0x00000556, "slli a0, a0, 21", "c.slli a0, 21", "c.slli a0, 21" }, \
+    { 32, 4, 0x14ac0, 0x01559513, "slli a0, a1, 21", "slli a0, a1, 21", "slli a0, a1, 21" }, \
+    { 32, 4, 0x15994, 0x00c5a533, "slt a0, a1, a2", "slt a0, a1, a2", "slt a0, a1, a2" }, \
+    { 32, 4, 0x13d64, 0x5555a513, "slti a0, a1, 1365", "slti a0, a1, 1365", "slti a0, a1, 1365" }, \
+    { 32, 4, 0x14088, 0x5555b513, "sltiu a0, a1, 1365", "sltiu a0, a1, 1365", "sltiu a0, a1, 1365" }, \
+    { 32, 4, 0x15b54, 0x00c5b533, "sltu a0, a1, a2", "sltu a0, a1, a2", "sltu a0, a1, a2" }, \
+    { 32, 4, 0x150d8, 0x0005a533, "sltz a0, a1", "slt a0, a1, zero", "sltz a0, a1" }, \
+    { 32, 4, 0x3837c, 0x10859513, "sm3p0 a0, a1", "sm3p0 a0, a1", "sm3p0 a0, a1" }, \
+    { 32, 4, 0x384a8, 0x10959513, "sm3p1 a0, a1", "sm3p1 a0, a1", "sm3p1 a0, a1" }, \
+    { 32, 4, 0x37fe4, 0x70c58533, "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1" }, \
+    { 32, 4, 0x381b0, 0x74c58533, "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1" }, \
+    { 32, 4, 0x14fac, 0x00c03533, "snez a0, a2", "sltu a0, zero, a2", "snez a0, a2" }, \
+    { 32, 4, 0x16094, 0x40c5d533, "sra a0, a1, a2", "sra a0, a1, a2", "sra a0, a1, a2" }, \
+    { 32, 2, 0x26a4e, 0x000085d5, "srai a1, a1, 21", "c.srai a1, 21", "c.srai a1, 21" }, \
+    { 32, 4, 0x14d40, 0x4155d513, "srai a0, a1, 21", "srai a0, a1, 21", "srai a0, a1, 21" }, \
+    { 32, 4, 0x1d0a8, 0x10200073, "sret", "sret", "sret" }, \
+    { 32, 4, 0x15ed4, 0x00c5d533, "srl a0, a1, a2", "srl a0, a1, a2", "srl a0, a1, a2" }, \
+    { 32, 2, 0x26a34, 0x000081d5, "srli a1, a1, 21", "c.srli a1, 21", "c.srli a1, 21" }, \
+    { 32, 4, 0x14c00, 0x0155d513, "srli a0, a1, 21", "srli a0, a1, 21", "srli a0, a1, 21" }, \
+    { 32, 4, 0x192a4, 0x4cc5a52f, "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)" }, \
+    { 32, 4, 0x192ac, 0x4ec5a52f, "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)" }, \
+    { 32, 4, 0x192a8, 0x4ac5a52f, "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)" }, \
+    { 32, 4, 0x192a0, 0x48c5a52f, "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)" }, \
+    { 32, 2, 0x194f6, 0x00006281, "sspopchk t0", "c.sspopchk t0", "c.sspopchk t0" }, \
+    { 32, 4, 0x19460, 0xcdc0c073, "sspopchk ra", "sspopchk ra", "sspopchk ra" }, \
+    { 32, 2, 0x194f4, 0x00006081, "sspush ra", "c.sspush ra", "c.sspush ra" }, \
+    { 32, 4, 0x19458, 0xce104073, "sspush ra", "sspush ra", "sspush ra" }, \
+    { 32, 4, 0x19468, 0xcdc04573, "ssrdp a0", "ssrdp a0", "ssrdp a0" }, \
+    { 32, 2, 0x26aaa, 0x00008d89, "sub a1, a1, a0", "c.sub a1, a0", "c.sub a1, a0" }, \
+    { 32, 4, 0x15614, 0x40c58533, "sub a0, a1, a2", "sub a0, a1, a2", "sub a0, a1, a2" }, \
+    { 32, 2, 0x267a8, 0x0000c9e8, "sw a0, 84(a1)", "c.sw a0, 84(a1)", "c.sw a0, 84(a1)" }, \
+    { 32, 2, 0x26f20, 0x0000caae, "sw a1, 84(sp)", "c.swsp a1, 84(sp)", "c.swsp a1, 84(sp)" }, \
+    { 32, 4, 0x136fc, 0x54c5aaa3, "sw a2, 1365(a1)", "sw a2, 1365(a1)", "sw a2, 1365(a1)" }, \
+    { 32, 2, 0x26734, 0x00000000, "unimp", "c.unimp", "c.unimp" }, \
+    { 32, 4, 0x2d240, 0xc0001073, "unimp", "unimp", "unimp" }, \
+    { 32, 4, 0x25308, 0x08f5d513, "unzip a0, a1", "unzip a0, a1", "unzip a0, a1" }, \
+    { 32, 4, 0x1d0ac, 0x10500073, "wfi", "wfi", "wfi" }, \
+    { 32, 4, 0x21bf0, 0x00d00073, "wrs.nto", "wrs.nto", "wrs.nto" }, \
+    { 32, 4, 0x21bf4, 0x01d00073, "wrs.sto", "wrs.sto", "wrs.sto" }, \
+    { 32, 4, 0x225e4, 0x40c5c533, "xnor a0, a1, a2", "xnor a0, a1, a2", "xnor a0, a1, a2" }, \
+    { 32, 2, 0x26ac8, 0x00008da9, "xor a1, a1, a0", "c.xor a1, a0", "c.xor a1, a0" }, \
+    { 32, 4, 0x15d14, 0x00c5c533, "xor a0, a1, a2", "xor a0, a1, a2", "xor a0, a1, a2" }, \
+    { 32, 4, 0x143ac, 0x5555c513, "xori a0, a1, 1365", "xori a0, a1, 1365", "xori a0, a1, 1365" }, \
+    { 32, 4, 0x257b4, 0x28c5a533, "xperm4 a0, a1, a2", "xperm4 a0, a1, a2", "xperm4 a0, a1, a2" }, \
+    { 32, 4, 0x25974, 0x28c5c533, "xperm8 a0, a1, a2", "xperm8 a0, a1, a2", "xperm8 a0, a1, a2" }, \
+    { 32, 4, 0x1479c, 0x0ff5f513, "zext.b a0, a1", "andi a0, a1, 255", "zext.b a0, a1" }, \
+    { 32, 2, 0x27050, 0x00009de1, "zext.b a1, a1", "c.zext.b a1", "c.zext.b a1" }, \
+    { 32, 2, 0x27070, 0x00009de9, "zext.h a1, a1", "c.zext.h a1", "c.zext.h a1" }, \
+    { 32, 4, 0x22138, 0x0805c533, "zext.h a0, a1", "zext.h a0, a1", "zext.h a0, a1" }, \
+    { 32, 4, 0x251dc, 0x08f59513, "zip a0, a1", "zip a0, a1", "zip a0, a1" }, \
+    { 64, 4, 0x2646c, 0x08c5853b, "add.uw a0, a1, a2", "add.uw a0, a1, a2", "add.uw a0, a1, a2" }, \
+    { 64, 4, 0x160ec, 0x00c00533, "add a0, zero, a2", "add a0, zero, a2", "add a0, zero, a2" }, \
+    { 64, 2, 0x2c7b6, 0x0000952e, "add a0, a0, a1", "c.add a0, a1", "c.add a0, a1" }, \
+    { 64, 4, 0x14100, 0x55558513, "addi a0, a1, 1365", "addi a0, a1, 1365", "addi a0, a1, 1365" }, \
+    { 64, 2, 0x2c0b6, 0x00000555, "addi a0, a0, 21", "c.addi a0, 21", "c.addi a0, 21" }, \
+    { 64, 2, 0x2c258, 0x00006171, "addi sp, sp, 336", "c.addi16sp sp, 336", "c.addi16sp sp, 336" }, \
+    { 64, 2, 0x2bf62, 0x000008c8, "addi a0, sp, 84", "c.addi4spn a0, sp, 84", "c.addi4spn a0, sp, 84" }, \
+    { 64, 4, 0x15564, 0x5555851b, "addiw a0, a1, 1365", "addiw a0, a1, 1365", "addiw a0, a1, 1365" }, \
+    { 64, 2, 0x2c132, 0x00002555, "addiw a0, a0, 21", "c.addiw a0, 21", "c.addiw a0, 21" }, \
+    { 64, 4, 0x17390, 0x00c5853b, "addw a0, a1, a2", "addw a0, a1, a2", "addw a0, a1, a2" }, \
+    { 64, 2, 0x2c402, 0x00009da9, "addw a1, a1, a0", "c.addw a1, a0", "c.addw a1, a0" }, \
+    { 64, 4, 0x3a750, 0x3ac58533, "aes64ds a0, a1, a2", "aes64ds a0, a1, a2", "aes64ds a0, a1, a2" }, \
+    { 64, 4, 0x3a910, 0x3ec58533, "aes64dsm a0, a1, a2", "aes64dsm a0, a1, a2", "aes64dsm a0, a1, a2" }, \
+    { 64, 4, 0x3af10, 0x32c58533, "aes64es a0, a1, a2", "aes64es a0, a1, a2", "aes64es a0, a1, a2" }, \
+    { 64, 4, 0x3b0d0, 0x36c58533, "aes64esm a0, a1, a2", "aes64esm a0, a1, a2", "aes64esm a0, a1, a2" }, \
+    { 64, 4, 0x3aad0, 0x30059513, "aes64im a0, a1", "aes64im a0, a1", "aes64im a0, a1" }, \
+    { 64, 4, 0x3abfc, 0x31559513, "aes64ks1i a0, a1, 5", "aes64ks1i a0, a1, 5", "aes64ks1i a0, a1, 5" }, \
+    { 64, 4, 0x3ad50, 0x7ec58533, "aes64ks2 a0, a1, a2", "aes64ks2 a0, a1, a2", "aes64ks2 a0, a1, a2" }, \
+    { 64, 4, 0x23314, 0x04c5852f, "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)", "amoadd.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2331c, 0x06c5852f, "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)", "amoadd.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23318, 0x02c5852f, "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)", "amoadd.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23310, 0x00c5852f, "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)", "amoadd.b a0, a2, (a1)" }, \
+    { 64, 4, 0x2239c, 0x04c5b52f, "amoadd.d.aq a0, a2, (a1)", "amoadd.d.aq a0, a2, (a1)", "amoadd.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x223a4, 0x06c5b52f, "amoadd.d.aqrl a0, a2, (a1)", "amoadd.d.aqrl a0, a2, (a1)", "amoadd.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x223a0, 0x02c5b52f, "amoadd.d.rl a0, a2, (a1)", "amoadd.d.rl a0, a2, (a1)", "amoadd.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22398, 0x00c5b52f, "amoadd.d a0, a2, (a1)", "amoadd.d a0, a2, (a1)", "amoadd.d a0, a2, (a1)" }, \
+    { 64, 4, 0x2428c, 0x04c5952f, "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)", "amoadd.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24294, 0x06c5952f, "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)", "amoadd.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24290, 0x02c5952f, "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)", "amoadd.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24288, 0x00c5952f, "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)", "amoadd.h a0, a2, (a1)" }, \
+    { 64, 4, 0x21424, 0x04c5a52f, "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)", "amoadd.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2142c, 0x06c5a52f, "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)", "amoadd.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21428, 0x02c5a52f, "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)", "amoadd.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21420, 0x00c5a52f, "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)", "amoadd.w a0, a2, (a1)" }, \
+    { 64, 4, 0x23684, 0x64c5852f, "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)", "amoand.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2368c, 0x66c5852f, "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)", "amoand.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23688, 0x62c5852f, "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)", "amoand.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23680, 0x60c5852f, "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)", "amoand.b a0, a2, (a1)" }, \
+    { 64, 4, 0x2270c, 0x64c5b52f, "amoand.d.aq a0, a2, (a1)", "amoand.d.aq a0, a2, (a1)", "amoand.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22714, 0x66c5b52f, "amoand.d.aqrl a0, a2, (a1)", "amoand.d.aqrl a0, a2, (a1)", "amoand.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22710, 0x62c5b52f, "amoand.d.rl a0, a2, (a1)", "amoand.d.rl a0, a2, (a1)", "amoand.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22708, 0x60c5b52f, "amoand.d a0, a2, (a1)", "amoand.d a0, a2, (a1)", "amoand.d a0, a2, (a1)" }, \
+    { 64, 4, 0x245fc, 0x64c5952f, "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)", "amoand.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24604, 0x66c5952f, "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)", "amoand.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24600, 0x62c5952f, "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)", "amoand.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x245f8, 0x60c5952f, "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)", "amoand.h a0, a2, (a1)" }, \
+    { 64, 4, 0x21794, 0x64c5a52f, "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)", "amoand.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2179c, 0x66c5a52f, "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)", "amoand.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21798, 0x62c5a52f, "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)", "amoand.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21790, 0x60c5a52f, "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)", "amoand.w a0, a2, (a1)" }, \
+    { 64, 4, 0x2504c, 0x2cc5852f, "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)", "amocas.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x25054, 0x2ec5852f, "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)", "amocas.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x25050, 0x2ac5852f, "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)", "amocas.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x25048, 0x28c5852f, "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)", "amocas.b a0, a2, (a1)" }, \
+    { 64, 4, 0x25574, 0x2cc5b52f, "amocas.d.aq a0, a2, (a1)", "amocas.d.aq a0, a2, (a1)", "amocas.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2557c, 0x2ec5b52f, "amocas.d.aqrl a0, a2, (a1)", "amocas.d.aqrl a0, a2, (a1)", "amocas.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x25578, 0x2ac5b52f, "amocas.d.rl a0, a2, (a1)", "amocas.d.rl a0, a2, (a1)", "amocas.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x25570, 0x28c5b52f, "amocas.d a0, a2, (a1)", "amocas.d a0, a2, (a1)", "amocas.d a0, a2, (a1)" }, \
+    { 64, 4, 0x25204, 0x2cc5952f, "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)", "amocas.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2520c, 0x2ec5952f, "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)", "amocas.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x25208, 0x2ac5952f, "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)", "amocas.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x25200, 0x28c5952f, "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)", "amocas.h a0, a2, (a1)" }, \
+    { 64, 4, 0x2572c, 0x2ca5c52f, "amocas.q.aq a0, a0, (a1)", "amocas.q.aq a0, a0, (a1)", "amocas.q.aq a0, a0, (a1)" }, \
+    { 64, 4, 0x25734, 0x2ea5c52f, "amocas.q.aqrl a0, a0, (a1)", "amocas.q.aqrl a0, a0, (a1)", "amocas.q.aqrl a0, a0, (a1)" }, \
+    { 64, 4, 0x25730, 0x2aa5c52f, "amocas.q.rl a0, a0, (a1)", "amocas.q.rl a0, a0, (a1)", "amocas.q.rl a0, a0, (a1)" }, \
+    { 64, 4, 0x25728, 0x28a5c52f, "amocas.q a0, a0, (a1)", "amocas.q a0, a0, (a1)", "amocas.q a0, a0, (a1)" }, \
+    { 64, 4, 0x253bc, 0x2cc5a52f, "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)", "amocas.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x253c4, 0x2ec5a52f, "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)", "amocas.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x253c0, 0x2ac5a52f, "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)", "amocas.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x253b8, 0x28c5a52f, "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)", "amocas.w a0, a2, (a1)" }, \
+    { 64, 4, 0x23bac, 0xa4c5852f, "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)", "amomax.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x23bb4, 0xa6c5852f, "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)", "amomax.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23bb0, 0xa2c5852f, "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)", "amomax.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23ba8, 0xa0c5852f, "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)", "amomax.b a0, a2, (a1)" }, \
+    { 64, 4, 0x22c34, 0xa4c5b52f, "amomax.d.aq a0, a2, (a1)", "amomax.d.aq a0, a2, (a1)", "amomax.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22c3c, 0xa6c5b52f, "amomax.d.aqrl a0, a2, (a1)", "amomax.d.aqrl a0, a2, (a1)", "amomax.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22c38, 0xa2c5b52f, "amomax.d.rl a0, a2, (a1)", "amomax.d.rl a0, a2, (a1)", "amomax.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22c30, 0xa0c5b52f, "amomax.d a0, a2, (a1)", "amomax.d a0, a2, (a1)", "amomax.d a0, a2, (a1)" }, \
+    { 64, 4, 0x24b24, 0xa4c5952f, "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)", "amomax.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24b2c, 0xa6c5952f, "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)", "amomax.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24b28, 0xa2c5952f, "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)", "amomax.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24b20, 0xa0c5952f, "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)", "amomax.h a0, a2, (a1)" }, \
+    { 64, 4, 0x21cbc, 0xa4c5a52f, "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)", "amomax.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x21cc4, 0xa6c5a52f, "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)", "amomax.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21cc0, 0xa2c5a52f, "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)", "amomax.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21cb8, 0xa0c5a52f, "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)", "amomax.w a0, a2, (a1)" }, \
+    { 64, 4, 0x23f1c, 0xe4c5852f, "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)", "amomaxu.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x23f24, 0xe6c5852f, "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)", "amomaxu.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23f20, 0xe2c5852f, "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)", "amomaxu.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23f18, 0xe0c5852f, "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)", "amomaxu.b a0, a2, (a1)" }, \
+    { 64, 4, 0x22fa4, 0xe4c5b52f, "amomaxu.d.aq a0, a2, (a1)", "amomaxu.d.aq a0, a2, (a1)", "amomaxu.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22fac, 0xe6c5b52f, "amomaxu.d.aqrl a0, a2, (a1)", "amomaxu.d.aqrl a0, a2, (a1)", "amomaxu.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22fa8, 0xe2c5b52f, "amomaxu.d.rl a0, a2, (a1)", "amomaxu.d.rl a0, a2, (a1)", "amomaxu.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22fa0, 0xe0c5b52f, "amomaxu.d a0, a2, (a1)", "amomaxu.d a0, a2, (a1)", "amomaxu.d a0, a2, (a1)" }, \
+    { 64, 4, 0x24e94, 0xe4c5952f, "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)", "amomaxu.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24e9c, 0xe6c5952f, "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)", "amomaxu.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24e98, 0xe2c5952f, "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)", "amomaxu.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24e90, 0xe0c5952f, "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)", "amomaxu.h a0, a2, (a1)" }, \
+    { 64, 4, 0x2202c, 0xe4c5a52f, "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)", "amomaxu.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22034, 0xe6c5a52f, "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)", "amomaxu.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22030, 0xe2c5a52f, "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)", "amomaxu.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22028, 0xe0c5a52f, "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)", "amomaxu.w a0, a2, (a1)" }, \
+    { 64, 4, 0x239f4, 0x84c5852f, "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)", "amomin.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x239fc, 0x86c5852f, "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)", "amomin.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x239f8, 0x82c5852f, "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)", "amomin.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x239f0, 0x80c5852f, "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)", "amomin.b a0, a2, (a1)" }, \
+    { 64, 4, 0x22a7c, 0x84c5b52f, "amomin.d.aq a0, a2, (a1)", "amomin.d.aq a0, a2, (a1)", "amomin.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22a84, 0x86c5b52f, "amomin.d.aqrl a0, a2, (a1)", "amomin.d.aqrl a0, a2, (a1)", "amomin.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22a80, 0x82c5b52f, "amomin.d.rl a0, a2, (a1)", "amomin.d.rl a0, a2, (a1)", "amomin.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22a78, 0x80c5b52f, "amomin.d a0, a2, (a1)", "amomin.d a0, a2, (a1)", "amomin.d a0, a2, (a1)" }, \
+    { 64, 4, 0x2496c, 0x84c5952f, "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)", "amomin.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24974, 0x86c5952f, "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)", "amomin.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24970, 0x82c5952f, "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)", "amomin.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24968, 0x80c5952f, "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)", "amomin.h a0, a2, (a1)" }, \
+    { 64, 4, 0x21b04, 0x84c5a52f, "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)", "amomin.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x21b0c, 0x86c5a52f, "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)", "amomin.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21b08, 0x82c5a52f, "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)", "amomin.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21b00, 0x80c5a52f, "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)", "amomin.w a0, a2, (a1)" }, \
+    { 64, 4, 0x23d64, 0xc4c5852f, "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)", "amominu.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x23d6c, 0xc6c5852f, "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)", "amominu.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23d68, 0xc2c5852f, "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)", "amominu.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23d60, 0xc0c5852f, "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)", "amominu.b a0, a2, (a1)" }, \
+    { 64, 4, 0x22dec, 0xc4c5b52f, "amominu.d.aq a0, a2, (a1)", "amominu.d.aq a0, a2, (a1)", "amominu.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x22df4, 0xc6c5b52f, "amominu.d.aqrl a0, a2, (a1)", "amominu.d.aqrl a0, a2, (a1)", "amominu.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22df0, 0xc2c5b52f, "amominu.d.rl a0, a2, (a1)", "amominu.d.rl a0, a2, (a1)", "amominu.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22de8, 0xc0c5b52f, "amominu.d a0, a2, (a1)", "amominu.d a0, a2, (a1)", "amominu.d a0, a2, (a1)" }, \
+    { 64, 4, 0x24cdc, 0xc4c5952f, "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)", "amominu.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x24ce4, 0xc6c5952f, "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)", "amominu.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24ce0, 0xc2c5952f, "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)", "amominu.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24cd8, 0xc0c5952f, "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)", "amominu.h a0, a2, (a1)" }, \
+    { 64, 4, 0x21e74, 0xc4c5a52f, "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)", "amominu.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x21e7c, 0xc6c5a52f, "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)", "amominu.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21e78, 0xc2c5a52f, "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)", "amominu.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21e70, 0xc0c5a52f, "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)", "amominu.w a0, a2, (a1)" }, \
+    { 64, 4, 0x2383c, 0x44c5852f, "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)", "amoor.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x23844, 0x46c5852f, "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)", "amoor.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23840, 0x42c5852f, "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)", "amoor.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23838, 0x40c5852f, "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)", "amoor.b a0, a2, (a1)" }, \
+    { 64, 4, 0x228c4, 0x44c5b52f, "amoor.d.aq a0, a2, (a1)", "amoor.d.aq a0, a2, (a1)", "amoor.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x228cc, 0x46c5b52f, "amoor.d.aqrl a0, a2, (a1)", "amoor.d.aqrl a0, a2, (a1)", "amoor.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x228c8, 0x42c5b52f, "amoor.d.rl a0, a2, (a1)", "amoor.d.rl a0, a2, (a1)", "amoor.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x228c0, 0x40c5b52f, "amoor.d a0, a2, (a1)", "amoor.d a0, a2, (a1)", "amoor.d a0, a2, (a1)" }, \
+    { 64, 4, 0x247b4, 0x44c5952f, "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)", "amoor.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x247bc, 0x46c5952f, "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)", "amoor.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x247b8, 0x42c5952f, "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)", "amoor.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x247b0, 0x40c5952f, "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)", "amoor.h a0, a2, (a1)" }, \
+    { 64, 4, 0x2194c, 0x44c5a52f, "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)", "amoor.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x21954, 0x46c5a52f, "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)", "amoor.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21950, 0x42c5a52f, "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)", "amoor.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21948, 0x40c5a52f, "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)", "amoor.w a0, a2, (a1)" }, \
+    { 64, 4, 0x2315c, 0x0cc5852f, "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)", "amoswap.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x23164, 0x0ec5852f, "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)", "amoswap.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x23160, 0x0ac5852f, "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)", "amoswap.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x23158, 0x08c5852f, "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)", "amoswap.b a0, a2, (a1)" }, \
+    { 64, 4, 0x221e4, 0x0cc5b52f, "amoswap.d.aq a0, a2, (a1)", "amoswap.d.aq a0, a2, (a1)", "amoswap.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x221ec, 0x0ec5b52f, "amoswap.d.aqrl a0, a2, (a1)", "amoswap.d.aqrl a0, a2, (a1)", "amoswap.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x221e8, 0x0ac5b52f, "amoswap.d.rl a0, a2, (a1)", "amoswap.d.rl a0, a2, (a1)", "amoswap.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x221e0, 0x08c5b52f, "amoswap.d a0, a2, (a1)", "amoswap.d a0, a2, (a1)", "amoswap.d a0, a2, (a1)" }, \
+    { 64, 4, 0x240d4, 0x0cc5952f, "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)", "amoswap.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x240dc, 0x0ec5952f, "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)", "amoswap.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x240d8, 0x0ac5952f, "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)", "amoswap.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x240d0, 0x08c5952f, "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)", "amoswap.h a0, a2, (a1)" }, \
+    { 64, 4, 0x2126c, 0x0cc5a52f, "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)", "amoswap.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x21274, 0x0ec5a52f, "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)", "amoswap.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x21270, 0x0ac5a52f, "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)", "amoswap.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x21268, 0x08c5a52f, "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)", "amoswap.w a0, a2, (a1)" }, \
+    { 64, 4, 0x234cc, 0x24c5852f, "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)", "amoxor.b.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x234d4, 0x26c5852f, "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)", "amoxor.b.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x234d0, 0x22c5852f, "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)", "amoxor.b.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x234c8, 0x20c5852f, "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)", "amoxor.b a0, a2, (a1)" }, \
+    { 64, 4, 0x22554, 0x24c5b52f, "amoxor.d.aq a0, a2, (a1)", "amoxor.d.aq a0, a2, (a1)", "amoxor.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2255c, 0x26c5b52f, "amoxor.d.aqrl a0, a2, (a1)", "amoxor.d.aqrl a0, a2, (a1)", "amoxor.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x22558, 0x22c5b52f, "amoxor.d.rl a0, a2, (a1)", "amoxor.d.rl a0, a2, (a1)", "amoxor.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x22550, 0x20c5b52f, "amoxor.d a0, a2, (a1)", "amoxor.d a0, a2, (a1)", "amoxor.d a0, a2, (a1)" }, \
+    { 64, 4, 0x24444, 0x24c5952f, "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)", "amoxor.h.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x2444c, 0x26c5952f, "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)", "amoxor.h.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x24448, 0x22c5952f, "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)", "amoxor.h.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x24440, 0x20c5952f, "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)", "amoxor.h a0, a2, (a1)" }, \
+    { 64, 4, 0x215dc, 0x24c5a52f, "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)", "amoxor.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x215e4, 0x26c5a52f, "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)", "amoxor.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x215e0, 0x22c5a52f, "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)", "amoxor.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x215d8, 0x20c5a52f, "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)", "amoxor.w a0, a2, (a1)" }, \
+    { 64, 4, 0x171d0, 0x00c5f533, "and a0, a1, a2", "and a0, a1, a2", "and a0, a1, a2" }, \
+    { 64, 2, 0x2c3c6, 0x00008de9, "and a1, a1, a0", "c.and a1, a0", "c.and a1, a0" }, \
+    { 64, 4, 0x14e5c, 0x5555f513, "andi a0, a1, 1365", "andi a0, a1, 1365", "andi a0, a1, 1365" }, \
+    { 64, 2, 0x2c32a, 0x000089d5, "andi a1, a1, 21", "c.andi a1, 21", "c.andi a1, 21" }, \
+    { 64, 4, 0x26de4, 0x40c5f533, "andn a0, a1, a2", "andn a0, a1, a2", "andn a0, a1, a2" }, \
     { 64, 4, 0x10110, 0x12345517, "auipc a0, 74565", "auipc a0, 74565", "auipc a0, 74565" }, \
-    { 64, 4, 0x2b138, 0x48c59533, "bclr a0, a1, a2", "bclr a0, a1, a2", "bclr a0, a1, a2" }, \
-    { 64, 4, 0x2b838, 0x49559513, "bclri a0, a1, 21", "bclri a0, a1, 21", "bclri a0, a1, 21" }, \
-    { 64, 4, 0x11428, 0x2ac585e3, "beq a1, a2, 0x11ed2", "beq a1, a2, 0x11ed2", "beq a1, a2, 2730" }, \
-    { 64, 4, 0x10be8, 0x2a0585e3, "beqz a1, 0x11692", "beq a1, zero, 0x11692", "beqz a1, 2730" }, \
-    { 64, 2, 0x2c28a, 0x0000c58d, "beqz a1, 0x2c2b4", "c.beqz a1, 0x2c2b4", "c.beqz a1, 42" }, \
-    { 64, 4, 0x2b2f8, 0x48c5d533, "bext a0, a1, a2", "bext a0, a1, a2", "bext a0, a1, a2" }, \
-    { 64, 4, 0x2b984, 0x4955d513, "bexti a0, a1, 21", "bexti a0, a1, 21", "bexti a0, a1, 21" }, \
-    { 64, 4, 0x11a1c, 0x2ac5d5e3, "bge a1, a2, 0x124c6", "bge a1, a2, 0x124c6", "bge a1, a2, 2730" }, \
-    { 64, 4, 0x11e14, 0x2ac5f5e3, "bgeu a1, a2, 0x128be", "bgeu a1, a2, 0x128be", "bgeu a1, a2, 2730" }, \
-    { 64, 4, 0x11008, 0x2a05d5e3, "bgez a1, 0x11ab2", "bge a1, zero, 0x11ab2", "bgez a1, 2730" }, \
-    { 64, 4, 0x112c8, 0x2ac045e3, "bgtz a2, 0x11d72", "blt zero, a2, 0x11d72", "bgtz a2, 2730" }, \
-    { 64, 4, 0x2b4b8, 0x68c59533, "binv a0, a1, a2", "binv a0, a1, a2", "binv a0, a1, a2" }, \
-    { 64, 4, 0x2bad0, 0x69559513, "binvi a0, a1, 21", "binvi a0, a1, 21", "binvi a0, a1, 21" }, \
-    { 64, 4, 0x10ea8, 0x2ac055e3, "blez a2, 0x11952", "bge zero, a2, 0x11952", "blez a2, 2730" }, \
-    { 64, 4, 0x11820, 0x2ac5c5e3, "blt a1, a2, 0x122ca", "blt a1, a2, 0x122ca", "blt a1, a2, 2730" }, \
-    { 64, 4, 0x11c18, 0x2ac5e5e3, "bltu a1, a2, 0x126c2", "bltu a1, a2, 0x126c2", "bltu a1, a2, 2730" }, \
-    { 64, 4, 0x11168, 0x2a05c5e3, "bltz a1, 0x11c12", "blt a1, zero, 0x11c12", "bltz a1, 2730" }, \
-    { 64, 4, 0x11624, 0x2ac595e3, "bne a1, a2, 0x120ce", "bne a1, a2, 0x120ce", "bne a1, a2, 2730" }, \
-    { 64, 4, 0x10d48, 0x2a0595e3, "bnez a1, 0x117f2", "bne a1, zero, 0x117f2", "bnez a1, 2730" }, \
-    { 64, 2, 0x2c2e0, 0x0000e58d, "bnez a1, 0x2c30a", "c.bnez a1, 0x2c30a", "c.bnez a1, 42" }, \
-    { 64, 4, 0x2a90c, 0x6875d513, "brev8 a0, a1", "brev8 a0, a1", "brev8 a0, a1" }, \
-    { 64, 4, 0x2b678, 0x28c59533, "bset a0, a1, a2", "bset a0, a1, a2", "bset a0, a1, a2" }, \
-    { 64, 4, 0x13dd8, 0x28b01513, "bseti a0, zero, 11", "bseti a0, zero, 11", "bseti a0, zero, 11" }, \
-    { 64, 2, 0x2c5c0, 0x0000902e, "c.add zero, a1", "c.add zero, a1", "c.add zero, a1" }, \
-    { 64, 2, 0x2bf1e, 0x00000501, "c.addi a0, 0", "c.addi a0, 0", "c.addi a0, 0" }, \
-    { 64, 2, 0x2bfb4, 0x00004055, "c.li zero, 21", "c.li zero, 21", "c.li zero, 21" }, \
-    { 64, 2, 0x2c094, 0x00006055, "c.lui zero, 21", "c.lui zero, 21", "c.lui zero, 21" }, \
-    { 64, 2, 0x2c9d2, 0x00006581, "c.mop.11", "c.mop.11", "c.mop.11" }, \
-    { 64, 2, 0x2c9d4, 0x00006681, "c.mop.13", "c.mop.13", "c.mop.13" }, \
-    { 64, 2, 0x2c9d6, 0x00006781, "c.mop.15", "c.mop.15", "c.mop.15" }, \
-    { 64, 2, 0x2c9ca, 0x00006181, "c.mop.3", "c.mop.3", "c.mop.3" }, \
-    { 64, 2, 0x2c9ce, 0x00006381, "c.mop.7", "c.mop.7", "c.mop.7" }, \
-    { 64, 2, 0x2c9d0, 0x00006481, "c.mop.9", "c.mop.9", "c.mop.9" }, \
-    { 64, 2, 0x2c4a4, 0x0000802e, "c.mv zero, a1", "c.mv zero, a1", "c.mv zero, a1" }, \
-    { 64, 2, 0x2be8c, 0x00000055, "c.nop 21", "c.nop 21", "c.nop 21" }, \
-    { 64, 2, 0x2c656, 0x00009016, "c.ntl.all", "c.add zero, t0", "c.add zero, t0" }, \
-    { 64, 2, 0x2c650, 0x0000900a, "c.ntl.p1", "c.add zero, sp", "c.add zero, sp" }, \
-    { 64, 2, 0x2c652, 0x0000900e, "c.ntl.pall", "c.add zero, gp", "c.add zero, gp" }, \
-    { 64, 2, 0x2c654, 0x00009012, "c.ntl.s1", "c.add zero, tp", "c.add zero, tp" }, \
-    { 64, 2, 0x2c338, 0x00000056, "c.slli zero, 21", "c.slli zero, 21", "c.slli zero, 21" }, \
-    { 64, 2, 0x2c122, 0x00008581, "c.srai a1, 0", "c.srai a1, 0", "c.srai a1, 0" }, \
-    { 64, 2, 0x2c102, 0x00008181, "c.srli a1, 0", "c.srli a1, 0", "c.srli a1, 0" }, \
-    { 64, 4, 0x31ee4, 0x0015a00f, "cbo.clean (a1)", "cbo.clean (a1)", "cbo.clean (a1)" }, \
-    { 64, 4, 0x31f68, 0x0025a00f, "cbo.flush (a1)", "cbo.flush (a1)", "cbo.flush (a1)" }, \
-    { 64, 4, 0x31fec, 0x0005a00f, "cbo.inval (a1)", "cbo.inval (a1)", "cbo.inval (a1)" }, \
-    { 64, 4, 0x32358, 0x0045a00f, "cbo.zero (a1)", "cbo.zero (a1)", "cbo.zero (a1)" }, \
-    { 64, 4, 0x28d6c, 0x0ac59533, "clmul a0, a1, a2", "clmul a0, a1, a2", "clmul a0, a1, a2" }, \
-    { 64, 4, 0x28f2c, 0x0ac5b533, "clmulh a0, a1, a2", "clmulh a0, a1, a2", "clmulh a0, a1, a2" }, \
-    { 64, 4, 0x290ec, 0x0ac5a533, "clmulr a0, a1, a2", "clmulr a0, a1, a2", "clmulr a0, a1, a2" }, \
-    { 64, 4, 0x27be0, 0x60059513, "clz a0, a1", "clz a0, a1", "clz a0, a1" }, \
-    { 64, 4, 0x282e8, 0x6005951b, "clzw a0, a1", "clzw a0, a1", "clzw a0, a1" }, \
-    { 64, 4, 0x27e38, 0x60259513, "cpop a0, a1", "cpop a0, a1", "cpop a0, a1" }, \
-    { 64, 4, 0x28540, 0x6025951b, "cpopw a0, a1", "cpopw a0, a1", "cpopw a0, a1" }, \
-    { 64, 4, 0x345b8, 0x5555b073, "csrc 1365, a1", "csrrc zero, 1365, a1", "csrc 1365, a1" }, \
-    { 64, 4, 0x345bc, 0x0015b073, "csrc fflags, a1", "csrrc zero, fflags, a1", "csrc fflags, a1" }, \
-    { 64, 4, 0x345c0, 0x0025b073, "csrc frm, a1", "csrrc zero, frm, a1", "csrc frm, a1" }, \
-    { 64, 4, 0x366e8, 0x5552f073, "csrci 1365, 5", "csrrci zero, 1365, 5", "csrci 1365, 5" }, \
-    { 64, 4, 0x366ec, 0x0012f073, "csrci fflags, 5", "csrrci zero, fflags, 5", "csrci fflags, 5" }, \
-    { 64, 4, 0x366f0, 0x0022f073, "csrci frm, 5", "csrrci zero, frm, 5", "csrci frm, 5" }, \
-    { 64, 4, 0x3291c, 0x55502573, "csrr a0, 1365", "csrrs a0, 1365, zero", "csrr a0, 1365" }, \
-    { 64, 4, 0x329bc, 0x00802573, "csrr a0, vstart", "csrrs a0, vstart, zero", "csrr a0, vstart" }, \
-    { 64, 4, 0x329c0, 0x00902573, "csrr a0, vxsat", "csrrs a0, vxsat, zero", "csrr a0, vxsat" }, \
-    { 64, 4, 0x34b34, 0x5555b573, "csrrc a0, 1365, a1", "csrrc a0, 1365, a1", "csrrc a0, 1365, a1" }, \
-    { 64, 4, 0x34bc8, 0x0015b573, "csrrc a0, fflags, a1", "csrrc a0, fflags, a1", "csrrc a0, fflags, a1" }, \
-    { 64, 4, 0x34bcc, 0x0025b573, "csrrc a0, frm, a1", "csrrc a0, frm, a1", "csrrc a0, frm, a1" }, \
-    { 64, 4, 0x36c08, 0x5552f573, "csrrci a0, 1365, 5", "csrrci a0, 1365, 5", "csrrci a0, 1365, 5" }, \
-    { 64, 4, 0x36c9c, 0x0012f573, "csrrci a0, fflags, 5", "csrrci a0, fflags, 5", "csrrci a0, fflags, 5" }, \
-    { 64, 4, 0x36ca0, 0x0022f573, "csrrci a0, frm, 5", "csrrci a0, frm, 5", "csrrci a0, frm, 5" }, \
-    { 64, 4, 0x33414, 0x5555a573, "csrrs a0, 1365, a1", "csrrs a0, 1365, a1", "csrrs a0, 1365, a1" }, \
-    { 64, 4, 0x334a8, 0x0015a573, "csrrs a0, fflags, a1", "csrrs a0, fflags, a1", "csrrs a0, fflags, a1" }, \
-    { 64, 4, 0x334ac, 0x0025a573, "csrrs a0, frm, a1", "csrrs a0, frm, a1", "csrrs a0, frm, a1" }, \
-    { 64, 4, 0x36138, 0x5552e573, "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5" }, \
-    { 64, 4, 0x361cc, 0x0012e573, "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5" }, \
-    { 64, 4, 0x361d0, 0x0022e573, "csrrsi a0, frm, 5", "csrrsi a0, frm, 5", "csrrsi a0, frm, 5" }, \
-    { 64, 4, 0x33fa4, 0x55559573, "csrrw a0, 1365, a1", "csrrw a0, 1365, a1", "csrrw a0, 1365, a1" }, \
-    { 64, 4, 0x34044, 0x00859573, "csrrw a0, vstart, a1", "csrrw a0, vstart, a1", "csrrw a0, vstart, a1" }, \
-    { 64, 4, 0x34048, 0x00959573, "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1" }, \
-    { 64, 4, 0x35668, 0x5552d573, "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5" }, \
-    { 64, 4, 0x35704, 0x0032d573, "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5" }, \
-    { 64, 4, 0x35708, 0x0082d573, "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5" }, \
-    { 64, 4, 0x32e98, 0x5555a073, "csrs 1365, a1", "csrrs zero, 1365, a1", "csrs 1365, a1" }, \
-    { 64, 4, 0x32e9c, 0x0015a073, "csrs fflags, a1", "csrrs zero, fflags, a1", "csrs fflags, a1" }, \
-    { 64, 4, 0x32ea0, 0x0025a073, "csrs frm, a1", "csrrs zero, frm, a1", "csrs frm, a1" }, \
-    { 64, 4, 0x35c18, 0x5552e073, "csrsi 1365, 5", "csrrsi zero, 1365, 5", "csrsi 1365, 5" }, \
-    { 64, 4, 0x35c1c, 0x0012e073, "csrsi fflags, 5", "csrrsi zero, fflags, 5", "csrsi fflags, 5" }, \
-    { 64, 4, 0x35c20, 0x0022e073, "csrsi frm, 5", "csrrsi zero, frm, 5", "csrsi frm, 5" }, \
-    { 64, 4, 0x33a28, 0x55559073, "csrw 1365, a1", "csrrw zero, 1365, a1", "csrw 1365, a1" }, \
-    { 64, 4, 0x33a38, 0x00859073, "csrw vstart, a1", "csrrw zero, vstart, a1", "csrw vstart, a1" }, \
-    { 64, 4, 0x33a3c, 0x00959073, "csrw vxsat, a1", "csrrw zero, vxsat, a1", "csrw vxsat, a1" }, \
-    { 64, 4, 0x35148, 0x5552d073, "csrwi 1365, 5", "csrrwi zero, 1365, 5", "csrwi 1365, 5" }, \
-    { 64, 4, 0x35154, 0x0032d073, "csrwi fcsr, 5", "csrrwi zero, fcsr, 5", "csrwi fcsr, 5" }, \
-    { 64, 4, 0x35158, 0x0082d073, "csrwi vstart, 5", "csrrwi zero, vstart, 5", "csrwi vstart, 5" }, \
-    { 64, 4, 0x27d0c, 0x60159513, "ctz a0, a1", "ctz a0, a1", "ctz a0, a1" }, \
-    { 64, 4, 0x28414, 0x6015951b, "ctzw a0, a1", "ctzw a0, a1", "ctzw a0, a1" }, \
-    { 64, 4, 0x32598, 0x0ec5d533, "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2" }, \
-    { 64, 4, 0x32758, 0x0ec5f533, "czero.nez a0, a1, a2", "czero.nez a0, a1, a2", "czero.nez a0, a1, a2" }, \
-    { 64, 4, 0x1eb70, 0x02c5c533, "div a0, a1, a2", "div a0, a1, a2", "div a0, a1, a2" }, \
-    { 64, 4, 0x1ed30, 0x02c5d533, "divu a0, a1, a2", "divu a0, a1, a2", "divu a0, a1, a2" }, \
-    { 64, 4, 0x1f430, 0x02c5d53b, "divuw a0, a1, a2", "divuw a0, a1, a2", "divuw a0, a1, a2" }, \
-    { 64, 4, 0x1f270, 0x02c5c53b, "divw a0, a1, a2", "divw a0, a1, a2", "divw a0, a1, a2" }, \
-    { 64, 2, 0x2c576, 0x00009002, "ebreak", "c.ebreak", "c.ebreak" }, \
-    { 64, 4, 0x17ae0, 0x00100073, "ebreak", "ebreak", "ebreak" }, \
-    { 64, 4, 0x17adc, 0x00000073, "ecall", "ecall", "ecall" }, \
-    { 64, 4, 0x18d4c, 0x22b5a553, "fabs.d fa0, fa1", "fsgnjx.d fa0, fa1, fa1", "fabs.d fa0, fa1" }, \
-    { 64, 4, 0x2fc6c, 0x24b5a553, "fabs.h fa0, fa1", "fsgnjx.h fa0, fa1, fa1", "fabs.h fa0, fa1" }, \
-    { 64, 4, 0x1cd78, 0x20b5a553, "fabs.s fa0, fa1", "fsgnjx.s fa0, fa1, fa1", "fabs.s fa0, fa1" }, \
-    { 64, 4, 0x18384, 0x02c59553, "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x18514, 0x02c58553, "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x18518, 0x02c5a553, "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x2f2a4, 0x04c59553, "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x2f434, 0x04c58553, "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x2f438, 0x04c5a553, "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1c3b0, 0x00c59553, "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x1c540, 0x00c58553, "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x1c544, 0x00c5a553, "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x19afc, 0xe2059553, "fclass.d a0, fa1", "fclass.d a0, fa1", "fclass.d a0, fa1" }, \
-    { 64, 4, 0x30a1c, 0xe4059553, "fclass.h a0, fa1", "fclass.h a0, fa1", "fclass.h a0, fa1" }, \
-    { 64, 4, 0x1db28, 0xe0059553, "fclass.s a0, fa1", "fclass.s a0, fa1", "fclass.s a0, fa1" }, \
-    { 64, 4, 0x2e7c4, 0x44859553, "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x2e8d0, 0x44858553, "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne" }, \
-    { 64, 4, 0x2e8d4, 0x4485a553, "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x31904, 0x42259553, "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz" }, \
-    { 64, 4, 0x31a10, 0x42258553, "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1" }, \
-    { 64, 4, 0x31a14, 0x4225a553, "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn" }, \
-    { 64, 4, 0x1a31c, 0xd2259553, "fcvt.d.l fa0, a1, rtz", "fcvt.d.l fa0, a1, rtz", "fcvt.d.l fa0, a1, rtz" }, \
-    { 64, 4, 0x1a434, 0xd2258553, "fcvt.d.l fa0, a1, rne", "fcvt.d.l fa0, a1, rne", "fcvt.d.l fa0, a1, rne" }, \
-    { 64, 4, 0x1a438, 0xd225a553, "fcvt.d.l fa0, a1, rdn", "fcvt.d.l fa0, a1, rdn", "fcvt.d.l fa0, a1, rdn" }, \
-    { 64, 4, 0x1a448, 0xd2359553, "fcvt.d.lu fa0, a1, rtz", "fcvt.d.lu fa0, a1, rtz", "fcvt.d.lu fa0, a1, rtz" }, \
-    { 64, 4, 0x1a560, 0xd2358553, "fcvt.d.lu fa0, a1, rne", "fcvt.d.lu fa0, a1, rne", "fcvt.d.lu fa0, a1, rne" }, \
-    { 64, 4, 0x1a564, 0xd235a553, "fcvt.d.lu fa0, a1, rdn", "fcvt.d.lu fa0, a1, rdn", "fcvt.d.lu fa0, a1, rdn" }, \
-    { 64, 4, 0x1a8c4, 0x42059553, "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x1a9d0, 0x42058553, "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1" }, \
-    { 64, 4, 0x1a9d4, 0x4205a553, "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x1a0c4, 0xd2059553, "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz" }, \
-    { 64, 4, 0x1a1dc, 0xd2058553, "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1" }, \
-    { 64, 4, 0x1a1e0, 0xd205a553, "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn" }, \
-    { 64, 4, 0x1a1f0, 0xd2159553, "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz" }, \
-    { 64, 4, 0x1a308, 0xd2158553, "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1" }, \
-    { 64, 4, 0x1a30c, 0xd215a553, "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn" }, \
-    { 64, 4, 0x31a24, 0x44159553, "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz" }, \
-    { 64, 4, 0x31b30, 0x44158553, "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne" }, \
-    { 64, 4, 0x31b34, 0x4415a553, "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn" }, \
-    { 64, 4, 0x3123c, 0xd4259553, "fcvt.h.l fa0, a1, rtz", "fcvt.h.l fa0, a1, rtz", "fcvt.h.l fa0, a1, rtz" }, \
-    { 64, 4, 0x31354, 0xd4258553, "fcvt.h.l fa0, a1, rne", "fcvt.h.l fa0, a1, rne", "fcvt.h.l fa0, a1, rne" }, \
-    { 64, 4, 0x31358, 0xd425a553, "fcvt.h.l fa0, a1, rdn", "fcvt.h.l fa0, a1, rdn", "fcvt.h.l fa0, a1, rdn" }, \
-    { 64, 4, 0x31368, 0xd4359553, "fcvt.h.lu fa0, a1, rtz", "fcvt.h.lu fa0, a1, rtz", "fcvt.h.lu fa0, a1, rtz" }, \
-    { 64, 4, 0x31480, 0xd4358553, "fcvt.h.lu fa0, a1, rne", "fcvt.h.lu fa0, a1, rne", "fcvt.h.lu fa0, a1, rne" }, \
-    { 64, 4, 0x31484, 0xd435a553, "fcvt.h.lu fa0, a1, rdn", "fcvt.h.lu fa0, a1, rdn", "fcvt.h.lu fa0, a1, rdn" }, \
-    { 64, 4, 0x317e4, 0x44059553, "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x318f0, 0x44058553, "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne" }, \
-    { 64, 4, 0x318f4, 0x4405a553, "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x30fe4, 0xd4059553, "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz" }, \
-    { 64, 4, 0x310fc, 0xd4058553, "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne" }, \
-    { 64, 4, 0x31100, 0xd405a553, "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn" }, \
-    { 64, 4, 0x31110, 0xd4159553, "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz" }, \
-    { 64, 4, 0x31228, 0xd4158553, "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne" }, \
-    { 64, 4, 0x3122c, 0xd415a553, "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn" }, \
-    { 64, 4, 0x19e6c, 0xc2259553, "fcvt.l.d a0, fa1, rtz", "fcvt.l.d a0, fa1, rtz", "fcvt.l.d a0, fa1, rtz" }, \
-    { 64, 4, 0x19f84, 0xc2258553, "fcvt.l.d a0, fa1, rne", "fcvt.l.d a0, fa1, rne", "fcvt.l.d a0, fa1, rne" }, \
-    { 64, 4, 0x19f88, 0xc225a553, "fcvt.l.d a0, fa1, rdn", "fcvt.l.d a0, fa1, rdn", "fcvt.l.d a0, fa1, rdn" }, \
-    { 64, 4, 0x30d8c, 0xc4259553, "fcvt.l.h a0, fa1, rtz", "fcvt.l.h a0, fa1, rtz", "fcvt.l.h a0, fa1, rtz" }, \
-    { 64, 4, 0x30ea4, 0xc4258553, "fcvt.l.h a0, fa1, rne", "fcvt.l.h a0, fa1, rne", "fcvt.l.h a0, fa1, rne" }, \
-    { 64, 4, 0x30ea8, 0xc425a553, "fcvt.l.h a0, fa1, rdn", "fcvt.l.h a0, fa1, rdn", "fcvt.l.h a0, fa1, rdn" }, \
-    { 64, 4, 0x1de98, 0xc0259553, "fcvt.l.s a0, fa1, rtz", "fcvt.l.s a0, fa1, rtz", "fcvt.l.s a0, fa1, rtz" }, \
-    { 64, 4, 0x1dfb0, 0xc0258553, "fcvt.l.s a0, fa1, rne", "fcvt.l.s a0, fa1, rne", "fcvt.l.s a0, fa1, rne" }, \
-    { 64, 4, 0x1dfb4, 0xc025a553, "fcvt.l.s a0, fa1, rdn", "fcvt.l.s a0, fa1, rdn", "fcvt.l.s a0, fa1, rdn" }, \
-    { 64, 4, 0x19f98, 0xc2359553, "fcvt.lu.d a0, fa1, rtz", "fcvt.lu.d a0, fa1, rtz", "fcvt.lu.d a0, fa1, rtz" }, \
-    { 64, 4, 0x1a0b0, 0xc2358553, "fcvt.lu.d a0, fa1, rne", "fcvt.lu.d a0, fa1, rne", "fcvt.lu.d a0, fa1, rne" }, \
-    { 64, 4, 0x1a0b4, 0xc235a553, "fcvt.lu.d a0, fa1, rdn", "fcvt.lu.d a0, fa1, rdn", "fcvt.lu.d a0, fa1, rdn" }, \
-    { 64, 4, 0x30eb8, 0xc4359553, "fcvt.lu.h a0, fa1, rtz", "fcvt.lu.h a0, fa1, rtz", "fcvt.lu.h a0, fa1, rtz" }, \
-    { 64, 4, 0x30fd0, 0xc4358553, "fcvt.lu.h a0, fa1, rne", "fcvt.lu.h a0, fa1, rne", "fcvt.lu.h a0, fa1, rne" }, \
-    { 64, 4, 0x30fd4, 0xc435a553, "fcvt.lu.h a0, fa1, rdn", "fcvt.lu.h a0, fa1, rdn", "fcvt.lu.h a0, fa1, rdn" }, \
-    { 64, 4, 0x1dfc4, 0xc0359553, "fcvt.lu.s a0, fa1, rtz", "fcvt.lu.s a0, fa1, rtz", "fcvt.lu.s a0, fa1, rtz" }, \
-    { 64, 4, 0x1e0dc, 0xc0358553, "fcvt.lu.s a0, fa1, rne", "fcvt.lu.s a0, fa1, rne", "fcvt.lu.s a0, fa1, rne" }, \
-    { 64, 4, 0x1e0e0, 0xc035a553, "fcvt.lu.s a0, fa1, rdn", "fcvt.lu.s a0, fa1, rdn", "fcvt.lu.s a0, fa1, rdn" }, \
-    { 64, 4, 0x2e8e4, 0x40659553, "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz" }, \
-    { 64, 4, 0x2e9f0, 0x40658553, "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1" }, \
-    { 64, 4, 0x2e9f4, 0x4065a553, "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn" }, \
-    { 64, 4, 0x1a7a4, 0x40159553, "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz" }, \
-    { 64, 4, 0x1a8b0, 0x40158553, "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne" }, \
-    { 64, 4, 0x1a8b4, 0x4015a553, "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn" }, \
-    { 64, 4, 0x316c4, 0x40259553, "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz" }, \
-    { 64, 4, 0x317d0, 0x40258553, "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1" }, \
-    { 64, 4, 0x317d4, 0x4025a553, "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn" }, \
-    { 64, 4, 0x1e348, 0xd0259553, "fcvt.s.l fa0, a1, rtz", "fcvt.s.l fa0, a1, rtz", "fcvt.s.l fa0, a1, rtz" }, \
-    { 64, 4, 0x1e460, 0xd0258553, "fcvt.s.l fa0, a1, rne", "fcvt.s.l fa0, a1, rne", "fcvt.s.l fa0, a1, rne" }, \
-    { 64, 4, 0x1e464, 0xd025a553, "fcvt.s.l fa0, a1, rdn", "fcvt.s.l fa0, a1, rdn", "fcvt.s.l fa0, a1, rdn" }, \
-    { 64, 4, 0x1e474, 0xd0359553, "fcvt.s.lu fa0, a1, rtz", "fcvt.s.lu fa0, a1, rtz", "fcvt.s.lu fa0, a1, rtz" }, \
-    { 64, 4, 0x1e58c, 0xd0358553, "fcvt.s.lu fa0, a1, rne", "fcvt.s.lu fa0, a1, rne", "fcvt.s.lu fa0, a1, rne" }, \
-    { 64, 4, 0x1e590, 0xd035a553, "fcvt.s.lu fa0, a1, rdn", "fcvt.s.lu fa0, a1, rdn", "fcvt.s.lu fa0, a1, rdn" }, \
-    { 64, 4, 0x1e0f0, 0xd0059553, "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz" }, \
-    { 64, 4, 0x1e208, 0xd0058553, "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne" }, \
-    { 64, 4, 0x1e20c, 0xd005a553, "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn" }, \
-    { 64, 4, 0x1e21c, 0xd0159553, "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz" }, \
-    { 64, 4, 0x1e334, 0xd0158553, "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne" }, \
-    { 64, 4, 0x1e338, 0xd015a553, "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn" }, \
-    { 64, 4, 0x19c14, 0xc2059553, "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz" }, \
-    { 64, 4, 0x19d2c, 0xc2058553, "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne" }, \
-    { 64, 4, 0x19d30, 0xc205a553, "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn" }, \
-    { 64, 4, 0x30b34, 0xc4059553, "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz" }, \
-    { 64, 4, 0x30c4c, 0xc4058553, "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne" }, \
-    { 64, 4, 0x30c50, 0xc405a553, "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn" }, \
-    { 64, 4, 0x1dc40, 0xc0059553, "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz" }, \
-    { 64, 4, 0x1dd58, 0xc0058553, "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne" }, \
-    { 64, 4, 0x1dd5c, 0xc005a553, "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn" }, \
-    { 64, 4, 0x19d40, 0xc2159553, "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz" }, \
-    { 64, 4, 0x19e58, 0xc2158553, "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne" }, \
-    { 64, 4, 0x19e5c, 0xc215a553, "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn" }, \
-    { 64, 4, 0x30c60, 0xc4159553, "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz" }, \
-    { 64, 4, 0x30d78, 0xc4158553, "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne" }, \
-    { 64, 4, 0x30d7c, 0xc415a553, "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn" }, \
-    { 64, 4, 0x1dd6c, 0xc0159553, "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz" }, \
-    { 64, 4, 0x1de84, 0xc0158553, "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne" }, \
-    { 64, 4, 0x1de88, 0xc015a553, "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn" }, \
-    { 64, 4, 0x2e6ac, 0xc2859553, "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz" }, \
-    { 64, 4, 0x18870, 0x1ac59553, "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x18a00, 0x1ac58553, "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x18a04, 0x1ac5a553, "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x2f790, 0x1cc59553, "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x2f920, 0x1cc58553, "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x2f924, 0x1cc5a553, "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1c89c, 0x18c59553, "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x1ca2c, 0x18c58553, "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x1ca30, 0x18c5a553, "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x371b8, 0x0000100f, "fence.i", "fence.i", "fence.i" }, \
-    { 64, 4, 0x17a58, 0x8330000f, "fence.tso", "fence.tso", "fence.tso" }, \
-    { 64, 4, 0x17a5c, 0x0ff0000f, "fence", "fence iorw, iorw", "fence" }, \
-    { 64, 4, 0x17a60, 0x0a30000f, "fence ir, rw", "fence ir, rw", "fence ir, rw" }, \
-    { 64, 4, 0x17a64, 0x0130000f, "fence w, rw", "fence w, rw", "fence w, rw" }, \
-    { 64, 4, 0x19628, 0xa2c5a553, "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2" }, \
-    { 64, 4, 0x30548, 0xa4c5a553, "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2" }, \
-    { 64, 4, 0x1d654, 0xa0c5a553, "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2" }, \
-    { 64, 2, 0x2c88c, 0x000035c8, "fld fa0, 168(a1)", "c.fld fa0, 168(a1)", "c.fld fa0, 168(a1)" }, \
-    { 64, 2, 0x2c900, 0x0000352a, "fld fa0, 168(sp)", "c.fldsp fa0, 168(sp)", "c.fldsp fa0, 168(sp)" }, \
-    { 64, 4, 0x1a9e4, 0x5555b507, "fld fa0, 1365(a1)", "fld fa0, 1365(a1)", "fld fa0, 1365(a1)" }, \
-    { 64, 4, 0x19960, 0xa2c58553, "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2" }, \
-    { 64, 4, 0x30880, 0xa4c58553, "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2" }, \
-    { 64, 4, 0x1d98c, 0xa0c58553, "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2" }, \
-    { 64, 4, 0x2d9d8, 0xa2c5c553, "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2" }, \
-    { 64, 4, 0x2e374, 0xa4c5c553, "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2" }, \
-    { 64, 4, 0x2d03c, 0xa0c5c553, "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2" }, \
-    { 64, 4, 0x31b44, 0x55559507, "flh fa0, 1365(a1)", "flh fa0, 1365(a1)", "flh fa0, 1365(a1)" }, \
-    { 64, 4, 0x2d374, 0xf2180553, "fli.d fa0, 1.0", "fli.d fa0, 1.0", "fli.d fa0, 1.0" }, \
-    { 64, 4, 0x2d400, 0xf2108553, "fli.d fa0, min", "fli.d fa0, min", "fli.d fa0, min" }, \
-    { 64, 4, 0x2d404, 0xf2110553, "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05" }, \
-    { 64, 4, 0x2dd10, 0xf4180553, "fli.h fa0, 1.0", "fli.h fa0, 1.0", "fli.h fa0, 1.0" }, \
-    { 64, 4, 0x2dd9c, 0xf4108553, "fli.h fa0, min", "fli.h fa0, min", "fli.h fa0, min" }, \
-    { 64, 4, 0x2dda0, 0xf4110553, "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05" }, \
-    { 64, 4, 0x2c9d8, 0xf0180553, "fli.s fa0, 1.0", "fli.s fa0, 1.0", "fli.s fa0, 1.0" }, \
-    { 64, 4, 0x2ca64, 0xf0108553, "fli.s fa0, min", "fli.s fa0, min", "fli.s fa0, min" }, \
-    { 64, 4, 0x2ca68, 0xf0110553, "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05" }, \
-    { 64, 4, 0x197c4, 0xa2c59553, "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2" }, \
-    { 64, 4, 0x306e4, 0xa4c59553, "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2" }, \
-    { 64, 4, 0x1d7f0, 0xa0c59553, "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2" }, \
-    { 64, 4, 0x2db74, 0xa2c5d553, "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2" }, \
-    { 64, 4, 0x2e510, 0xa4c5d553, "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2" }, \
-    { 64, 4, 0x2d1d8, 0xa0c5d553, "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2" }, \
-    { 64, 4, 0x1e7d0, 0x5555a507, "flw fa0, 1365(a1)", "flw fa0, 1365(a1)", "flw fa0, 1365(a1)" }, \
-    { 64, 4, 0x17ae4, 0x6ac59543, "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x17cf8, 0x6ac58543, "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x17cfc, 0x6ac5a543, "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x2ea04, 0x6cc59543, "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x2ec18, 0x6cc58543, "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x2ec1c, 0x6cc5a543, "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x1bb10, 0x68c59543, "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x1bd24, 0x68c58543, "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x1bd28, 0x68c5a543, "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x19498, 0x2ac59553, "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x303b8, 0x2cc59553, "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x1d4c4, 0x28c59553, "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x2d608, 0x2ac5b553, "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x2dfa4, 0x2cc5b553, "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x2cc6c, 0x28c5b553, "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x19308, 0x2ac58553, "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x30228, 0x2cc58553, "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x1d334, 0x28c58553, "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x2d478, 0x2ac5a553, "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x2de14, 0x2cc5a553, "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x2cadc, 0x28c5a553, "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x17d0c, 0x6ac59547, "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x17f20, 0x6ac58547, "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x17f24, 0x6ac5a547, "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x2ec2c, 0x6cc59547, "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x2ee40, 0x6cc58547, "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x2ee44, 0x6cc5a547, "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x1bd38, 0x68c59547, "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x1bf4c, 0x68c58547, "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x1bf50, 0x68c5a547, "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x186cc, 0x12c59553, "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x1885c, 0x12c58553, "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x18860, 0x12c5a553, "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x2f5ec, 0x14c59553, "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x2f77c, 0x14c58553, "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x2f780, 0x14c5a553, "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1c6f8, 0x10c59553, "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x1c888, 0x10c58553, "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x1c88c, 0x10c5a553, "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1a68c, 0xf2058553, "fmv.d.x fa0, a1", "fmv.d.x fa0, a1", "fmv.d.x fa0, a1" }, \
-    { 64, 4, 0x18b34, 0x22b58553, "fmv.d fa0, fa1", "fsgnj.d fa0, fa1, fa1", "fmv.d fa0, fa1" }, \
-    { 64, 4, 0x315ac, 0xf4058553, "fmv.h.x fa0, a1", "fmv.h.x fa0, a1", "fmv.h.x fa0, a1" }, \
-    { 64, 4, 0x2fa54, 0x24b58553, "fmv.h fa0, fa1", "fsgnj.h fa0, fa1, fa1", "fmv.h fa0, fa1" }, \
-    { 64, 4, 0x1cb60, 0x20b58553, "fmv.s fa0, fa1", "fsgnj.s fa0, fa1, fa1", "fmv.s fa0, fa1" }, \
-    { 64, 4, 0x1e6b8, 0xf0058553, "fmv.w.x fa0, a1", "fmv.w.x fa0, a1", "fmv.w.x fa0, a1" }, \
-    { 64, 4, 0x1a574, 0xe2058553, "fmv.x.d a0, fa1", "fmv.x.d a0, fa1", "fmv.x.d a0, fa1" }, \
-    { 64, 4, 0x31494, 0xe4058553, "fmv.x.h a0, fa1", "fmv.x.h a0, fa1", "fmv.x.h a0, fa1" }, \
-    { 64, 4, 0x1e5a0, 0xe0058553, "fmv.x.w a0, fa1", "fmv.x.w a0, fa1", "fmv.x.w a0, fa1" }, \
-    { 64, 4, 0x18c40, 0x22b59553, "fneg.d fa0, fa1", "fsgnjn.d fa0, fa1, fa1", "fneg.d fa0, fa1" }, \
-    { 64, 4, 0x2fb60, 0x24b59553, "fneg.h fa0, fa1", "fsgnjn.h fa0, fa1, fa1", "fneg.h fa0, fa1" }, \
-    { 64, 4, 0x1cc6c, 0x20b59553, "fneg.s fa0, fa1", "fsgnjn.s fa0, fa1, fa1", "fneg.s fa0, fa1" }, \
-    { 64, 4, 0x1815c, 0x6ac5954f, "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x18370, 0x6ac5854f, "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x18374, 0x6ac5a54f, "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x2f07c, 0x6cc5954f, "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x2f290, 0x6cc5854f, "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x2f294, 0x6cc5a54f, "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x1c188, 0x68c5954f, "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x1c39c, 0x68c5854f, "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x1c3a0, 0x68c5a54f, "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x17f34, 0x6ac5954b, "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x18148, 0x6ac5854b, "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x1814c, 0x6ac5a54b, "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x2ee54, 0x6cc5954b, "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x2f068, 0x6cc5854b, "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x2f06c, 0x6cc5a54b, "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x1bf60, 0x68c5954b, "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz" }, \
-    { 64, 4, 0x1c174, 0x68c5854b, "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne" }, \
-    { 64, 4, 0x1c178, 0x68c5a54b, "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn" }, \
-    { 64, 4, 0x1b214, 0x00302573, "frcsr a0", "csrrs a0, fcsr, zero", "frcsr a0" }, \
-    { 64, 4, 0x1b33c, 0x00102573, "frflags a0", "csrrs a0, fflags, zero", "frflags a0" }, \
-    { 64, 4, 0x2d798, 0x42459553, "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz" }, \
-    { 64, 4, 0x2d8a4, 0x42458553, "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne" }, \
-    { 64, 4, 0x2d8a8, 0x4245a553, "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn" }, \
-    { 64, 4, 0x2e134, 0x44459553, "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz" }, \
-    { 64, 4, 0x2e240, 0x44458553, "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne" }, \
-    { 64, 4, 0x2e244, 0x4445a553, "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn" }, \
-    { 64, 4, 0x2cdfc, 0x40459553, "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x2cf08, 0x40458553, "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne" }, \
-    { 64, 4, 0x2cf0c, 0x4045a553, "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x2d8b8, 0x42559553, "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz" }, \
-    { 64, 4, 0x2d9c4, 0x42558553, "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne" }, \
-    { 64, 4, 0x2d9c8, 0x4255a553, "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn" }, \
-    { 64, 4, 0x2e254, 0x44559553, "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz" }, \
-    { 64, 4, 0x2e360, 0x44558553, "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne" }, \
-    { 64, 4, 0x2e364, 0x4455a553, "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn" }, \
-    { 64, 4, 0x2cf1c, 0x40559553, "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x2d028, 0x40558553, "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne" }, \
-    { 64, 4, 0x2d02c, 0x4055a553, "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x1b2a8, 0x00202573, "frrm a0", "csrrs a0, frm, zero", "frrm a0" }, \
-    { 64, 4, 0x1b3d0, 0x00359073, "fscsr a1", "csrrw zero, fcsr, a1", "fscsr a1" }, \
-    { 64, 4, 0x1b464, 0x00359573, "fscsr a0, a1", "csrrw a0, fcsr, a1", "fscsr a0, a1" }, \
-    { 64, 2, 0x2c8c6, 0x0000b5c8, "fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)" }, \
-    { 64, 2, 0x2c964, 0x0000b52e, "fsd fa1, 168(sp)", "c.fsdsp fa1, 168(sp)", "c.fsdsp fa1, 168(sp)" }, \
-    { 64, 4, 0x1abb4, 0x54c5baa7, "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)" }, \
-    { 64, 4, 0x1b750, 0x00159073, "fsflags a1", "csrrw zero, fflags, a1", "fsflags a1" }, \
-    { 64, 4, 0x1b7e4, 0x00159573, "fsflags a0, a1", "csrrw a0, fflags, a1", "fsflags a0, a1" }, \
-    { 64, 4, 0x1ba10, 0x0012d073, "fsflagsi 5", "csrrwi zero, fflags, 5", "fsflagsi 5" }, \
-    { 64, 4, 0x1ba48, 0x0012d573, "fsflagsi a0, 5", "csrrwi a0, fflags, 5", "fsflagsi a0, 5" }, \
-    { 64, 4, 0x18e58, 0x22c58553, "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x2fd78, 0x24c58553, "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x1ce84, 0x20c58553, "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x18fe8, 0x22c59553, "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x2ff08, 0x24c59553, "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x1d014, 0x20c59553, "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x19178, 0x22c5a553, "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2" }, \
-    { 64, 4, 0x30098, 0x24c5a553, "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2" }, \
-    { 64, 4, 0x1d1a4, 0x20c5a553, "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2" }, \
-    { 64, 4, 0x31d14, 0x54c59aa7, "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)" }, \
-    { 64, 4, 0x18a14, 0x5a059553, "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz" }, \
-    { 64, 4, 0x18b20, 0x5a058553, "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne" }, \
-    { 64, 4, 0x18b24, 0x5a05a553, "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn" }, \
-    { 64, 4, 0x2f934, 0x5c059553, "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz" }, \
-    { 64, 4, 0x2fa40, 0x5c058553, "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne" }, \
-    { 64, 4, 0x2fa44, 0x5c05a553, "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn" }, \
-    { 64, 4, 0x1ca40, 0x58059553, "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz" }, \
-    { 64, 4, 0x1cb4c, 0x58058553, "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne" }, \
-    { 64, 4, 0x1cb50, 0x5805a553, "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn" }, \
-    { 64, 4, 0x1b590, 0x00259073, "fsrm a1", "csrrw zero, frm, a1", "fsrm a1" }, \
-    { 64, 4, 0x1b624, 0x00259573, "fsrm a0, a1", "csrrw a0, frm, a1", "fsrm a0, a1" }, \
-    { 64, 4, 0x1b910, 0x0022d073, "fsrmi 5", "csrrwi zero, frm, 5", "fsrmi 5" }, \
-    { 64, 4, 0x1b948, 0x0022d573, "fsrmi a0, 5", "csrrwi a0, frm, 5", "fsrmi a0, 5" }, \
-    { 64, 4, 0x18528, 0x0ac59553, "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x186b8, 0x0ac58553, "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x186bc, 0x0ac5a553, "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x2f448, 0x0cc59553, "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x2f5d8, 0x0cc58553, "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x2f5dc, 0x0cc5a553, "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1c554, 0x08c59553, "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz" }, \
-    { 64, 4, 0x1c6e4, 0x08c58553, "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne" }, \
-    { 64, 4, 0x1c6e8, 0x08c5a553, "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn" }, \
-    { 64, 4, 0x1e9a0, 0x54c5aaa7, "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)" }, \
-    { 64, 4, 0x1fe44, 0x62000073, "hfence.gvma", "hfence.gvma zero, zero", "hfence.gvma" }, \
-    { 64, 4, 0x1fe48, 0x62058073, "hfence.gvma a1", "hfence.gvma a1, zero", "hfence.gvma a1" }, \
-    { 64, 4, 0x1fedc, 0x62c58073, "hfence.gvma a1, a2", "hfence.gvma a1, a2", "hfence.gvma a1, a2" }, \
-    { 64, 4, 0x1fc7c, 0x22000073, "hfence.vvma", "hfence.vvma zero, zero", "hfence.vvma" }, \
-    { 64, 4, 0x1fc80, 0x22058073, "hfence.vvma a1", "hfence.vvma a1, zero", "hfence.vvma a1" }, \
-    { 64, 4, 0x1fd14, 0x22c58073, "hfence.vvma a1, a2", "hfence.vvma a1, a2", "hfence.vvma a1, a2" }, \
-    { 64, 4, 0x2013c, 0x66c58073, "hinval.gvma a1, a2", "hinval.gvma a1, a2", "hinval.gvma a1, a2" }, \
-    { 64, 4, 0x2000c, 0x26c58073, "hinval.vvma a1, a2", "hinval.vvma a1, a2", "hinval.vvma a1, a2" }, \
-    { 64, 4, 0x2026c, 0x6005c573, "hlv.b a0, (a1)", "hlv.b a0, (a1)", "hlv.b a0, (a1)" }, \
-    { 64, 4, 0x20380, 0x6015c573, "hlv.bu a0, (a1)", "hlv.bu a0, (a1)", "hlv.bu a0, (a1)" }, \
-    { 64, 4, 0x20b0c, 0x6c05c573, "hlv.d a0, (a1)", "hlv.d a0, (a1)", "hlv.d a0, (a1)" }, \
-    { 64, 4, 0x20494, 0x6405c573, "hlv.h a0, (a1)", "hlv.h a0, (a1)", "hlv.h a0, (a1)" }, \
-    { 64, 4, 0x205a8, 0x6415c573, "hlv.hu a0, (a1)", "hlv.hu a0, (a1)", "hlv.hu a0, (a1)" }, \
-    { 64, 4, 0x207d0, 0x6805c573, "hlv.w a0, (a1)", "hlv.w a0, (a1)", "hlv.w a0, (a1)" }, \
-    { 64, 4, 0x209f8, 0x6815c573, "hlv.wu a0, (a1)", "hlv.wu a0, (a1)", "hlv.wu a0, (a1)" }, \
-    { 64, 4, 0x206bc, 0x6435c573, "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)" }, \
-    { 64, 4, 0x208e4, 0x6835c573, "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)" }, \
-    { 64, 4, 0x20c20, 0x62c5c073, "hsv.b a2, (a1)", "hsv.b a2, (a1)", "hsv.b a2, (a1)" }, \
-    { 64, 4, 0x20f5c, 0x6ec5c073, "hsv.d a2, (a1)", "hsv.d a2, (a1)", "hsv.d a2, (a1)" }, \
-    { 64, 4, 0x20d34, 0x66c5c073, "hsv.h a2, (a1)", "hsv.h a2, (a1)", "hsv.h a2, (a1)" }, \
-    { 64, 4, 0x20e48, 0x6ac5c073, "hsv.w a2, (a1)", "hsv.w a2, (a1)", "hsv.w a2, (a1)" }, \
-    { 64, 2, 0x2c228, 0x0000a46d, "j 0x2c4d2", "c.j 0x2c4d2", "c.j 682" }, \
+    { 64, 4, 0x2b330, 0x48c59533, "bclr a0, a1, a2", "bclr a0, a1, a2", "bclr a0, a1, a2" }, \
+    { 64, 4, 0x2ba30, 0x49559513, "bclri a0, a1, 21", "bclri a0, a1, 21", "bclri a0, a1, 21" }, \
+    { 64, 4, 0x11620, 0x2ac585e3, "beq a1, a2, 0x120ca", "beq a1, a2, 0x120ca", "beq a1, a2, 2730" }, \
+    { 64, 4, 0x10de0, 0x2a0585e3, "beqz a1, 0x1188a", "beq a1, zero, 0x1188a", "beqz a1, 2730" }, \
+    { 64, 2, 0x2c482, 0x0000c58d, "beqz a1, 0x2c4ac", "c.beqz a1, 0x2c4ac", "c.beqz a1, 42" }, \
+    { 64, 4, 0x2b4f0, 0x48c5d533, "bext a0, a1, a2", "bext a0, a1, a2", "bext a0, a1, a2" }, \
+    { 64, 4, 0x2bb7c, 0x4955d513, "bexti a0, a1, 21", "bexti a0, a1, 21", "bexti a0, a1, 21" }, \
+    { 64, 4, 0x11c14, 0x2ac5d5e3, "bge a1, a2, 0x126be", "bge a1, a2, 0x126be", "bge a1, a2, 2730" }, \
+    { 64, 4, 0x1200c, 0x2ac5f5e3, "bgeu a1, a2, 0x12ab6", "bgeu a1, a2, 0x12ab6", "bgeu a1, a2, 2730" }, \
+    { 64, 4, 0x11200, 0x2a05d5e3, "bgez a1, 0x11caa", "bge a1, zero, 0x11caa", "bgez a1, 2730" }, \
+    { 64, 4, 0x114c0, 0x2ac045e3, "bgtz a2, 0x11f6a", "blt zero, a2, 0x11f6a", "bgtz a2, 2730" }, \
+    { 64, 4, 0x2b6b0, 0x68c59533, "binv a0, a1, a2", "binv a0, a1, a2", "binv a0, a1, a2" }, \
+    { 64, 4, 0x2bcc8, 0x69559513, "binvi a0, a1, 21", "binvi a0, a1, 21", "binvi a0, a1, 21" }, \
+    { 64, 4, 0x110a0, 0x2ac055e3, "blez a2, 0x11b4a", "bge zero, a2, 0x11b4a", "blez a2, 2730" }, \
+    { 64, 4, 0x11a18, 0x2ac5c5e3, "blt a1, a2, 0x124c2", "blt a1, a2, 0x124c2", "blt a1, a2, 2730" }, \
+    { 64, 4, 0x11e10, 0x2ac5e5e3, "bltu a1, a2, 0x128ba", "bltu a1, a2, 0x128ba", "bltu a1, a2, 2730" }, \
+    { 64, 4, 0x11360, 0x2a05c5e3, "bltz a1, 0x11e0a", "blt a1, zero, 0x11e0a", "bltz a1, 2730" }, \
+    { 64, 4, 0x1181c, 0x2ac595e3, "bne a1, a2, 0x122c6", "bne a1, a2, 0x122c6", "bne a1, a2, 2730" }, \
+    { 64, 4, 0x10f40, 0x2a0595e3, "bnez a1, 0x119ea", "bne a1, zero, 0x119ea", "bnez a1, 2730" }, \
+    { 64, 2, 0x2c4d8, 0x0000e58d, "bnez a1, 0x2c502", "c.bnez a1, 0x2c502", "c.bnez a1, 42" }, \
+    { 64, 4, 0x2ab04, 0x6875d513, "brev8 a0, a1", "brev8 a0, a1", "brev8 a0, a1" }, \
+    { 64, 4, 0x2b870, 0x28c59533, "bset a0, a1, a2", "bset a0, a1, a2", "bset a0, a1, a2" }, \
+    { 64, 4, 0x13fd0, 0x28b01513, "bseti a0, zero, 11", "bseti a0, zero, 11", "bseti a0, zero, 11" }, \
+    { 64, 2, 0x2c7b8, 0x0000902e, "c.add zero, a1", "c.add zero, a1", "c.add zero, a1" }, \
+    { 64, 2, 0x2c116, 0x00000501, "c.addi a0, 0", "c.addi a0, 0", "c.addi a0, 0" }, \
+    { 64, 2, 0x2c1ac, 0x00004055, "c.li zero, 21", "c.li zero, 21", "c.li zero, 21" }, \
+    { 64, 2, 0x2c28c, 0x00006055, "c.lui zero, 21", "c.lui zero, 21", "c.lui zero, 21" }, \
+    { 64, 2, 0x2cbca, 0x00006581, "c.mop.11", "c.mop.11", "c.mop.11" }, \
+    { 64, 2, 0x2cbcc, 0x00006681, "c.mop.13", "c.mop.13", "c.mop.13" }, \
+    { 64, 2, 0x2cbce, 0x00006781, "c.mop.15", "c.mop.15", "c.mop.15" }, \
+    { 64, 2, 0x2cbc2, 0x00006181, "c.mop.3", "c.mop.3", "c.mop.3" }, \
+    { 64, 2, 0x2cbc6, 0x00006381, "c.mop.7", "c.mop.7", "c.mop.7" }, \
+    { 64, 2, 0x2cbc8, 0x00006481, "c.mop.9", "c.mop.9", "c.mop.9" }, \
+    { 64, 2, 0x2c69c, 0x0000802e, "c.mv zero, a1", "c.mv zero, a1", "c.mv zero, a1" }, \
+    { 64, 2, 0x2c084, 0x00000055, "c.nop 21", "c.nop 21", "c.nop 21" }, \
+    { 64, 2, 0x2c84e, 0x00009016, "c.ntl.all", "c.add zero, t0", "c.add zero, t0" }, \
+    { 64, 2, 0x2c848, 0x0000900a, "c.ntl.p1", "c.add zero, sp", "c.add zero, sp" }, \
+    { 64, 2, 0x2c84a, 0x0000900e, "c.ntl.pall", "c.add zero, gp", "c.add zero, gp" }, \
+    { 64, 2, 0x2c84c, 0x00009012, "c.ntl.s1", "c.add zero, tp", "c.add zero, tp" }, \
+    { 64, 2, 0x2c530, 0x00000056, "c.slli zero, 21", "c.slli zero, 21", "c.slli zero, 21" }, \
+    { 64, 2, 0x2c31a, 0x00008581, "c.srai a1, 0", "c.srai a1, 0", "c.srai a1, 0" }, \
+    { 64, 2, 0x2c2fa, 0x00008181, "c.srli a1, 0", "c.srli a1, 0", "c.srli a1, 0" }, \
+    { 64, 4, 0x320dc, 0x0015a00f, "cbo.clean (a1)", "cbo.clean (a1)", "cbo.clean (a1)" }, \
+    { 64, 4, 0x32160, 0x0025a00f, "cbo.flush (a1)", "cbo.flush (a1)", "cbo.flush (a1)" }, \
+    { 64, 4, 0x321e4, 0x0005a00f, "cbo.inval (a1)", "cbo.inval (a1)", "cbo.inval (a1)" }, \
+    { 64, 4, 0x32550, 0x0045a00f, "cbo.zero (a1)", "cbo.zero (a1)", "cbo.zero (a1)" }, \
+    { 64, 4, 0x28f64, 0x0ac59533, "clmul a0, a1, a2", "clmul a0, a1, a2", "clmul a0, a1, a2" }, \
+    { 64, 4, 0x29124, 0x0ac5b533, "clmulh a0, a1, a2", "clmulh a0, a1, a2", "clmulh a0, a1, a2" }, \
+    { 64, 4, 0x292e4, 0x0ac5a533, "clmulr a0, a1, a2", "clmulr a0, a1, a2", "clmulr a0, a1, a2" }, \
+    { 64, 4, 0x27dd8, 0x60059513, "clz a0, a1", "clz a0, a1", "clz a0, a1" }, \
+    { 64, 4, 0x284e0, 0x6005951b, "clzw a0, a1", "clzw a0, a1", "clzw a0, a1" }, \
+    { 64, 4, 0x28030, 0x60259513, "cpop a0, a1", "cpop a0, a1", "cpop a0, a1" }, \
+    { 64, 4, 0x28738, 0x6025951b, "cpopw a0, a1", "cpopw a0, a1", "cpopw a0, a1" }, \
+    { 64, 4, 0x347b0, 0x5555b073, "csrc 1365, a1", "csrrc zero, 1365, a1", "csrc 1365, a1" }, \
+    { 64, 4, 0x347b4, 0x0015b073, "csrc fflags, a1", "csrrc zero, fflags, a1", "csrc fflags, a1" }, \
+    { 64, 4, 0x347b8, 0x0025b073, "csrc frm, a1", "csrrc zero, frm, a1", "csrc frm, a1" }, \
+    { 64, 4, 0x368e0, 0x5552f073, "csrci 1365, 5", "csrrci zero, 1365, 5", "csrci 1365, 5" }, \
+    { 64, 4, 0x368e4, 0x0012f073, "csrci fflags, 5", "csrrci zero, fflags, 5", "csrci fflags, 5" }, \
+    { 64, 4, 0x368e8, 0x0022f073, "csrci frm, 5", "csrrci zero, frm, 5", "csrci frm, 5" }, \
+    { 64, 4, 0x32b14, 0x55502573, "csrr a0, 1365", "csrrs a0, 1365, zero", "csrr a0, 1365" }, \
+    { 64, 4, 0x32bb4, 0x00802573, "csrr a0, vstart", "csrrs a0, vstart, zero", "csrr a0, vstart" }, \
+    { 64, 4, 0x32bb8, 0x00902573, "csrr a0, vxsat", "csrrs a0, vxsat, zero", "csrr a0, vxsat" }, \
+    { 64, 4, 0x34d2c, 0x5555b573, "csrrc a0, 1365, a1", "csrrc a0, 1365, a1", "csrrc a0, 1365, a1" }, \
+    { 64, 4, 0x34dc0, 0x0015b573, "csrrc a0, fflags, a1", "csrrc a0, fflags, a1", "csrrc a0, fflags, a1" }, \
+    { 64, 4, 0x34dc4, 0x0025b573, "csrrc a0, frm, a1", "csrrc a0, frm, a1", "csrrc a0, frm, a1" }, \
+    { 64, 4, 0x36e00, 0x5552f573, "csrrci a0, 1365, 5", "csrrci a0, 1365, 5", "csrrci a0, 1365, 5" }, \
+    { 64, 4, 0x36e94, 0x0012f573, "csrrci a0, fflags, 5", "csrrci a0, fflags, 5", "csrrci a0, fflags, 5" }, \
+    { 64, 4, 0x36e98, 0x0022f573, "csrrci a0, frm, 5", "csrrci a0, frm, 5", "csrrci a0, frm, 5" }, \
+    { 64, 4, 0x3360c, 0x5555a573, "csrrs a0, 1365, a1", "csrrs a0, 1365, a1", "csrrs a0, 1365, a1" }, \
+    { 64, 4, 0x336a0, 0x0015a573, "csrrs a0, fflags, a1", "csrrs a0, fflags, a1", "csrrs a0, fflags, a1" }, \
+    { 64, 4, 0x336a4, 0x0025a573, "csrrs a0, frm, a1", "csrrs a0, frm, a1", "csrrs a0, frm, a1" }, \
+    { 64, 4, 0x36330, 0x5552e573, "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5", "csrrsi a0, 1365, 5" }, \
+    { 64, 4, 0x363c4, 0x0012e573, "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5", "csrrsi a0, fflags, 5" }, \
+    { 64, 4, 0x363c8, 0x0022e573, "csrrsi a0, frm, 5", "csrrsi a0, frm, 5", "csrrsi a0, frm, 5" }, \
+    { 64, 4, 0x3419c, 0x55559573, "csrrw a0, 1365, a1", "csrrw a0, 1365, a1", "csrrw a0, 1365, a1" }, \
+    { 64, 4, 0x3423c, 0x00859573, "csrrw a0, vstart, a1", "csrrw a0, vstart, a1", "csrrw a0, vstart, a1" }, \
+    { 64, 4, 0x34240, 0x00959573, "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1", "csrrw a0, vxsat, a1" }, \
+    { 64, 4, 0x35860, 0x5552d573, "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5", "csrrwi a0, 1365, 5" }, \
+    { 64, 4, 0x358fc, 0x0032d573, "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5", "csrrwi a0, fcsr, 5" }, \
+    { 64, 4, 0x35900, 0x0082d573, "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5", "csrrwi a0, vstart, 5" }, \
+    { 64, 4, 0x33090, 0x5555a073, "csrs 1365, a1", "csrrs zero, 1365, a1", "csrs 1365, a1" }, \
+    { 64, 4, 0x33094, 0x0015a073, "csrs fflags, a1", "csrrs zero, fflags, a1", "csrs fflags, a1" }, \
+    { 64, 4, 0x33098, 0x0025a073, "csrs frm, a1", "csrrs zero, frm, a1", "csrs frm, a1" }, \
+    { 64, 4, 0x35e10, 0x5552e073, "csrsi 1365, 5", "csrrsi zero, 1365, 5", "csrsi 1365, 5" }, \
+    { 64, 4, 0x35e14, 0x0012e073, "csrsi fflags, 5", "csrrsi zero, fflags, 5", "csrsi fflags, 5" }, \
+    { 64, 4, 0x35e18, 0x0022e073, "csrsi frm, 5", "csrrsi zero, frm, 5", "csrsi frm, 5" }, \
+    { 64, 4, 0x33c20, 0x55559073, "csrw 1365, a1", "csrrw zero, 1365, a1", "csrw 1365, a1" }, \
+    { 64, 4, 0x33c30, 0x00859073, "csrw vstart, a1", "csrrw zero, vstart, a1", "csrw vstart, a1" }, \
+    { 64, 4, 0x33c34, 0x00959073, "csrw vxsat, a1", "csrrw zero, vxsat, a1", "csrw vxsat, a1" }, \
+    { 64, 4, 0x35340, 0x5552d073, "csrwi 1365, 5", "csrrwi zero, 1365, 5", "csrwi 1365, 5" }, \
+    { 64, 4, 0x3534c, 0x0032d073, "csrwi fcsr, 5", "csrrwi zero, fcsr, 5", "csrwi fcsr, 5" }, \
+    { 64, 4, 0x35350, 0x0082d073, "csrwi vstart, 5", "csrrwi zero, vstart, 5", "csrwi vstart, 5" }, \
+    { 64, 4, 0x27f04, 0x60159513, "ctz a0, a1", "ctz a0, a1", "ctz a0, a1" }, \
+    { 64, 4, 0x2860c, 0x6015951b, "ctzw a0, a1", "ctzw a0, a1", "ctzw a0, a1" }, \
+    { 64, 4, 0x32790, 0x0ec5d533, "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2", "czero.eqz a0, a1, a2" }, \
+    { 64, 4, 0x32950, 0x0ec5f533, "czero.nez a0, a1, a2", "czero.nez a0, a1, a2", "czero.nez a0, a1, a2" }, \
+    { 64, 4, 0x1ed68, 0x02c5c533, "div a0, a1, a2", "div a0, a1, a2", "div a0, a1, a2" }, \
+    { 64, 4, 0x1ef28, 0x02c5d533, "divu a0, a1, a2", "divu a0, a1, a2", "divu a0, a1, a2" }, \
+    { 64, 4, 0x1f628, 0x02c5d53b, "divuw a0, a1, a2", "divuw a0, a1, a2", "divuw a0, a1, a2" }, \
+    { 64, 4, 0x1f468, 0x02c5c53b, "divw a0, a1, a2", "divw a0, a1, a2", "divw a0, a1, a2" }, \
+    { 64, 2, 0x2c76e, 0x00009002, "ebreak", "c.ebreak", "c.ebreak" }, \
+    { 64, 4, 0x17cd8, 0x00100073, "ebreak", "ebreak", "ebreak" }, \
+    { 64, 4, 0x17cd4, 0x00000073, "ecall", "ecall", "ecall" }, \
+    { 64, 4, 0x18f44, 0x22b5a553, "fabs.d fa0, fa1", "fsgnjx.d fa0, fa1, fa1", "fabs.d fa0, fa1" }, \
+    { 64, 4, 0x2fe64, 0x24b5a553, "fabs.h fa0, fa1", "fsgnjx.h fa0, fa1, fa1", "fabs.h fa0, fa1" }, \
+    { 64, 4, 0x1cf70, 0x20b5a553, "fabs.s fa0, fa1", "fsgnjx.s fa0, fa1, fa1", "fabs.s fa0, fa1" }, \
+    { 64, 4, 0x1857c, 0x02c59553, "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz", "fadd.d fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x1870c, 0x02c58553, "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne", "fadd.d fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x18710, 0x02c5a553, "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn", "fadd.d fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x2f49c, 0x04c59553, "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz", "fadd.h fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x2f62c, 0x04c58553, "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne", "fadd.h fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x2f630, 0x04c5a553, "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn", "fadd.h fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1c5a8, 0x00c59553, "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz", "fadd.s fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x1c738, 0x00c58553, "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne", "fadd.s fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x1c73c, 0x00c5a553, "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn", "fadd.s fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x19cf4, 0xe2059553, "fclass.d a0, fa1", "fclass.d a0, fa1", "fclass.d a0, fa1" }, \
+    { 64, 4, 0x30c14, 0xe4059553, "fclass.h a0, fa1", "fclass.h a0, fa1", "fclass.h a0, fa1" }, \
+    { 64, 4, 0x1dd20, 0xe0059553, "fclass.s a0, fa1", "fclass.s a0, fa1", "fclass.s a0, fa1" }, \
+    { 64, 4, 0x2e9bc, 0x44859553, "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz", "fcvt.bf16.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x2eac8, 0x44858553, "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne", "fcvt.bf16.s fa0, fa1, rne" }, \
+    { 64, 4, 0x2eacc, 0x4485a553, "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn", "fcvt.bf16.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x31afc, 0x42259553, "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz", "fcvt.d.h fa0, fa1, rtz" }, \
+    { 64, 4, 0x31c08, 0x42258553, "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1", "fcvt.d.h fa0, fa1" }, \
+    { 64, 4, 0x31c0c, 0x4225a553, "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn", "fcvt.d.h fa0, fa1, rdn" }, \
+    { 64, 4, 0x1a514, 0xd2259553, "fcvt.d.l fa0, a1, rtz", "fcvt.d.l fa0, a1, rtz", "fcvt.d.l fa0, a1, rtz" }, \
+    { 64, 4, 0x1a62c, 0xd2258553, "fcvt.d.l fa0, a1, rne", "fcvt.d.l fa0, a1, rne", "fcvt.d.l fa0, a1, rne" }, \
+    { 64, 4, 0x1a630, 0xd225a553, "fcvt.d.l fa0, a1, rdn", "fcvt.d.l fa0, a1, rdn", "fcvt.d.l fa0, a1, rdn" }, \
+    { 64, 4, 0x1a640, 0xd2359553, "fcvt.d.lu fa0, a1, rtz", "fcvt.d.lu fa0, a1, rtz", "fcvt.d.lu fa0, a1, rtz" }, \
+    { 64, 4, 0x1a758, 0xd2358553, "fcvt.d.lu fa0, a1, rne", "fcvt.d.lu fa0, a1, rne", "fcvt.d.lu fa0, a1, rne" }, \
+    { 64, 4, 0x1a75c, 0xd235a553, "fcvt.d.lu fa0, a1, rdn", "fcvt.d.lu fa0, a1, rdn", "fcvt.d.lu fa0, a1, rdn" }, \
+    { 64, 4, 0x1aabc, 0x42059553, "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz", "fcvt.d.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x1abc8, 0x42058553, "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1", "fcvt.d.s fa0, fa1" }, \
+    { 64, 4, 0x1abcc, 0x4205a553, "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn", "fcvt.d.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x1a2bc, 0xd2059553, "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz", "fcvt.d.w fa0, a1, rtz" }, \
+    { 64, 4, 0x1a3d4, 0xd2058553, "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1", "fcvt.d.w fa0, a1" }, \
+    { 64, 4, 0x1a3d8, 0xd205a553, "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn", "fcvt.d.w fa0, a1, rdn" }, \
+    { 64, 4, 0x1a3e8, 0xd2159553, "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz", "fcvt.d.wu fa0, a1, rtz" }, \
+    { 64, 4, 0x1a500, 0xd2158553, "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1", "fcvt.d.wu fa0, a1" }, \
+    { 64, 4, 0x1a504, 0xd215a553, "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn", "fcvt.d.wu fa0, a1, rdn" }, \
+    { 64, 4, 0x31c1c, 0x44159553, "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz", "fcvt.h.d fa0, fa1, rtz" }, \
+    { 64, 4, 0x31d28, 0x44158553, "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne", "fcvt.h.d fa0, fa1, rne" }, \
+    { 64, 4, 0x31d2c, 0x4415a553, "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn", "fcvt.h.d fa0, fa1, rdn" }, \
+    { 64, 4, 0x31434, 0xd4259553, "fcvt.h.l fa0, a1, rtz", "fcvt.h.l fa0, a1, rtz", "fcvt.h.l fa0, a1, rtz" }, \
+    { 64, 4, 0x3154c, 0xd4258553, "fcvt.h.l fa0, a1, rne", "fcvt.h.l fa0, a1, rne", "fcvt.h.l fa0, a1, rne" }, \
+    { 64, 4, 0x31550, 0xd425a553, "fcvt.h.l fa0, a1, rdn", "fcvt.h.l fa0, a1, rdn", "fcvt.h.l fa0, a1, rdn" }, \
+    { 64, 4, 0x31560, 0xd4359553, "fcvt.h.lu fa0, a1, rtz", "fcvt.h.lu fa0, a1, rtz", "fcvt.h.lu fa0, a1, rtz" }, \
+    { 64, 4, 0x31678, 0xd4358553, "fcvt.h.lu fa0, a1, rne", "fcvt.h.lu fa0, a1, rne", "fcvt.h.lu fa0, a1, rne" }, \
+    { 64, 4, 0x3167c, 0xd435a553, "fcvt.h.lu fa0, a1, rdn", "fcvt.h.lu fa0, a1, rdn", "fcvt.h.lu fa0, a1, rdn" }, \
+    { 64, 4, 0x319dc, 0x44059553, "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz", "fcvt.h.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x31ae8, 0x44058553, "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne", "fcvt.h.s fa0, fa1, rne" }, \
+    { 64, 4, 0x31aec, 0x4405a553, "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn", "fcvt.h.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x311dc, 0xd4059553, "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz", "fcvt.h.w fa0, a1, rtz" }, \
+    { 64, 4, 0x312f4, 0xd4058553, "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne", "fcvt.h.w fa0, a1, rne" }, \
+    { 64, 4, 0x312f8, 0xd405a553, "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn", "fcvt.h.w fa0, a1, rdn" }, \
+    { 64, 4, 0x31308, 0xd4159553, "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz", "fcvt.h.wu fa0, a1, rtz" }, \
+    { 64, 4, 0x31420, 0xd4158553, "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne", "fcvt.h.wu fa0, a1, rne" }, \
+    { 64, 4, 0x31424, 0xd415a553, "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn", "fcvt.h.wu fa0, a1, rdn" }, \
+    { 64, 4, 0x1a064, 0xc2259553, "fcvt.l.d a0, fa1, rtz", "fcvt.l.d a0, fa1, rtz", "fcvt.l.d a0, fa1, rtz" }, \
+    { 64, 4, 0x1a17c, 0xc2258553, "fcvt.l.d a0, fa1, rne", "fcvt.l.d a0, fa1, rne", "fcvt.l.d a0, fa1, rne" }, \
+    { 64, 4, 0x1a180, 0xc225a553, "fcvt.l.d a0, fa1, rdn", "fcvt.l.d a0, fa1, rdn", "fcvt.l.d a0, fa1, rdn" }, \
+    { 64, 4, 0x30f84, 0xc4259553, "fcvt.l.h a0, fa1, rtz", "fcvt.l.h a0, fa1, rtz", "fcvt.l.h a0, fa1, rtz" }, \
+    { 64, 4, 0x3109c, 0xc4258553, "fcvt.l.h a0, fa1, rne", "fcvt.l.h a0, fa1, rne", "fcvt.l.h a0, fa1, rne" }, \
+    { 64, 4, 0x310a0, 0xc425a553, "fcvt.l.h a0, fa1, rdn", "fcvt.l.h a0, fa1, rdn", "fcvt.l.h a0, fa1, rdn" }, \
+    { 64, 4, 0x1e090, 0xc0259553, "fcvt.l.s a0, fa1, rtz", "fcvt.l.s a0, fa1, rtz", "fcvt.l.s a0, fa1, rtz" }, \
+    { 64, 4, 0x1e1a8, 0xc0258553, "fcvt.l.s a0, fa1, rne", "fcvt.l.s a0, fa1, rne", "fcvt.l.s a0, fa1, rne" }, \
+    { 64, 4, 0x1e1ac, 0xc025a553, "fcvt.l.s a0, fa1, rdn", "fcvt.l.s a0, fa1, rdn", "fcvt.l.s a0, fa1, rdn" }, \
+    { 64, 4, 0x1a190, 0xc2359553, "fcvt.lu.d a0, fa1, rtz", "fcvt.lu.d a0, fa1, rtz", "fcvt.lu.d a0, fa1, rtz" }, \
+    { 64, 4, 0x1a2a8, 0xc2358553, "fcvt.lu.d a0, fa1, rne", "fcvt.lu.d a0, fa1, rne", "fcvt.lu.d a0, fa1, rne" }, \
+    { 64, 4, 0x1a2ac, 0xc235a553, "fcvt.lu.d a0, fa1, rdn", "fcvt.lu.d a0, fa1, rdn", "fcvt.lu.d a0, fa1, rdn" }, \
+    { 64, 4, 0x310b0, 0xc4359553, "fcvt.lu.h a0, fa1, rtz", "fcvt.lu.h a0, fa1, rtz", "fcvt.lu.h a0, fa1, rtz" }, \
+    { 64, 4, 0x311c8, 0xc4358553, "fcvt.lu.h a0, fa1, rne", "fcvt.lu.h a0, fa1, rne", "fcvt.lu.h a0, fa1, rne" }, \
+    { 64, 4, 0x311cc, 0xc435a553, "fcvt.lu.h a0, fa1, rdn", "fcvt.lu.h a0, fa1, rdn", "fcvt.lu.h a0, fa1, rdn" }, \
+    { 64, 4, 0x1e1bc, 0xc0359553, "fcvt.lu.s a0, fa1, rtz", "fcvt.lu.s a0, fa1, rtz", "fcvt.lu.s a0, fa1, rtz" }, \
+    { 64, 4, 0x1e2d4, 0xc0358553, "fcvt.lu.s a0, fa1, rne", "fcvt.lu.s a0, fa1, rne", "fcvt.lu.s a0, fa1, rne" }, \
+    { 64, 4, 0x1e2d8, 0xc035a553, "fcvt.lu.s a0, fa1, rdn", "fcvt.lu.s a0, fa1, rdn", "fcvt.lu.s a0, fa1, rdn" }, \
+    { 64, 4, 0x2eadc, 0x40659553, "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz", "fcvt.s.bf16 fa0, fa1, rtz" }, \
+    { 64, 4, 0x2ebe8, 0x40658553, "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1", "fcvt.s.bf16 fa0, fa1" }, \
+    { 64, 4, 0x2ebec, 0x4065a553, "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn", "fcvt.s.bf16 fa0, fa1, rdn" }, \
+    { 64, 4, 0x1a99c, 0x40159553, "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz", "fcvt.s.d fa0, fa1, rtz" }, \
+    { 64, 4, 0x1aaa8, 0x40158553, "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne", "fcvt.s.d fa0, fa1, rne" }, \
+    { 64, 4, 0x1aaac, 0x4015a553, "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn", "fcvt.s.d fa0, fa1, rdn" }, \
+    { 64, 4, 0x318bc, 0x40259553, "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz", "fcvt.s.h fa0, fa1, rtz" }, \
+    { 64, 4, 0x319c8, 0x40258553, "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1", "fcvt.s.h fa0, fa1" }, \
+    { 64, 4, 0x319cc, 0x4025a553, "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn", "fcvt.s.h fa0, fa1, rdn" }, \
+    { 64, 4, 0x1e540, 0xd0259553, "fcvt.s.l fa0, a1, rtz", "fcvt.s.l fa0, a1, rtz", "fcvt.s.l fa0, a1, rtz" }, \
+    { 64, 4, 0x1e658, 0xd0258553, "fcvt.s.l fa0, a1, rne", "fcvt.s.l fa0, a1, rne", "fcvt.s.l fa0, a1, rne" }, \
+    { 64, 4, 0x1e65c, 0xd025a553, "fcvt.s.l fa0, a1, rdn", "fcvt.s.l fa0, a1, rdn", "fcvt.s.l fa0, a1, rdn" }, \
+    { 64, 4, 0x1e66c, 0xd0359553, "fcvt.s.lu fa0, a1, rtz", "fcvt.s.lu fa0, a1, rtz", "fcvt.s.lu fa0, a1, rtz" }, \
+    { 64, 4, 0x1e784, 0xd0358553, "fcvt.s.lu fa0, a1, rne", "fcvt.s.lu fa0, a1, rne", "fcvt.s.lu fa0, a1, rne" }, \
+    { 64, 4, 0x1e788, 0xd035a553, "fcvt.s.lu fa0, a1, rdn", "fcvt.s.lu fa0, a1, rdn", "fcvt.s.lu fa0, a1, rdn" }, \
+    { 64, 4, 0x1e2e8, 0xd0059553, "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz", "fcvt.s.w fa0, a1, rtz" }, \
+    { 64, 4, 0x1e400, 0xd0058553, "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne", "fcvt.s.w fa0, a1, rne" }, \
+    { 64, 4, 0x1e404, 0xd005a553, "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn", "fcvt.s.w fa0, a1, rdn" }, \
+    { 64, 4, 0x1e414, 0xd0159553, "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz", "fcvt.s.wu fa0, a1, rtz" }, \
+    { 64, 4, 0x1e52c, 0xd0158553, "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne", "fcvt.s.wu fa0, a1, rne" }, \
+    { 64, 4, 0x1e530, 0xd015a553, "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn", "fcvt.s.wu fa0, a1, rdn" }, \
+    { 64, 4, 0x19e0c, 0xc2059553, "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz", "fcvt.w.d a0, fa1, rtz" }, \
+    { 64, 4, 0x19f24, 0xc2058553, "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne", "fcvt.w.d a0, fa1, rne" }, \
+    { 64, 4, 0x19f28, 0xc205a553, "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn", "fcvt.w.d a0, fa1, rdn" }, \
+    { 64, 4, 0x30d2c, 0xc4059553, "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz", "fcvt.w.h a0, fa1, rtz" }, \
+    { 64, 4, 0x30e44, 0xc4058553, "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne", "fcvt.w.h a0, fa1, rne" }, \
+    { 64, 4, 0x30e48, 0xc405a553, "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn", "fcvt.w.h a0, fa1, rdn" }, \
+    { 64, 4, 0x1de38, 0xc0059553, "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz", "fcvt.w.s a0, fa1, rtz" }, \
+    { 64, 4, 0x1df50, 0xc0058553, "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne", "fcvt.w.s a0, fa1, rne" }, \
+    { 64, 4, 0x1df54, 0xc005a553, "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn", "fcvt.w.s a0, fa1, rdn" }, \
+    { 64, 4, 0x19f38, 0xc2159553, "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz", "fcvt.wu.d a0, fa1, rtz" }, \
+    { 64, 4, 0x1a050, 0xc2158553, "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne", "fcvt.wu.d a0, fa1, rne" }, \
+    { 64, 4, 0x1a054, 0xc215a553, "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn", "fcvt.wu.d a0, fa1, rdn" }, \
+    { 64, 4, 0x30e58, 0xc4159553, "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz", "fcvt.wu.h a0, fa1, rtz" }, \
+    { 64, 4, 0x30f70, 0xc4158553, "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne", "fcvt.wu.h a0, fa1, rne" }, \
+    { 64, 4, 0x30f74, 0xc415a553, "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn", "fcvt.wu.h a0, fa1, rdn" }, \
+    { 64, 4, 0x1df64, 0xc0159553, "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz", "fcvt.wu.s a0, fa1, rtz" }, \
+    { 64, 4, 0x1e07c, 0xc0158553, "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne", "fcvt.wu.s a0, fa1, rne" }, \
+    { 64, 4, 0x1e080, 0xc015a553, "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn", "fcvt.wu.s a0, fa1, rdn" }, \
+    { 64, 4, 0x2e8a4, 0xc2859553, "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz", "fcvtmod.w.d a0, fa1, rtz" }, \
+    { 64, 4, 0x18a68, 0x1ac59553, "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz", "fdiv.d fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x18bf8, 0x1ac58553, "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne", "fdiv.d fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x18bfc, 0x1ac5a553, "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn", "fdiv.d fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x2f988, 0x1cc59553, "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz", "fdiv.h fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x2fb18, 0x1cc58553, "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne", "fdiv.h fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x2fb1c, 0x1cc5a553, "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn", "fdiv.h fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1ca94, 0x18c59553, "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz", "fdiv.s fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x1cc24, 0x18c58553, "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne", "fdiv.s fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x1cc28, 0x18c5a553, "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn", "fdiv.s fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x373b0, 0x0000100f, "fence.i", "fence.i", "fence.i" }, \
+    { 64, 4, 0x17c50, 0x8330000f, "fence.tso", "fence.tso", "fence.tso" }, \
+    { 64, 4, 0x17c54, 0x0ff0000f, "fence", "fence iorw, iorw", "fence" }, \
+    { 64, 4, 0x17c58, 0x0a30000f, "fence ir, rw", "fence ir, rw", "fence ir, rw" }, \
+    { 64, 4, 0x17c5c, 0x0130000f, "fence w, rw", "fence w, rw", "fence w, rw" }, \
+    { 64, 4, 0x19820, 0xa2c5a553, "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2", "feq.d a0, fa1, fa2" }, \
+    { 64, 4, 0x30740, 0xa4c5a553, "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2", "feq.h a0, fa1, fa2" }, \
+    { 64, 4, 0x1d84c, 0xa0c5a553, "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2", "feq.s a0, fa1, fa2" }, \
+    { 64, 2, 0x2ca84, 0x000035c8, "fld fa0, 168(a1)", "c.fld fa0, 168(a1)", "c.fld fa0, 168(a1)" }, \
+    { 64, 2, 0x2caf8, 0x0000352a, "fld fa0, 168(sp)", "c.fldsp fa0, 168(sp)", "c.fldsp fa0, 168(sp)" }, \
+    { 64, 4, 0x1abdc, 0x5555b507, "fld fa0, 1365(a1)", "fld fa0, 1365(a1)", "fld fa0, 1365(a1)" }, \
+    { 64, 4, 0x19b58, 0xa2c58553, "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2", "fle.d a0, fa1, fa2" }, \
+    { 64, 4, 0x30a78, 0xa4c58553, "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2", "fle.h a0, fa1, fa2" }, \
+    { 64, 4, 0x1db84, 0xa0c58553, "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2", "fle.s a0, fa1, fa2" }, \
+    { 64, 4, 0x2dbd0, 0xa2c5c553, "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2", "fleq.d a0, fa1, fa2" }, \
+    { 64, 4, 0x2e56c, 0xa4c5c553, "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2", "fleq.h a0, fa1, fa2" }, \
+    { 64, 4, 0x2d234, 0xa0c5c553, "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2", "fleq.s a0, fa1, fa2" }, \
+    { 64, 4, 0x31d3c, 0x55559507, "flh fa0, 1365(a1)", "flh fa0, 1365(a1)", "flh fa0, 1365(a1)" }, \
+    { 64, 4, 0x2d56c, 0xf2180553, "fli.d fa0, 1.0", "fli.d fa0, 1.0", "fli.d fa0, 1.0" }, \
+    { 64, 4, 0x2d5f8, 0xf2108553, "fli.d fa0, min", "fli.d fa0, min", "fli.d fa0, min" }, \
+    { 64, 4, 0x2d5fc, 0xf2110553, "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05", "fli.d fa0, 1.52587890625e-05" }, \
+    { 64, 4, 0x2df08, 0xf4180553, "fli.h fa0, 1.0", "fli.h fa0, 1.0", "fli.h fa0, 1.0" }, \
+    { 64, 4, 0x2df94, 0xf4108553, "fli.h fa0, min", "fli.h fa0, min", "fli.h fa0, min" }, \
+    { 64, 4, 0x2df98, 0xf4110553, "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05", "fli.h fa0, 1.52587890625e-05" }, \
+    { 64, 4, 0x2cbd0, 0xf0180553, "fli.s fa0, 1.0", "fli.s fa0, 1.0", "fli.s fa0, 1.0" }, \
+    { 64, 4, 0x2cc5c, 0xf0108553, "fli.s fa0, min", "fli.s fa0, min", "fli.s fa0, min" }, \
+    { 64, 4, 0x2cc60, 0xf0110553, "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05", "fli.s fa0, 1.52587890625e-05" }, \
+    { 64, 4, 0x199bc, 0xa2c59553, "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2", "flt.d a0, fa1, fa2" }, \
+    { 64, 4, 0x308dc, 0xa4c59553, "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2", "flt.h a0, fa1, fa2" }, \
+    { 64, 4, 0x1d9e8, 0xa0c59553, "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2", "flt.s a0, fa1, fa2" }, \
+    { 64, 4, 0x2dd6c, 0xa2c5d553, "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2", "fltq.d a0, fa1, fa2" }, \
+    { 64, 4, 0x2e708, 0xa4c5d553, "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2", "fltq.h a0, fa1, fa2" }, \
+    { 64, 4, 0x2d3d0, 0xa0c5d553, "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2", "fltq.s a0, fa1, fa2" }, \
+    { 64, 4, 0x1e9c8, 0x5555a507, "flw fa0, 1365(a1)", "flw fa0, 1365(a1)", "flw fa0, 1365(a1)" }, \
+    { 64, 4, 0x17cdc, 0x6ac59543, "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz", "fmadd.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x17ef0, 0x6ac58543, "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne", "fmadd.d fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x17ef4, 0x6ac5a543, "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn", "fmadd.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x2ebfc, 0x6cc59543, "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz", "fmadd.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x2ee10, 0x6cc58543, "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne", "fmadd.h fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x2ee14, 0x6cc5a543, "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn", "fmadd.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1bd08, 0x68c59543, "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz", "fmadd.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x1bf1c, 0x68c58543, "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne", "fmadd.s fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1bf20, 0x68c5a543, "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn", "fmadd.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x19690, 0x2ac59553, "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2", "fmax.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x305b0, 0x2cc59553, "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2", "fmax.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x1d6bc, 0x28c59553, "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2", "fmax.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x2d800, 0x2ac5b553, "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2", "fmaxm.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x2e19c, 0x2cc5b553, "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2", "fmaxm.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x2ce64, 0x28c5b553, "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2", "fmaxm.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x19500, 0x2ac58553, "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2", "fmin.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x30420, 0x2cc58553, "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2", "fmin.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x1d52c, 0x28c58553, "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2", "fmin.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x2d670, 0x2ac5a553, "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2", "fminm.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x2e00c, 0x2cc5a553, "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2", "fminm.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x2ccd4, 0x28c5a553, "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2", "fminm.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x17f04, 0x6ac59547, "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz", "fmsub.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x18118, 0x6ac58547, "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne", "fmsub.d fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1811c, 0x6ac5a547, "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn", "fmsub.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x2ee24, 0x6cc59547, "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz", "fmsub.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x2f038, 0x6cc58547, "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne", "fmsub.h fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x2f03c, 0x6cc5a547, "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn", "fmsub.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1bf30, 0x68c59547, "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz", "fmsub.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x1c144, 0x68c58547, "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne", "fmsub.s fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1c148, 0x68c5a547, "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn", "fmsub.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x188c4, 0x12c59553, "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz", "fmul.d fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x18a54, 0x12c58553, "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne", "fmul.d fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x18a58, 0x12c5a553, "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn", "fmul.d fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x2f7e4, 0x14c59553, "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz", "fmul.h fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x2f974, 0x14c58553, "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne", "fmul.h fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x2f978, 0x14c5a553, "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn", "fmul.h fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1c8f0, 0x10c59553, "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz", "fmul.s fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x1ca80, 0x10c58553, "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne", "fmul.s fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x1ca84, 0x10c5a553, "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn", "fmul.s fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1a884, 0xf2058553, "fmv.d.x fa0, a1", "fmv.d.x fa0, a1", "fmv.d.x fa0, a1" }, \
+    { 64, 4, 0x18d2c, 0x22b58553, "fmv.d fa0, fa1", "fsgnj.d fa0, fa1, fa1", "fmv.d fa0, fa1" }, \
+    { 64, 4, 0x317a4, 0xf4058553, "fmv.h.x fa0, a1", "fmv.h.x fa0, a1", "fmv.h.x fa0, a1" }, \
+    { 64, 4, 0x2fc4c, 0x24b58553, "fmv.h fa0, fa1", "fsgnj.h fa0, fa1, fa1", "fmv.h fa0, fa1" }, \
+    { 64, 4, 0x1cd58, 0x20b58553, "fmv.s fa0, fa1", "fsgnj.s fa0, fa1, fa1", "fmv.s fa0, fa1" }, \
+    { 64, 4, 0x1e8b0, 0xf0058553, "fmv.w.x fa0, a1", "fmv.w.x fa0, a1", "fmv.w.x fa0, a1" }, \
+    { 64, 4, 0x1a76c, 0xe2058553, "fmv.x.d a0, fa1", "fmv.x.d a0, fa1", "fmv.x.d a0, fa1" }, \
+    { 64, 4, 0x3168c, 0xe4058553, "fmv.x.h a0, fa1", "fmv.x.h a0, fa1", "fmv.x.h a0, fa1" }, \
+    { 64, 4, 0x1e798, 0xe0058553, "fmv.x.w a0, fa1", "fmv.x.w a0, fa1", "fmv.x.w a0, fa1" }, \
+    { 64, 4, 0x18e38, 0x22b59553, "fneg.d fa0, fa1", "fsgnjn.d fa0, fa1, fa1", "fneg.d fa0, fa1" }, \
+    { 64, 4, 0x2fd58, 0x24b59553, "fneg.h fa0, fa1", "fsgnjn.h fa0, fa1, fa1", "fneg.h fa0, fa1" }, \
+    { 64, 4, 0x1ce64, 0x20b59553, "fneg.s fa0, fa1", "fsgnjn.s fa0, fa1, fa1", "fneg.s fa0, fa1" }, \
+    { 64, 4, 0x18354, 0x6ac5954f, "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz", "fnmadd.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x18568, 0x6ac5854f, "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne", "fnmadd.d fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1856c, 0x6ac5a54f, "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn", "fnmadd.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x2f274, 0x6cc5954f, "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz", "fnmadd.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x2f488, 0x6cc5854f, "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne", "fnmadd.h fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x2f48c, 0x6cc5a54f, "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn", "fnmadd.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1c380, 0x68c5954f, "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz", "fnmadd.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x1c594, 0x68c5854f, "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne", "fnmadd.s fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1c598, 0x68c5a54f, "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn", "fnmadd.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1812c, 0x6ac5954b, "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz", "fnmsub.d fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x18340, 0x6ac5854b, "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne", "fnmsub.d fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x18344, 0x6ac5a54b, "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn", "fnmsub.d fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x2f04c, 0x6cc5954b, "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz", "fnmsub.h fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x2f260, 0x6cc5854b, "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne", "fnmsub.h fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x2f264, 0x6cc5a54b, "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn", "fnmsub.h fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1c158, 0x68c5954b, "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz", "fnmsub.s fa0, fa1, fa2, fa3, rtz" }, \
+    { 64, 4, 0x1c36c, 0x68c5854b, "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne", "fnmsub.s fa0, fa1, fa2, fa3, rne" }, \
+    { 64, 4, 0x1c370, 0x68c5a54b, "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn", "fnmsub.s fa0, fa1, fa2, fa3, rdn" }, \
+    { 64, 4, 0x1b40c, 0x00302573, "frcsr a0", "csrrs a0, fcsr, zero", "frcsr a0" }, \
+    { 64, 4, 0x1b534, 0x00102573, "frflags a0", "csrrs a0, fflags, zero", "frflags a0" }, \
+    { 64, 4, 0x2d990, 0x42459553, "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz", "fround.d fa0, fa1, rtz" }, \
+    { 64, 4, 0x2da9c, 0x42458553, "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne", "fround.d fa0, fa1, rne" }, \
+    { 64, 4, 0x2daa0, 0x4245a553, "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn", "fround.d fa0, fa1, rdn" }, \
+    { 64, 4, 0x2e32c, 0x44459553, "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz", "fround.h fa0, fa1, rtz" }, \
+    { 64, 4, 0x2e438, 0x44458553, "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne", "fround.h fa0, fa1, rne" }, \
+    { 64, 4, 0x2e43c, 0x4445a553, "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn", "fround.h fa0, fa1, rdn" }, \
+    { 64, 4, 0x2cff4, 0x40459553, "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz", "fround.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x2d100, 0x40458553, "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne", "fround.s fa0, fa1, rne" }, \
+    { 64, 4, 0x2d104, 0x4045a553, "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn", "fround.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x2dab0, 0x42559553, "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz", "froundnx.d fa0, fa1, rtz" }, \
+    { 64, 4, 0x2dbbc, 0x42558553, "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne", "froundnx.d fa0, fa1, rne" }, \
+    { 64, 4, 0x2dbc0, 0x4255a553, "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn", "froundnx.d fa0, fa1, rdn" }, \
+    { 64, 4, 0x2e44c, 0x44559553, "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz", "froundnx.h fa0, fa1, rtz" }, \
+    { 64, 4, 0x2e558, 0x44558553, "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne", "froundnx.h fa0, fa1, rne" }, \
+    { 64, 4, 0x2e55c, 0x4455a553, "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn", "froundnx.h fa0, fa1, rdn" }, \
+    { 64, 4, 0x2d114, 0x40559553, "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz", "froundnx.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x2d220, 0x40558553, "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne", "froundnx.s fa0, fa1, rne" }, \
+    { 64, 4, 0x2d224, 0x4055a553, "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn", "froundnx.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x1b4a0, 0x00202573, "frrm a0", "csrrs a0, frm, zero", "frrm a0" }, \
+    { 64, 4, 0x1b5c8, 0x00359073, "fscsr a1", "csrrw zero, fcsr, a1", "fscsr a1" }, \
+    { 64, 4, 0x1b65c, 0x00359573, "fscsr a0, a1", "csrrw a0, fcsr, a1", "fscsr a0, a1" }, \
+    { 64, 2, 0x2cabe, 0x0000b5c8, "fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)", "c.fsd fa0, 168(a1)" }, \
+    { 64, 2, 0x2cb5c, 0x0000b52e, "fsd fa1, 168(sp)", "c.fsdsp fa1, 168(sp)", "c.fsdsp fa1, 168(sp)" }, \
+    { 64, 4, 0x1adac, 0x54c5baa7, "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)", "fsd fa2, 1365(a1)" }, \
+    { 64, 4, 0x1b948, 0x00159073, "fsflags a1", "csrrw zero, fflags, a1", "fsflags a1" }, \
+    { 64, 4, 0x1b9dc, 0x00159573, "fsflags a0, a1", "csrrw a0, fflags, a1", "fsflags a0, a1" }, \
+    { 64, 4, 0x1bc08, 0x0012d073, "fsflagsi 5", "csrrwi zero, fflags, 5", "fsflagsi 5" }, \
+    { 64, 4, 0x1bc40, 0x0012d573, "fsflagsi a0, 5", "csrrwi a0, fflags, 5", "fsflagsi a0, 5" }, \
+    { 64, 4, 0x19050, 0x22c58553, "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2", "fsgnj.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x2ff70, 0x24c58553, "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2", "fsgnj.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x1d07c, 0x20c58553, "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2", "fsgnj.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x191e0, 0x22c59553, "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2", "fsgnjn.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x30100, 0x24c59553, "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2", "fsgnjn.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x1d20c, 0x20c59553, "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2", "fsgnjn.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x19370, 0x22c5a553, "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2", "fsgnjx.d fa0, fa1, fa2" }, \
+    { 64, 4, 0x30290, 0x24c5a553, "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2", "fsgnjx.h fa0, fa1, fa2" }, \
+    { 64, 4, 0x1d39c, 0x20c5a553, "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2", "fsgnjx.s fa0, fa1, fa2" }, \
+    { 64, 4, 0x31f0c, 0x54c59aa7, "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)", "fsh fa2, 1365(a1)" }, \
+    { 64, 4, 0x18c0c, 0x5a059553, "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz", "fsqrt.d fa0, fa1, rtz" }, \
+    { 64, 4, 0x18d18, 0x5a058553, "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne", "fsqrt.d fa0, fa1, rne" }, \
+    { 64, 4, 0x18d1c, 0x5a05a553, "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn", "fsqrt.d fa0, fa1, rdn" }, \
+    { 64, 4, 0x2fb2c, 0x5c059553, "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz", "fsqrt.h fa0, fa1, rtz" }, \
+    { 64, 4, 0x2fc38, 0x5c058553, "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne", "fsqrt.h fa0, fa1, rne" }, \
+    { 64, 4, 0x2fc3c, 0x5c05a553, "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn", "fsqrt.h fa0, fa1, rdn" }, \
+    { 64, 4, 0x1cc38, 0x58059553, "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz", "fsqrt.s fa0, fa1, rtz" }, \
+    { 64, 4, 0x1cd44, 0x58058553, "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne", "fsqrt.s fa0, fa1, rne" }, \
+    { 64, 4, 0x1cd48, 0x5805a553, "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn", "fsqrt.s fa0, fa1, rdn" }, \
+    { 64, 4, 0x1b788, 0x00259073, "fsrm a1", "csrrw zero, frm, a1", "fsrm a1" }, \
+    { 64, 4, 0x1b81c, 0x00259573, "fsrm a0, a1", "csrrw a0, frm, a1", "fsrm a0, a1" }, \
+    { 64, 4, 0x1bb08, 0x0022d073, "fsrmi 5", "csrrwi zero, frm, 5", "fsrmi 5" }, \
+    { 64, 4, 0x1bb40, 0x0022d573, "fsrmi a0, 5", "csrrwi a0, frm, 5", "fsrmi a0, 5" }, \
+    { 64, 4, 0x18720, 0x0ac59553, "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz", "fsub.d fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x188b0, 0x0ac58553, "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne", "fsub.d fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x188b4, 0x0ac5a553, "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn", "fsub.d fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x2f640, 0x0cc59553, "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz", "fsub.h fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x2f7d0, 0x0cc58553, "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne", "fsub.h fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x2f7d4, 0x0cc5a553, "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn", "fsub.h fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1c74c, 0x08c59553, "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz", "fsub.s fa0, fa1, fa2, rtz" }, \
+    { 64, 4, 0x1c8dc, 0x08c58553, "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne", "fsub.s fa0, fa1, fa2, rne" }, \
+    { 64, 4, 0x1c8e0, 0x08c5a553, "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn", "fsub.s fa0, fa1, fa2, rdn" }, \
+    { 64, 4, 0x1eb98, 0x54c5aaa7, "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)", "fsw fa2, 1365(a1)" }, \
+    { 64, 4, 0x2003c, 0x62000073, "hfence.gvma", "hfence.gvma zero, zero", "hfence.gvma" }, \
+    { 64, 4, 0x20040, 0x62058073, "hfence.gvma a1", "hfence.gvma a1, zero", "hfence.gvma a1" }, \
+    { 64, 4, 0x200d4, 0x62c58073, "hfence.gvma a1, a2", "hfence.gvma a1, a2", "hfence.gvma a1, a2" }, \
+    { 64, 4, 0x1fe74, 0x22000073, "hfence.vvma", "hfence.vvma zero, zero", "hfence.vvma" }, \
+    { 64, 4, 0x1fe78, 0x22058073, "hfence.vvma a1", "hfence.vvma a1, zero", "hfence.vvma a1" }, \
+    { 64, 4, 0x1ff0c, 0x22c58073, "hfence.vvma a1, a2", "hfence.vvma a1, a2", "hfence.vvma a1, a2" }, \
+    { 64, 4, 0x20334, 0x66c58073, "hinval.gvma a1, a2", "hinval.gvma a1, a2", "hinval.gvma a1, a2" }, \
+    { 64, 4, 0x20204, 0x26c58073, "hinval.vvma a1, a2", "hinval.vvma a1, a2", "hinval.vvma a1, a2" }, \
+    { 64, 4, 0x20464, 0x6005c573, "hlv.b a0, (a1)", "hlv.b a0, (a1)", "hlv.b a0, (a1)" }, \
+    { 64, 4, 0x20578, 0x6015c573, "hlv.bu a0, (a1)", "hlv.bu a0, (a1)", "hlv.bu a0, (a1)" }, \
+    { 64, 4, 0x20d04, 0x6c05c573, "hlv.d a0, (a1)", "hlv.d a0, (a1)", "hlv.d a0, (a1)" }, \
+    { 64, 4, 0x2068c, 0x6405c573, "hlv.h a0, (a1)", "hlv.h a0, (a1)", "hlv.h a0, (a1)" }, \
+    { 64, 4, 0x207a0, 0x6415c573, "hlv.hu a0, (a1)", "hlv.hu a0, (a1)", "hlv.hu a0, (a1)" }, \
+    { 64, 4, 0x209c8, 0x6805c573, "hlv.w a0, (a1)", "hlv.w a0, (a1)", "hlv.w a0, (a1)" }, \
+    { 64, 4, 0x20bf0, 0x6815c573, "hlv.wu a0, (a1)", "hlv.wu a0, (a1)", "hlv.wu a0, (a1)" }, \
+    { 64, 4, 0x208b4, 0x6435c573, "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)", "hlvx.hu a0, (a1)" }, \
+    { 64, 4, 0x20adc, 0x6835c573, "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)", "hlvx.wu a0, (a1)" }, \
+    { 64, 4, 0x20e18, 0x62c5c073, "hsv.b a2, (a1)", "hsv.b a2, (a1)", "hsv.b a2, (a1)" }, \
+    { 64, 4, 0x21154, 0x6ec5c073, "hsv.d a2, (a1)", "hsv.d a2, (a1)", "hsv.d a2, (a1)" }, \
+    { 64, 4, 0x20f2c, 0x66c5c073, "hsv.h a2, (a1)", "hsv.h a2, (a1)", "hsv.h a2, (a1)" }, \
+    { 64, 4, 0x21040, 0x6ac5c073, "hsv.w a2, (a1)", "hsv.w a2, (a1)", "hsv.w a2, (a1)" }, \
+    { 64, 2, 0x2c420, 0x0000a46d, "j 0x2c6ca", "c.j 0x2c6ca", "c.j 682" }, \
     { 64, 4, 0x10220, 0x2ab0006f, "j 0x10cca", "jal zero, 0x10cca", "j 2730" }, \
     { 64, 4, 0x102f0, 0x2ab000ef, "jal 0x10d9a", "jal ra, 0x10d9a", "jal 2730" }, \
     { 64, 4, 0x103c0, 0x2ab0056f, "jal a0, 0x10e6a", "jal a0, 0x10e6a", "jal a0, 2730" }, \
-    { 64, 2, 0x2c578, 0x00009502, "jalr a0", "c.jalr a0", "c.jalr a0" }, \
+    { 64, 2, 0x2c770, 0x00009502, "jalr a0", "c.jalr a0", "c.jalr a0" }, \
     { 64, 4, 0x10704, 0x000580e7, "jalr a1", "jalr ra, 0(a1)", "jalr a1" }, \
     { 64, 4, 0x10798, 0x555580e7, "jalr 1365(a1)", "jalr ra, 1365(a1)", "jalr 1365(a1)" }, \
     { 64, 4, 0x108e4, 0x00058567, "jalr a0, a1", "jalr a0, 0(a1)", "jalr a0, a1" }, \
-    { 64, 2, 0x2c45e, 0x00008502, "jr a0", "c.jr a0", "c.jr a0" }, \
+    { 64, 2, 0x2c656, 0x00008502, "jr a0", "c.jr a0", "c.jr a0" }, \
     { 64, 4, 0x10524, 0x00058067, "jr a1", "jalr zero, 0(a1)", "jr a1" }, \
     { 64, 4, 0x105b8, 0x55558067, "jr 1365(a1)", "jalr zero, 1365(a1)", "jr 1365(a1)" }, \
-    { 64, 4, 0x12800, 0x55558503, "lb a0, 1365(a1)", "lb a0, 1365(a1)", "lb a0, 1365(a1)" }, \
-    { 64, 2, 0x2c766, 0x000081c8, "lbu a0, 1(a1)", "c.lbu a0, 1(a1)", "c.lbu a0, 1(a1)" }, \
-    { 64, 4, 0x12d94, 0x5555c503, "lbu a0, 1365(a1)", "lbu a0, 1365(a1)", "lbu a0, 1365(a1)" }, \
-    { 64, 2, 0x2bddc, 0x000075c8, "ld a0, 168(a1)", "c.ld a0, 168(a1)", "c.ld a0, 168(a1)" }, \
-    { 64, 2, 0x2c3f6, 0x0000752a, "ld a0, 168(sp)", "c.ldsp a0, 168(sp)", "c.ldsp a0, 168(sp)" }, \
-    { 64, 4, 0x13328, 0x5555b503, "ld a0, 1365(a1)", "ld a0, 1365(a1)", "ld a0, 1365(a1)" }, \
-    { 64, 2, 0x2c7aa, 0x000085c8, "lh a0, 0(a1)", "c.lh a0, 0(a1)", "c.lh a0, 0(a1)" }, \
-    { 64, 4, 0x129dc, 0x55559503, "lh a0, 1365(a1)", "lh a0, 1365(a1)", "lh a0, 1365(a1)" }, \
-    { 64, 2, 0x2c78a, 0x00008588, "lhu a0, 0(a1)", "c.lhu a0, 0(a1)", "c.lhu a0, 0(a1)" }, \
-    { 64, 4, 0x12f70, 0x5555d503, "lhu a0, 1365(a1)", "lhu a0, 1365(a1)", "lhu a0, 1365(a1)" }, \
-    { 64, 4, 0x13c78, 0x55500513, "li a0, 1365", "addi a0, zero, 1365", "li a0, 1365" }, \
-    { 64, 2, 0x2bfb2, 0x00004555, "li a0, 21", "c.li a0, 21", "c.li a0, 21" }, \
+    { 64, 4, 0x129f8, 0x55558503, "lb a0, 1365(a1)", "lb a0, 1365(a1)", "lb a0, 1365(a1)" }, \
+    { 64, 2, 0x2c95e, 0x000081c8, "lbu a0, 1(a1)", "c.lbu a0, 1(a1)", "c.lbu a0, 1(a1)" }, \
+    { 64, 4, 0x12f8c, 0x5555c503, "lbu a0, 1365(a1)", "lbu a0, 1365(a1)", "lbu a0, 1365(a1)" }, \
+    { 64, 2, 0x2bfd4, 0x000075c8, "ld a0, 168(a1)", "c.ld a0, 168(a1)", "c.ld a0, 168(a1)" }, \
+    { 64, 2, 0x2c5ee, 0x0000752a, "ld a0, 168(sp)", "c.ldsp a0, 168(sp)", "c.ldsp a0, 168(sp)" }, \
+    { 64, 4, 0x13520, 0x5555b503, "ld a0, 1365(a1)", "ld a0, 1365(a1)", "ld a0, 1365(a1)" }, \
+    { 64, 2, 0x2c9a2, 0x000085c8, "lh a0, 0(a1)", "c.lh a0, 0(a1)", "c.lh a0, 0(a1)" }, \
+    { 64, 4, 0x12bd4, 0x55559503, "lh a0, 1365(a1)", "lh a0, 1365(a1)", "lh a0, 1365(a1)" }, \
+    { 64, 2, 0x2c982, 0x00008588, "lhu a0, 0(a1)", "c.lhu a0, 0(a1)", "c.lhu a0, 0(a1)" }, \
+    { 64, 4, 0x13168, 0x5555d503, "lhu a0, 1365(a1)", "lhu a0, 1365(a1)", "lhu a0, 1365(a1)" }, \
+    { 64, 4, 0x13e70, 0x55500513, "li a0, 1365", "addi a0, zero, 1365", "li a0, 1365" }, \
+    { 64, 2, 0x2c1aa, 0x00004555, "li a0, 21", "c.li a0, 21", "c.li a0, 21" }, \
     { 64, 4, 0x10114, 0x12345017, "lpad 74565", "auipc zero, 74565", "lpad 74565" }, \
-    { 64, 4, 0x2592c, 0x1405b52f, "lr.d.aq a0, (a1)", "lr.d.aq a0, (a1)", "lr.d.aq a0, (a1)" }, \
-    { 64, 4, 0x25934, 0x1605b52f, "lr.d.aqrl a0, (a1)", "lr.d.aqrl a0, (a1)", "lr.d.aqrl a0, (a1)" }, \
-    { 64, 4, 0x25930, 0x1205b52f, "lr.d.rl a0, (a1)", "lr.d.rl a0, (a1)", "lr.d.rl a0, (a1)" }, \
-    { 64, 4, 0x25928, 0x1005b52f, "lr.d a0, (a1)", "lr.d a0, (a1)", "lr.d a0, (a1)" }, \
-    { 64, 4, 0x25654, 0x1405a52f, "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)" }, \
-    { 64, 4, 0x2565c, 0x1605a52f, "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)" }, \
-    { 64, 4, 0x25658, 0x1205a52f, "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)" }, \
-    { 64, 4, 0x25650, 0x1005a52f, "lr.w a0, (a1)", "lr.w a0, (a1)", "lr.w a0, (a1)" }, \
-    { 64, 2, 0x2c092, 0x00006555, "lui a0, 21", "c.lui a0, 21", "c.lui a0, 21" }, \
+    { 64, 4, 0x25b24, 0x1405b52f, "lr.d.aq a0, (a1)", "lr.d.aq a0, (a1)", "lr.d.aq a0, (a1)" }, \
+    { 64, 4, 0x25b2c, 0x1605b52f, "lr.d.aqrl a0, (a1)", "lr.d.aqrl a0, (a1)", "lr.d.aqrl a0, (a1)" }, \
+    { 64, 4, 0x25b28, 0x1205b52f, "lr.d.rl a0, (a1)", "lr.d.rl a0, (a1)", "lr.d.rl a0, (a1)" }, \
+    { 64, 4, 0x25b20, 0x1005b52f, "lr.d a0, (a1)", "lr.d a0, (a1)", "lr.d a0, (a1)" }, \
+    { 64, 4, 0x2584c, 0x1405a52f, "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)", "lr.w.aq a0, (a1)" }, \
+    { 64, 4, 0x25854, 0x1605a52f, "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)", "lr.w.aqrl a0, (a1)" }, \
+    { 64, 4, 0x25850, 0x1205a52f, "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)", "lr.w.rl a0, (a1)" }, \
+    { 64, 4, 0x25848, 0x1005a52f, "lr.w a0, (a1)", "lr.w a0, (a1)", "lr.w a0, (a1)" }, \
+    { 64, 2, 0x2c28a, 0x00006555, "lui a0, 21", "c.lui a0, 21", "c.lui a0, 21" }, \
     { 64, 4, 0x10000, 0x12345537, "lui a0, 74565", "lui a0, 74565", "lui a0, 74565" }, \
-    { 64, 2, 0x2bda2, 0x000049e8, "lw a0, 84(a1)", "c.lw a0, 84(a1)", "c.lw a0, 84(a1)" }, \
-    { 64, 2, 0x2c390, 0x00004556, "lw a0, 84(sp)", "c.lwsp a0, 84(sp)", "c.lwsp a0, 84(sp)" }, \
-    { 64, 4, 0x12bb8, 0x5555a503, "lw a0, 1365(a1)", "lw a0, 1365(a1)", "lw a0, 1365(a1)" }, \
-    { 64, 4, 0x1314c, 0x5555e503, "lwu a0, 1365(a1)", "lwu a0, 1365(a1)", "lwu a0, 1365(a1)" }, \
-    { 64, 4, 0x2866c, 0x0ac5e533, "max a0, a1, a2", "max a0, a1, a2", "max a0, a1, a2" }, \
-    { 64, 4, 0x2882c, 0x0ac5f533, "maxu a0, a1, a2", "maxu a0, a1, a2", "maxu a0, a1, a2" }, \
-    { 64, 4, 0x289ec, 0x0ac5c533, "min a0, a1, a2", "min a0, a1, a2", "min a0, a1, a2" }, \
-    { 64, 4, 0x28bac, 0x0ac5d533, "minu a0, a1, a2", "minu a0, a1, a2", "minu a0, a1, a2" }, \
-    { 64, 4, 0x371d8, 0x81c5c573, "mop.r.0 a0, a1", "mop.r.0 a0, a1", "mop.r.0 a0, a1" }, \
-    { 64, 4, 0x37304, 0x81d5c573, "mop.r.1 a0, a1", "mop.r.1 a0, a1", "mop.r.1 a0, a1" }, \
-    { 64, 4, 0x37d90, 0x89e5c573, "mop.r.10 a0, a1", "mop.r.10 a0, a1", "mop.r.10 a0, a1" }, \
-    { 64, 4, 0x37ebc, 0x89f5c573, "mop.r.11 a0, a1", "mop.r.11 a0, a1", "mop.r.11 a0, a1" }, \
-    { 64, 4, 0x37fe8, 0x8dc5c573, "mop.r.12 a0, a1", "mop.r.12 a0, a1", "mop.r.12 a0, a1" }, \
-    { 64, 4, 0x38114, 0x8dd5c573, "mop.r.13 a0, a1", "mop.r.13 a0, a1", "mop.r.13 a0, a1" }, \
-    { 64, 4, 0x38240, 0x8de5c573, "mop.r.14 a0, a1", "mop.r.14 a0, a1", "mop.r.14 a0, a1" }, \
-    { 64, 4, 0x3836c, 0x8df5c573, "mop.r.15 a0, a1", "mop.r.15 a0, a1", "mop.r.15 a0, a1" }, \
-    { 64, 4, 0x38498, 0xc1c5c573, "mop.r.16 a0, a1", "mop.r.16 a0, a1", "mop.r.16 a0, a1" }, \
-    { 64, 4, 0x385c4, 0xc1d5c573, "mop.r.17 a0, a1", "mop.r.17 a0, a1", "mop.r.17 a0, a1" }, \
-    { 64, 4, 0x386f0, 0xc1e5c573, "mop.r.18 a0, a1", "mop.r.18 a0, a1", "mop.r.18 a0, a1" }, \
-    { 64, 4, 0x3881c, 0xc1f5c573, "mop.r.19 a0, a1", "mop.r.19 a0, a1", "mop.r.19 a0, a1" }, \
-    { 64, 4, 0x37430, 0x81e5c573, "mop.r.2 a0, a1", "mop.r.2 a0, a1", "mop.r.2 a0, a1" }, \
-    { 64, 4, 0x38948, 0xc5c5c573, "mop.r.20 a0, a1", "mop.r.20 a0, a1", "mop.r.20 a0, a1" }, \
-    { 64, 4, 0x38a74, 0xc5d5c573, "mop.r.21 a0, a1", "mop.r.21 a0, a1", "mop.r.21 a0, a1" }, \
-    { 64, 4, 0x38ba0, 0xc5e5c573, "mop.r.22 a0, a1", "mop.r.22 a0, a1", "mop.r.22 a0, a1" }, \
-    { 64, 4, 0x38ccc, 0xc5f5c573, "mop.r.23 a0, a1", "mop.r.23 a0, a1", "mop.r.23 a0, a1" }, \
-    { 64, 4, 0x38df8, 0xc9c5c573, "mop.r.24 a0, a1", "mop.r.24 a0, a1", "mop.r.24 a0, a1" }, \
-    { 64, 4, 0x38f24, 0xc9d5c573, "mop.r.25 a0, a1", "mop.r.25 a0, a1", "mop.r.25 a0, a1" }, \
-    { 64, 4, 0x39050, 0xc9e5c573, "mop.r.26 a0, a1", "mop.r.26 a0, a1", "mop.r.26 a0, a1" }, \
-    { 64, 4, 0x3917c, 0xc9f5c573, "mop.r.27 a0, a1", "mop.r.27 a0, a1", "mop.r.27 a0, a1" }, \
-    { 64, 4, 0x392a8, 0xcdc5c573, "mop.r.28 a0, a1", "mop.r.28 a0, a1", "mop.r.28 a0, a1" }, \
-    { 64, 4, 0x393d4, 0xcdd5c573, "mop.r.29 a0, a1", "mop.r.29 a0, a1", "mop.r.29 a0, a1" }, \
-    { 64, 4, 0x3755c, 0x81f5c573, "mop.r.3 a0, a1", "mop.r.3 a0, a1", "mop.r.3 a0, a1" }, \
-    { 64, 4, 0x39500, 0xcde5c573, "mop.r.30 a0, a1", "mop.r.30 a0, a1", "mop.r.30 a0, a1" }, \
-    { 64, 4, 0x3962c, 0xcdf5c573, "mop.r.31 a0, a1", "mop.r.31 a0, a1", "mop.r.31 a0, a1" }, \
-    { 64, 4, 0x37688, 0x85c5c573, "mop.r.4 a0, a1", "mop.r.4 a0, a1", "mop.r.4 a0, a1" }, \
-    { 64, 4, 0x377b4, 0x85d5c573, "mop.r.5 a0, a1", "mop.r.5 a0, a1", "mop.r.5 a0, a1" }, \
-    { 64, 4, 0x378e0, 0x85e5c573, "mop.r.6 a0, a1", "mop.r.6 a0, a1", "mop.r.6 a0, a1" }, \
-    { 64, 4, 0x37a0c, 0x85f5c573, "mop.r.7 a0, a1", "mop.r.7 a0, a1", "mop.r.7 a0, a1" }, \
-    { 64, 4, 0x37b38, 0x89c5c573, "mop.r.8 a0, a1", "mop.r.8 a0, a1", "mop.r.8 a0, a1" }, \
-    { 64, 4, 0x37c64, 0x89d5c573, "mop.r.9 a0, a1", "mop.r.9 a0, a1", "mop.r.9 a0, a1" }, \
-    { 64, 4, 0x39758, 0x82c5c573, "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2" }, \
-    { 64, 4, 0x39918, 0x86c5c573, "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2" }, \
-    { 64, 4, 0x39ad8, 0x8ac5c573, "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2" }, \
-    { 64, 4, 0x39c98, 0x8ec5c573, "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2" }, \
-    { 64, 4, 0x39e58, 0xc2c5c573, "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2" }, \
-    { 64, 4, 0x3a018, 0xc6c5c573, "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2" }, \
-    { 64, 4, 0x3a1d8, 0xcac5c573, "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2" }, \
-    { 64, 4, 0x3a398, 0xcec5c573, "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2" }, \
-    { 64, 4, 0x1f970, 0x30200073, "mret", "mret", "mret" }, \
-    { 64, 2, 0x2c80e, 0x00009dc9, "mul a1, a1, a0", "c.mul a1, a0", "c.mul a1, a0" }, \
-    { 64, 4, 0x3c2fc, 0x02c58533, "mul a0, a1, a2", "mul a0, a1, a2", "mul a0, a1, a2" }, \
-    { 64, 4, 0x3c4bc, 0x02c59533, "mulh a0, a1, a2", "mulh a0, a1, a2", "mulh a0, a1, a2" }, \
-    { 64, 4, 0x3c67c, 0x02c5a533, "mulhsu a0, a1, a2", "mulhsu a0, a1, a2", "mulhsu a0, a1, a2" }, \
-    { 64, 4, 0x3c83c, 0x02c5b533, "mulhu a0, a1, a2", "mulhu a0, a1, a2", "mulhu a0, a1, a2" }, \
-    { 64, 4, 0x3c9fc, 0x02c5853b, "mulw a0, a1, a2", "mulw a0, a1, a2", "mulw a0, a1, a2" }, \
-    { 64, 4, 0x13ddc, 0x00058513, "mv a0, a1", "addi a0, a1, 0", "mv a0, a1" }, \
-    { 64, 2, 0x2c4a2, 0x0000852e, "mv a0, a1", "c.mv a0, a1", "c.mv a0, a1" }, \
-    { 64, 4, 0x15918, 0x40c00533, "neg a0, a2", "sub a0, zero, a2", "neg a0, a2" }, \
-    { 64, 4, 0x15a44, 0x40c0053b, "negw a0, a2", "subw a0, zero, a2", "negw a0, a2" }, \
-    { 64, 4, 0x13c74, 0x00000013, "nop", "addi zero, zero, 0", "nop" }, \
-    { 64, 2, 0x2be8a, 0x00000001, "nop", "c.nop", "c.nop" }, \
-    { 64, 2, 0x2c87c, 0x00009df5, "not a1, a1", "c.not a1", "c.not a1" }, \
-    { 64, 4, 0x1461c, 0xfff5c513, "not a0, a1", "xori a0, a1, -1", "not a0, a1" }, \
-    { 64, 4, 0x371c8, 0x00500033, "ntl.all", "add zero, zero, t0", "ntl.all" }, \
-    { 64, 4, 0x371bc, 0x00200033, "ntl.p1", "add zero, zero, sp", "ntl.p1" }, \
-    { 64, 4, 0x371c0, 0x00300033, "ntl.pall", "add zero, zero, gp", "ntl.pall" }, \
-    { 64, 4, 0x371c4, 0x00400033, "ntl.s1", "add zero, zero, tp", "ntl.s1" }, \
-    { 64, 2, 0x2c1b0, 0x00008dc9, "or a1, a1, a0", "c.or a1, a0", "c.or a1, a0" }, \
-    { 64, 4, 0x16e18, 0x00c5e533, "or a0, a1, a2", "or a0, a1, a2", "or a0, a1, a2" }, \
-    { 64, 4, 0x281bc, 0x2875d513, "orc.b a0, a1", "orc.b a0, a1", "orc.b a0, a1" }, \
-    { 64, 4, 0x14940, 0x5555e513, "ori a0, a1, 1365", "ori a0, a1, 1365", "ori a0, a1, 1365" }, \
-    { 64, 4, 0x26dac, 0x40c5e533, "orn a0, a1, a2", "orn a0, a1, a2", "orn a0, a1, a2" }, \
-    { 64, 4, 0x2a3cc, 0x08c5c533, "pack a0, a1, a2", "pack a0, a1, a2", "pack a0, a1, a2" }, \
-    { 64, 4, 0x2a58c, 0x08c5f533, "packh a0, a1, a2", "packh a0, a1, a2", "packh a0, a1, a2" }, \
-    { 64, 4, 0x2a74c, 0x08c5c53b, "packw a0, a1, a2", "packw a0, a1, a2", "packw a0, a1, a2" }, \
-    { 64, 4, 0x371d4, 0x0100000f, "pause", "fence w, 0", "pause" }, \
-    { 64, 4, 0x32070, 0x0205e013, "prefetch.i 32(a1)", "prefetch.i 32(a1)", "prefetch.i 32(a1)" }, \
-    { 64, 4, 0x32168, 0x0215e013, "prefetch.r 32(a1)", "prefetch.r 32(a1)", "prefetch.r 32(a1)" }, \
-    { 64, 4, 0x32260, 0x0235e013, "prefetch.w 32(a1)", "prefetch.w 32(a1)", "prefetch.w 32(a1)" }, \
-    { 64, 4, 0x323dc, 0xc0002573, "rdcycle a0", "csrrs a0, cycle, zero", "rdcycle a0" }, \
-    { 64, 4, 0x32504, 0xc0202573, "rdinstret a0", "csrrs a0, instret, zero", "rdinstret a0" }, \
-    { 64, 4, 0x32470, 0xc0102573, "rdtime a0", "csrrs a0, time, zero", "rdtime a0" }, \
-    { 64, 4, 0x1eef0, 0x02c5e533, "rem a0, a1, a2", "rem a0, a1, a2", "rem a0, a1, a2" }, \
-    { 64, 4, 0x1f0b0, 0x02c5f533, "remu a0, a1, a2", "remu a0, a1, a2", "remu a0, a1, a2" }, \
-    { 64, 4, 0x1f7b0, 0x02c5f53b, "remuw a0, a1, a2", "remuw a0, a1, a2", "remuw a0, a1, a2" }, \
-    { 64, 4, 0x1f5f0, 0x02c5e53b, "remw a0, a1, a2", "remw a0, a1, a2", "remw a0, a1, a2" }, \
-    { 64, 2, 0x2c45c, 0x00008082, "ret", "c.jr ra", "c.jr ra" }, \
+    { 64, 2, 0x2bf9a, 0x000049e8, "lw a0, 84(a1)", "c.lw a0, 84(a1)", "c.lw a0, 84(a1)" }, \
+    { 64, 2, 0x2c588, 0x00004556, "lw a0, 84(sp)", "c.lwsp a0, 84(sp)", "c.lwsp a0, 84(sp)" }, \
+    { 64, 4, 0x12db0, 0x5555a503, "lw a0, 1365(a1)", "lw a0, 1365(a1)", "lw a0, 1365(a1)" }, \
+    { 64, 4, 0x13344, 0x5555e503, "lwu a0, 1365(a1)", "lwu a0, 1365(a1)", "lwu a0, 1365(a1)" }, \
+    { 64, 4, 0x28864, 0x0ac5e533, "max a0, a1, a2", "max a0, a1, a2", "max a0, a1, a2" }, \
+    { 64, 4, 0x28a24, 0x0ac5f533, "maxu a0, a1, a2", "maxu a0, a1, a2", "maxu a0, a1, a2" }, \
+    { 64, 4, 0x28be4, 0x0ac5c533, "min a0, a1, a2", "min a0, a1, a2", "min a0, a1, a2" }, \
+    { 64, 4, 0x28da4, 0x0ac5d533, "minu a0, a1, a2", "minu a0, a1, a2", "minu a0, a1, a2" }, \
+    { 64, 4, 0x373d0, 0x81c5c573, "mop.r.0 a0, a1", "mop.r.0 a0, a1", "mop.r.0 a0, a1" }, \
+    { 64, 4, 0x374fc, 0x81d5c573, "mop.r.1 a0, a1", "mop.r.1 a0, a1", "mop.r.1 a0, a1" }, \
+    { 64, 4, 0x37f88, 0x89e5c573, "mop.r.10 a0, a1", "mop.r.10 a0, a1", "mop.r.10 a0, a1" }, \
+    { 64, 4, 0x380b4, 0x89f5c573, "mop.r.11 a0, a1", "mop.r.11 a0, a1", "mop.r.11 a0, a1" }, \
+    { 64, 4, 0x381e0, 0x8dc5c573, "mop.r.12 a0, a1", "mop.r.12 a0, a1", "mop.r.12 a0, a1" }, \
+    { 64, 4, 0x3830c, 0x8dd5c573, "mop.r.13 a0, a1", "mop.r.13 a0, a1", "mop.r.13 a0, a1" }, \
+    { 64, 4, 0x38438, 0x8de5c573, "mop.r.14 a0, a1", "mop.r.14 a0, a1", "mop.r.14 a0, a1" }, \
+    { 64, 4, 0x38564, 0x8df5c573, "mop.r.15 a0, a1", "mop.r.15 a0, a1", "mop.r.15 a0, a1" }, \
+    { 64, 4, 0x38690, 0xc1c5c573, "mop.r.16 a0, a1", "mop.r.16 a0, a1", "mop.r.16 a0, a1" }, \
+    { 64, 4, 0x387bc, 0xc1d5c573, "mop.r.17 a0, a1", "mop.r.17 a0, a1", "mop.r.17 a0, a1" }, \
+    { 64, 4, 0x388e8, 0xc1e5c573, "mop.r.18 a0, a1", "mop.r.18 a0, a1", "mop.r.18 a0, a1" }, \
+    { 64, 4, 0x38a14, 0xc1f5c573, "mop.r.19 a0, a1", "mop.r.19 a0, a1", "mop.r.19 a0, a1" }, \
+    { 64, 4, 0x37628, 0x81e5c573, "mop.r.2 a0, a1", "mop.r.2 a0, a1", "mop.r.2 a0, a1" }, \
+    { 64, 4, 0x38b40, 0xc5c5c573, "mop.r.20 a0, a1", "mop.r.20 a0, a1", "mop.r.20 a0, a1" }, \
+    { 64, 4, 0x38c6c, 0xc5d5c573, "mop.r.21 a0, a1", "mop.r.21 a0, a1", "mop.r.21 a0, a1" }, \
+    { 64, 4, 0x38d98, 0xc5e5c573, "mop.r.22 a0, a1", "mop.r.22 a0, a1", "mop.r.22 a0, a1" }, \
+    { 64, 4, 0x38ec4, 0xc5f5c573, "mop.r.23 a0, a1", "mop.r.23 a0, a1", "mop.r.23 a0, a1" }, \
+    { 64, 4, 0x38ff0, 0xc9c5c573, "mop.r.24 a0, a1", "mop.r.24 a0, a1", "mop.r.24 a0, a1" }, \
+    { 64, 4, 0x3911c, 0xc9d5c573, "mop.r.25 a0, a1", "mop.r.25 a0, a1", "mop.r.25 a0, a1" }, \
+    { 64, 4, 0x39248, 0xc9e5c573, "mop.r.26 a0, a1", "mop.r.26 a0, a1", "mop.r.26 a0, a1" }, \
+    { 64, 4, 0x39374, 0xc9f5c573, "mop.r.27 a0, a1", "mop.r.27 a0, a1", "mop.r.27 a0, a1" }, \
+    { 64, 4, 0x394a0, 0xcdc5c573, "mop.r.28 a0, a1", "mop.r.28 a0, a1", "mop.r.28 a0, a1" }, \
+    { 64, 4, 0x395cc, 0xcdd5c573, "mop.r.29 a0, a1", "mop.r.29 a0, a1", "mop.r.29 a0, a1" }, \
+    { 64, 4, 0x37754, 0x81f5c573, "mop.r.3 a0, a1", "mop.r.3 a0, a1", "mop.r.3 a0, a1" }, \
+    { 64, 4, 0x396f8, 0xcde5c573, "mop.r.30 a0, a1", "mop.r.30 a0, a1", "mop.r.30 a0, a1" }, \
+    { 64, 4, 0x39824, 0xcdf5c573, "mop.r.31 a0, a1", "mop.r.31 a0, a1", "mop.r.31 a0, a1" }, \
+    { 64, 4, 0x37880, 0x85c5c573, "mop.r.4 a0, a1", "mop.r.4 a0, a1", "mop.r.4 a0, a1" }, \
+    { 64, 4, 0x379ac, 0x85d5c573, "mop.r.5 a0, a1", "mop.r.5 a0, a1", "mop.r.5 a0, a1" }, \
+    { 64, 4, 0x37ad8, 0x85e5c573, "mop.r.6 a0, a1", "mop.r.6 a0, a1", "mop.r.6 a0, a1" }, \
+    { 64, 4, 0x37c04, 0x85f5c573, "mop.r.7 a0, a1", "mop.r.7 a0, a1", "mop.r.7 a0, a1" }, \
+    { 64, 4, 0x37d30, 0x89c5c573, "mop.r.8 a0, a1", "mop.r.8 a0, a1", "mop.r.8 a0, a1" }, \
+    { 64, 4, 0x37e5c, 0x89d5c573, "mop.r.9 a0, a1", "mop.r.9 a0, a1", "mop.r.9 a0, a1" }, \
+    { 64, 4, 0x39950, 0x82c5c573, "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2", "mop.rr.0 a0, a1, a2" }, \
+    { 64, 4, 0x39b10, 0x86c5c573, "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2", "mop.rr.1 a0, a1, a2" }, \
+    { 64, 4, 0x39cd0, 0x8ac5c573, "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2", "mop.rr.2 a0, a1, a2" }, \
+    { 64, 4, 0x39e90, 0x8ec5c573, "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2", "mop.rr.3 a0, a1, a2" }, \
+    { 64, 4, 0x3a050, 0xc2c5c573, "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2", "mop.rr.4 a0, a1, a2" }, \
+    { 64, 4, 0x3a210, 0xc6c5c573, "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2", "mop.rr.5 a0, a1, a2" }, \
+    { 64, 4, 0x3a3d0, 0xcac5c573, "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2", "mop.rr.6 a0, a1, a2" }, \
+    { 64, 4, 0x3a590, 0xcec5c573, "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2", "mop.rr.7 a0, a1, a2" }, \
+    { 64, 4, 0x1fb68, 0x30200073, "mret", "mret", "mret" }, \
+    { 64, 2, 0x2ca06, 0x00009dc9, "mul a1, a1, a0", "c.mul a1, a0", "c.mul a1, a0" }, \
+    { 64, 4, 0x3c4f4, 0x02c58533, "mul a0, a1, a2", "mul a0, a1, a2", "mul a0, a1, a2" }, \
+    { 64, 4, 0x3c6b4, 0x02c59533, "mulh a0, a1, a2", "mulh a0, a1, a2", "mulh a0, a1, a2" }, \
+    { 64, 4, 0x3c874, 0x02c5a533, "mulhsu a0, a1, a2", "mulhsu a0, a1, a2", "mulhsu a0, a1, a2" }, \
+    { 64, 4, 0x3ca34, 0x02c5b533, "mulhu a0, a1, a2", "mulhu a0, a1, a2", "mulhu a0, a1, a2" }, \
+    { 64, 4, 0x3cbf4, 0x02c5853b, "mulw a0, a1, a2", "mulw a0, a1, a2", "mulw a0, a1, a2" }, \
+    { 64, 4, 0x13fd4, 0x00058513, "mv a0, a1", "addi a0, a1, 0", "mv a0, a1" }, \
+    { 64, 2, 0x2c69a, 0x0000852e, "mv a0, a1", "c.mv a0, a1", "c.mv a0, a1" }, \
+    { 64, 4, 0x15b10, 0x40c00533, "neg a0, a2", "sub a0, zero, a2", "neg a0, a2" }, \
+    { 64, 4, 0x15c3c, 0x40c0053b, "negw a0, a2", "subw a0, zero, a2", "negw a0, a2" }, \
+    { 64, 4, 0x13e6c, 0x00000013, "nop", "addi zero, zero, 0", "nop" }, \
+    { 64, 2, 0x2c082, 0x00000001, "nop", "c.nop", "c.nop" }, \
+    { 64, 2, 0x2ca74, 0x00009df5, "not a1, a1", "c.not a1", "c.not a1" }, \
+    { 64, 4, 0x14814, 0xfff5c513, "not a0, a1", "xori a0, a1, -1", "not a0, a1" }, \
+    { 64, 4, 0x373c0, 0x00500033, "ntl.all", "add zero, zero, t0", "ntl.all" }, \
+    { 64, 4, 0x373b4, 0x00200033, "ntl.p1", "add zero, zero, sp", "ntl.p1" }, \
+    { 64, 4, 0x373b8, 0x00300033, "ntl.pall", "add zero, zero, gp", "ntl.pall" }, \
+    { 64, 4, 0x373bc, 0x00400033, "ntl.s1", "add zero, zero, tp", "ntl.s1" }, \
+    { 64, 2, 0x2c3a8, 0x00008dc9, "or a1, a1, a0", "c.or a1, a0", "c.or a1, a0" }, \
+    { 64, 4, 0x17010, 0x00c5e533, "or a0, a1, a2", "or a0, a1, a2", "or a0, a1, a2" }, \
+    { 64, 4, 0x283b4, 0x2875d513, "orc.b a0, a1", "orc.b a0, a1", "orc.b a0, a1" }, \
+    { 64, 4, 0x14b38, 0x5555e513, "ori a0, a1, 1365", "ori a0, a1, 1365", "ori a0, a1, 1365" }, \
+    { 64, 4, 0x26fa4, 0x40c5e533, "orn a0, a1, a2", "orn a0, a1, a2", "orn a0, a1, a2" }, \
+    { 64, 4, 0x2a5c4, 0x08c5c533, "pack a0, a1, a2", "pack a0, a1, a2", "pack a0, a1, a2" }, \
+    { 64, 4, 0x2a784, 0x08c5f533, "packh a0, a1, a2", "packh a0, a1, a2", "packh a0, a1, a2" }, \
+    { 64, 4, 0x2a944, 0x08c5c53b, "packw a0, a1, a2", "packw a0, a1, a2", "packw a0, a1, a2" }, \
+    { 64, 4, 0x373cc, 0x0100000f, "pause", "fence w, 0", "pause" }, \
+    { 64, 4, 0x32268, 0x0205e013, "prefetch.i 32(a1)", "prefetch.i 32(a1)", "prefetch.i 32(a1)" }, \
+    { 64, 4, 0x32360, 0x0215e013, "prefetch.r 32(a1)", "prefetch.r 32(a1)", "prefetch.r 32(a1)" }, \
+    { 64, 4, 0x32458, 0x0235e013, "prefetch.w 32(a1)", "prefetch.w 32(a1)", "prefetch.w 32(a1)" }, \
+    { 64, 4, 0x325d4, 0xc0002573, "rdcycle a0", "csrrs a0, cycle, zero", "rdcycle a0" }, \
+    { 64, 4, 0x326fc, 0xc0202573, "rdinstret a0", "csrrs a0, instret, zero", "rdinstret a0" }, \
+    { 64, 4, 0x32668, 0xc0102573, "rdtime a0", "csrrs a0, time, zero", "rdtime a0" }, \
+    { 64, 4, 0x1f0e8, 0x02c5e533, "rem a0, a1, a2", "rem a0, a1, a2", "rem a0, a1, a2" }, \
+    { 64, 4, 0x1f2a8, 0x02c5f533, "remu a0, a1, a2", "remu a0, a1, a2", "remu a0, a1, a2" }, \
+    { 64, 4, 0x1f9a8, 0x02c5f53b, "remuw a0, a1, a2", "remuw a0, a1, a2", "remuw a0, a1, a2" }, \
+    { 64, 4, 0x1f7e8, 0x02c5e53b, "remw a0, a1, a2", "remw a0, a1, a2", "remw a0, a1, a2" }, \
+    { 64, 2, 0x2c654, 0x00008082, "ret", "c.jr ra", "c.jr ra" }, \
     { 64, 4, 0x10520, 0x00008067, "ret", "jalr zero, 0(ra)", "ret" }, \
-    { 64, 4, 0x27ab4, 0x6b85d513, "rev8 a0, a1", "rev8 a0, a1", "rev8 a0, a1" }, \
-    { 64, 4, 0x2712c, 0x60c59533, "rol a0, a1, a2", "rol a0, a1, a2", "rol a0, a1, a2" }, \
-    { 64, 4, 0x275f8, 0x60c5953b, "rolw a0, a1, a2", "rolw a0, a1, a2", "rolw a0, a1, a2" }, \
-    { 64, 4, 0x272ec, 0x60c5d533, "ror a0, a1, a2", "ror a0, a1, a2", "ror a0, a1, a2" }, \
-    { 64, 4, 0x274ac, 0x6155d513, "rori a0, a1, 21", "rori a0, a1, 21", "rori a0, a1, 21" }, \
-    { 64, 4, 0x27978, 0x6155d51b, "roriw a0, a1, 21", "roriw a0, a1, 21", "roriw a0, a1, 21" }, \
-    { 64, 4, 0x277b8, 0x60c5d53b, "rorw a0, a1, a2", "rorw a0, a1, a2", "rorw a0, a1, a2" }, \
-    { 64, 2, 0x2c7ca, 0x000089c8, "sb a0, 1(a1)", "c.sb a0, 1(a1)", "c.sb a0, 1(a1)" }, \
-    { 64, 4, 0x13504, 0x54c58aa3, "sb a2, 1365(a1)", "sb a2, 1365(a1)", "sb a2, 1365(a1)" }, \
-    { 64, 4, 0x25a4c, 0x1cc5b52f, "sc.d.aq a0, a2, (a1)", "sc.d.aq a0, a2, (a1)", "sc.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x25a54, 0x1ec5b52f, "sc.d.aqrl a0, a2, (a1)", "sc.d.aqrl a0, a2, (a1)", "sc.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x25a50, 0x1ac5b52f, "sc.d.rl a0, a2, (a1)", "sc.d.rl a0, a2, (a1)", "sc.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x25a48, 0x18c5b52f, "sc.d a0, a2, (a1)", "sc.d a0, a2, (a1)", "sc.d a0, a2, (a1)" }, \
-    { 64, 4, 0x25774, 0x1cc5a52f, "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x2577c, 0x1ec5a52f, "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x25778, 0x1ac5a52f, "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x25770, 0x18c5a52f, "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)" }, \
-    { 64, 2, 0x2be50, 0x0000f5c8, "sd a0, 168(a1)", "c.sd a0, 168(a1)", "c.sd a0, 168(a1)" }, \
-    { 64, 2, 0x2c6fc, 0x0000f52e, "sd a1, 168(sp)", "c.sdsp a1, 168(sp)", "c.sdsp a1, 168(sp)" }, \
-    { 64, 4, 0x13a98, 0x54c5baa3, "sd a2, 1365(a1)", "sd a2, 1365(a1)", "sd a2, 1365(a1)" }, \
-    { 64, 4, 0x142f8, 0x0015b513, "seqz a0, a1", "sltiu a0, a1, 1", "seqz a0, a1" }, \
-    { 64, 2, 0x2c83c, 0x00009de5, "sext.b a1, a1", "c.sext.b a1", "c.sext.b a1" }, \
-    { 64, 4, 0x27f64, 0x60459513, "sext.b a0, a1", "sext.b a0, a1", "sext.b a0, a1" }, \
-    { 64, 2, 0x2c85c, 0x00009ded, "sext.h a1, a1", "c.sext.h a1", "c.sext.h a1" }, \
-    { 64, 4, 0x28090, 0x60559513, "sext.h a0, a1", "sext.h a0, a1", "sext.h a0, a1" }, \
-    { 64, 4, 0x15240, 0x0005851b, "sext.w a0, a1", "addiw a0, a1, 0", "sext.w a0, a1" }, \
-    { 64, 2, 0x2bf96, 0x00002501, "sext.w a0, a0", "c.addiw a0, 0", "c.addiw a0, 0" }, \
-    { 64, 4, 0x1fc78, 0x18100073, "sfence.inval.ir", "sfence.inval.ir", "sfence.inval.ir" }, \
-    { 64, 4, 0x1f97c, 0x12000073, "sfence.vma", "sfence.vma zero, zero", "sfence.vma" }, \
-    { 64, 4, 0x1f980, 0x12058073, "sfence.vma a1", "sfence.vma a1, zero", "sfence.vma a1" }, \
-    { 64, 4, 0x1fa14, 0x12c58073, "sfence.vma a1, a2", "sfence.vma a1, a2", "sfence.vma a1, a2" }, \
-    { 64, 4, 0x1fc74, 0x18000073, "sfence.w.inval", "sfence.w.inval", "sfence.w.inval" }, \
-    { 64, 4, 0x15dc8, 0x00c02533, "sgtz a0, a2", "slt a0, zero, a2", "sgtz a0, a2" }, \
-    { 64, 2, 0x2c7ee, 0x00008d88, "sh a0, 0(a1)", "c.sh a0, 0(a1)", "c.sh a0, 0(a1)" }, \
-    { 64, 4, 0x136e0, 0x54c59aa3, "sh a2, 1365(a1)", "sh a2, 1365(a1)", "sh a2, 1365(a1)" }, \
-    { 64, 4, 0x26434, 0x20c5a53b, "sh1add.uw a0, a1, a2", "sh1add.uw a0, a1, a2", "sh1add.uw a0, a1, a2" }, \
-    { 64, 4, 0x25d34, 0x20c5a533, "sh1add a0, a1, a2", "sh1add a0, a1, a2", "sh1add a0, a1, a2" }, \
-    { 64, 4, 0x265f4, 0x20c5c53b, "sh2add.uw a0, a1, a2", "sh2add.uw a0, a1, a2", "sh2add.uw a0, a1, a2" }, \
-    { 64, 4, 0x25ef4, 0x20c5c533, "sh2add a0, a1, a2", "sh2add a0, a1, a2", "sh2add a0, a1, a2" }, \
-    { 64, 4, 0x267b4, 0x20c5e53b, "sh3add.uw a0, a1, a2", "sh3add.uw a0, a1, a2", "sh3add.uw a0, a1, a2" }, \
-    { 64, 4, 0x260b4, 0x20c5e533, "sh3add a0, a1, a2", "sh3add a0, a1, a2", "sh3add a0, a1, a2" }, \
-    { 64, 4, 0x3b3ac, 0x10259513, "sha256sig0 a0, a1", "sha256sig0 a0, a1", "sha256sig0 a0, a1" }, \
-    { 64, 4, 0x3b4d8, 0x10359513, "sha256sig1 a0, a1", "sha256sig1 a0, a1", "sha256sig1 a0, a1" }, \
-    { 64, 4, 0x3b604, 0x10059513, "sha256sum0 a0, a1", "sha256sum0 a0, a1", "sha256sum0 a0, a1" }, \
-    { 64, 4, 0x3b730, 0x10159513, "sha256sum1 a0, a1", "sha256sum1 a0, a1", "sha256sum1 a0, a1" }, \
-    { 64, 4, 0x3b85c, 0x10659513, "sha512sig0 a0, a1", "sha512sig0 a0, a1", "sha512sig0 a0, a1" }, \
-    { 64, 4, 0x3b988, 0x10759513, "sha512sig1 a0, a1", "sha512sig1 a0, a1", "sha512sig1 a0, a1" }, \
-    { 64, 4, 0x3bab4, 0x10459513, "sha512sum0 a0, a1", "sha512sum0 a0, a1", "sha512sum0 a0, a1" }, \
-    { 64, 4, 0x3bbe0, 0x10559513, "sha512sum1 a0, a1", "sha512sum1 a0, a1", "sha512sum1 a0, a1" }, \
-    { 64, 4, 0x1fb44, 0x16c58073, "sinval.vma a1, a2", "sinval.vma a1, a2", "sinval.vma a1, a2" }, \
-    { 64, 4, 0x16398, 0x00c59533, "sll a0, a1, a2", "sll a0, a1, a2", "sll a0, a1, a2" }, \
-    { 64, 4, 0x26974, 0x0955951b, "slli.uw a0, a1, 21", "slli.uw a0, a1, 21", "slli.uw a0, a1, 21" }, \
-    { 64, 2, 0x2c336, 0x00000556, "slli a0, a0, 21", "c.slli a0, 21", "c.slli a0, 21" }, \
-    { 64, 4, 0x14e5c, 0x01559513, "slli a0, a1, 21", "slli a0, a1, 21", "slli a0, a1, 21" }, \
-    { 64, 4, 0x15564, 0x0155951b, "slliw a0, a1, 21", "slliw a0, a1, 21", "slliw a0, a1, 21" }, \
-    { 64, 4, 0x17518, 0x00c5953b, "sllw a0, a1, a2", "sllw a0, a1, a2", "sllw a0, a1, a2" }, \
-    { 64, 4, 0x16558, 0x00c5a533, "slt a0, a1, a2", "slt a0, a1, a2", "slt a0, a1, a2" }, \
-    { 64, 4, 0x14100, 0x5555a513, "slti a0, a1, 1365", "slti a0, a1, 1365", "slti a0, a1, 1365" }, \
-    { 64, 4, 0x14424, 0x5555b513, "sltiu a0, a1, 1365", "sltiu a0, a1, 1365", "sltiu a0, a1, 1365" }, \
-    { 64, 4, 0x16718, 0x00c5b533, "sltu a0, a1, a2", "sltu a0, a1, a2", "sltu a0, a1, a2" }, \
-    { 64, 4, 0x15c9c, 0x0005a533, "sltz a0, a1", "slt a0, a1, zero", "sltz a0, a1" }, \
-    { 64, 4, 0x3c0a4, 0x10859513, "sm3p0 a0, a1", "sm3p0 a0, a1", "sm3p0 a0, a1" }, \
-    { 64, 4, 0x3c1d0, 0x10959513, "sm3p1 a0, a1", "sm3p1 a0, a1", "sm3p1 a0, a1" }, \
-    { 64, 4, 0x3bd0c, 0x70c58533, "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1" }, \
-    { 64, 4, 0x3bed8, 0x74c58533, "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1" }, \
-    { 64, 4, 0x15b70, 0x00c03533, "snez a0, a2", "sltu a0, zero, a2", "snez a0, a2" }, \
-    { 64, 4, 0x16c58, 0x40c5d533, "sra a0, a1, a2", "sra a0, a1, a2", "sra a0, a1, a2" }, \
-    { 64, 2, 0x2c112, 0x000085d5, "srai a1, a1, 21", "c.srai a1, 21", "c.srai a1, 21" }, \
-    { 64, 4, 0x150f4, 0x4155d513, "srai a0, a1, 21", "srai a0, a1, 21", "srai a0, a1, 21" }, \
-    { 64, 4, 0x157dc, 0x4155d51b, "sraiw a0, a1, 21", "sraiw a0, a1, 21", "sraiw a0, a1, 21" }, \
-    { 64, 4, 0x17898, 0x40c5d53b, "sraw a0, a1, a2", "sraw a0, a1, a2", "sraw a0, a1, a2" }, \
-    { 64, 4, 0x1f974, 0x10200073, "sret", "sret", "sret" }, \
-    { 64, 4, 0x16a98, 0x00c5d533, "srl a0, a1, a2", "srl a0, a1, a2", "srl a0, a1, a2" }, \
-    { 64, 2, 0x2c0f2, 0x000081d5, "srli a1, a1, 21", "c.srli a1, 21", "c.srli a1, 21" }, \
-    { 64, 4, 0x14fa8, 0x0155d513, "srli a0, a1, 21", "srli a0, a1, 21", "srli a0, a1, 21" }, \
-    { 64, 4, 0x156a0, 0x0155d51b, "srliw a0, a1, 21", "srliw a0, a1, 21", "srliw a0, a1, 21" }, \
-    { 64, 4, 0x176d8, 0x00c5d53b, "srlw a0, a1, a2", "srlw a0, a1, a2", "srlw a0, a1, a2" }, \
-    { 64, 4, 0x1afc0, 0x4cc5b52f, "ssamoswap.d.aq a0, a2, (a1)", "ssamoswap.d.aq a0, a2, (a1)", "ssamoswap.d.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x1afc8, 0x4ec5b52f, "ssamoswap.d.aqrl a0, a2, (a1)", "ssamoswap.d.aqrl a0, a2, (a1)", "ssamoswap.d.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x1afc4, 0x4ac5b52f, "ssamoswap.d.rl a0, a2, (a1)", "ssamoswap.d.rl a0, a2, (a1)", "ssamoswap.d.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x1afbc, 0x48c5b52f, "ssamoswap.d a0, a2, (a1)", "ssamoswap.d a0, a2, (a1)", "ssamoswap.d a0, a2, (a1)" }, \
-    { 64, 4, 0x1ae08, 0x4cc5a52f, "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)" }, \
-    { 64, 4, 0x1ae10, 0x4ec5a52f, "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)" }, \
-    { 64, 4, 0x1ae0c, 0x4ac5a52f, "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)" }, \
-    { 64, 4, 0x1ae04, 0x48c5a52f, "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)" }, \
-    { 64, 2, 0x1b212, 0x00006281, "sspopchk t0", "c.sspopchk t0", "c.sspopchk t0" }, \
-    { 64, 4, 0x1b17c, 0xcdc0c073, "sspopchk ra", "sspopchk ra", "sspopchk ra" }, \
-    { 64, 2, 0x1b210, 0x00006081, "sspush ra", "c.sspush ra", "c.sspush ra" }, \
-    { 64, 4, 0x1b174, 0xce104073, "sspush ra", "sspush ra", "sspush ra" }, \
-    { 64, 4, 0x1b184, 0xcdc04573, "ssrdp a0", "ssrdp a0", "ssrdp a0" }, \
-    { 64, 2, 0x2c174, 0x00008d89, "sub a1, a1, a0", "c.sub a1, a0", "c.sub a1, a0" }, \
-    { 64, 4, 0x161d8, 0x40c58533, "sub a0, a1, a2", "sub a0, a1, a2", "sub a0, a1, a2" }, \
-    { 64, 2, 0x2c1ec, 0x00009d89, "subw a1, a1, a0", "c.subw a1, a0", "c.subw a1, a0" }, \
-    { 64, 4, 0x17358, 0x40c5853b, "subw a0, a1, a2", "subw a0, a1, a2", "subw a0, a1, a2" }, \
-    { 64, 2, 0x2be16, 0x0000c9e8, "sw a0, 84(a1)", "c.sw a0, 84(a1)", "c.sw a0, 84(a1)" }, \
-    { 64, 2, 0x2c692, 0x0000caae, "sw a1, 84(sp)", "c.swsp a1, 84(sp)", "c.swsp a1, 84(sp)" }, \
-    { 64, 4, 0x138bc, 0x54c5aaa3, "sw a2, 1365(a1)", "sw a2, 1365(a1)", "sw a2, 1365(a1)" }, \
-    { 64, 2, 0x2bd68, 0x00000000, "unimp", "c.unimp", "c.unimp" }, \
-    { 64, 4, 0x32918, 0xc0001073, "unimp", "unimp", "unimp" }, \
-    { 64, 4, 0x1f978, 0x10500073, "wfi", "wfi", "wfi" }, \
-    { 64, 4, 0x25c00, 0x00d00073, "wrs.nto", "wrs.nto", "wrs.nto" }, \
-    { 64, 4, 0x25c04, 0x01d00073, "wrs.sto", "wrs.sto", "wrs.sto" }, \
-    { 64, 4, 0x26f6c, 0x40c5c533, "xnor a0, a1, a2", "xnor a0, a1, a2", "xnor a0, a1, a2" }, \
-    { 64, 2, 0x2c192, 0x00008da9, "xor a1, a1, a0", "c.xor a1, a0", "c.xor a1, a0" }, \
-    { 64, 4, 0x168d8, 0x00c5c533, "xor a0, a1, a2", "xor a0, a1, a2", "xor a0, a1, a2" }, \
-    { 64, 4, 0x14748, 0x5555c513, "xori a0, a1, 1365", "xori a0, a1, 1365", "xori a0, a1, 1365" }, \
-    { 64, 4, 0x2adb8, 0x28c5a533, "xperm4 a0, a1, a2", "xperm4 a0, a1, a2", "xperm4 a0, a1, a2" }, \
-    { 64, 4, 0x2af78, 0x28c5c533, "xperm8 a0, a1, a2", "xperm8 a0, a1, a2", "xperm8 a0, a1, a2" }, \
-    { 64, 4, 0x14b38, 0x0ff5f513, "zext.b a0, a1", "andi a0, a1, 255", "zext.b a0, a1" }, \
-    { 64, 2, 0x2c82c, 0x00009de1, "zext.b a1, a1", "c.zext.b a1", "c.zext.b a1" }, \
-    { 64, 2, 0x2c84c, 0x00009de9, "zext.h a1, a1", "c.zext.h a1", "c.zext.h a1" }, \
-    { 64, 4, 0x26ac0, 0x0805c53b, "zext.h a0, a1", "zext.h a0, a1", "zext.h a0, a1" }, \
-    { 64, 4, 0x25c08, 0x0805853b, "zext.w a0, a1", "add.uw a0, a1, zero", "zext.w a0, a1" }, \
-    { 64, 2, 0x2c86c, 0x00009df1, "zext.w a1, a1", "c.zext.w a1", "c.zext.w a1" }, \
+    { 64, 4, 0x27cac, 0x6b85d513, "rev8 a0, a1", "rev8 a0, a1", "rev8 a0, a1" }, \
+    { 64, 4, 0x27324, 0x60c59533, "rol a0, a1, a2", "rol a0, a1, a2", "rol a0, a1, a2" }, \
+    { 64, 4, 0x277f0, 0x60c5953b, "rolw a0, a1, a2", "rolw a0, a1, a2", "rolw a0, a1, a2" }, \
+    { 64, 4, 0x274e4, 0x60c5d533, "ror a0, a1, a2", "ror a0, a1, a2", "ror a0, a1, a2" }, \
+    { 64, 4, 0x276a4, 0x6155d513, "rori a0, a1, 21", "rori a0, a1, 21", "rori a0, a1, 21" }, \
+    { 64, 4, 0x27b70, 0x6155d51b, "roriw a0, a1, 21", "roriw a0, a1, 21", "roriw a0, a1, 21" }, \
+    { 64, 4, 0x279b0, 0x60c5d53b, "rorw a0, a1, a2", "rorw a0, a1, a2", "rorw a0, a1, a2" }, \
+    { 64, 2, 0x2c9c2, 0x000089c8, "sb a0, 1(a1)", "c.sb a0, 1(a1)", "c.sb a0, 1(a1)" }, \
+    { 64, 4, 0x136fc, 0x54c58aa3, "sb a2, 1365(a1)", "sb a2, 1365(a1)", "sb a2, 1365(a1)" }, \
+    { 64, 4, 0x25c44, 0x1cc5b52f, "sc.d.aq a0, a2, (a1)", "sc.d.aq a0, a2, (a1)", "sc.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x25c4c, 0x1ec5b52f, "sc.d.aqrl a0, a2, (a1)", "sc.d.aqrl a0, a2, (a1)", "sc.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x25c48, 0x1ac5b52f, "sc.d.rl a0, a2, (a1)", "sc.d.rl a0, a2, (a1)", "sc.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x25c40, 0x18c5b52f, "sc.d a0, a2, (a1)", "sc.d a0, a2, (a1)", "sc.d a0, a2, (a1)" }, \
+    { 64, 4, 0x2596c, 0x1cc5a52f, "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)", "sc.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x25974, 0x1ec5a52f, "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)", "sc.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x25970, 0x1ac5a52f, "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)", "sc.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x25968, 0x18c5a52f, "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)", "sc.w a0, a2, (a1)" }, \
+    { 64, 2, 0x2c048, 0x0000f5c8, "sd a0, 168(a1)", "c.sd a0, 168(a1)", "c.sd a0, 168(a1)" }, \
+    { 64, 2, 0x2c8f4, 0x0000f52e, "sd a1, 168(sp)", "c.sdsp a1, 168(sp)", "c.sdsp a1, 168(sp)" }, \
+    { 64, 4, 0x13c90, 0x54c5baa3, "sd a2, 1365(a1)", "sd a2, 1365(a1)", "sd a2, 1365(a1)" }, \
+    { 64, 4, 0x144f0, 0x0015b513, "seqz a0, a1", "sltiu a0, a1, 1", "seqz a0, a1" }, \
+    { 64, 2, 0x2ca34, 0x00009de5, "sext.b a1, a1", "c.sext.b a1", "c.sext.b a1" }, \
+    { 64, 4, 0x2815c, 0x60459513, "sext.b a0, a1", "sext.b a0, a1", "sext.b a0, a1" }, \
+    { 64, 2, 0x2ca54, 0x00009ded, "sext.h a1, a1", "c.sext.h a1", "c.sext.h a1" }, \
+    { 64, 4, 0x28288, 0x60559513, "sext.h a0, a1", "sext.h a0, a1", "sext.h a0, a1" }, \
+    { 64, 4, 0x15438, 0x0005851b, "sext.w a0, a1", "addiw a0, a1, 0", "sext.w a0, a1" }, \
+    { 64, 2, 0x2c18e, 0x00002501, "sext.w a0, a0", "c.addiw a0, 0", "c.addiw a0, 0" }, \
+    { 64, 4, 0x1fe70, 0x18100073, "sfence.inval.ir", "sfence.inval.ir", "sfence.inval.ir" }, \
+    { 64, 4, 0x1fb74, 0x12000073, "sfence.vma", "sfence.vma zero, zero", "sfence.vma" }, \
+    { 64, 4, 0x1fb78, 0x12058073, "sfence.vma a1", "sfence.vma a1, zero", "sfence.vma a1" }, \
+    { 64, 4, 0x1fc0c, 0x12c58073, "sfence.vma a1, a2", "sfence.vma a1, a2", "sfence.vma a1, a2" }, \
+    { 64, 4, 0x1fe6c, 0x18000073, "sfence.w.inval", "sfence.w.inval", "sfence.w.inval" }, \
+    { 64, 4, 0x15fc0, 0x00c02533, "sgtz a0, a2", "slt a0, zero, a2", "sgtz a0, a2" }, \
+    { 64, 2, 0x2c9e6, 0x00008d88, "sh a0, 0(a1)", "c.sh a0, 0(a1)", "c.sh a0, 0(a1)" }, \
+    { 64, 4, 0x138d8, 0x54c59aa3, "sh a2, 1365(a1)", "sh a2, 1365(a1)", "sh a2, 1365(a1)" }, \
+    { 64, 4, 0x2662c, 0x20c5a53b, "sh1add.uw a0, a1, a2", "sh1add.uw a0, a1, a2", "sh1add.uw a0, a1, a2" }, \
+    { 64, 4, 0x25f2c, 0x20c5a533, "sh1add a0, a1, a2", "sh1add a0, a1, a2", "sh1add a0, a1, a2" }, \
+    { 64, 4, 0x267ec, 0x20c5c53b, "sh2add.uw a0, a1, a2", "sh2add.uw a0, a1, a2", "sh2add.uw a0, a1, a2" }, \
+    { 64, 4, 0x260ec, 0x20c5c533, "sh2add a0, a1, a2", "sh2add a0, a1, a2", "sh2add a0, a1, a2" }, \
+    { 64, 4, 0x269ac, 0x20c5e53b, "sh3add.uw a0, a1, a2", "sh3add.uw a0, a1, a2", "sh3add.uw a0, a1, a2" }, \
+    { 64, 4, 0x262ac, 0x20c5e533, "sh3add a0, a1, a2", "sh3add a0, a1, a2", "sh3add a0, a1, a2" }, \
+    { 64, 4, 0x3b5a4, 0x10259513, "sha256sig0 a0, a1", "sha256sig0 a0, a1", "sha256sig0 a0, a1" }, \
+    { 64, 4, 0x3b6d0, 0x10359513, "sha256sig1 a0, a1", "sha256sig1 a0, a1", "sha256sig1 a0, a1" }, \
+    { 64, 4, 0x3b7fc, 0x10059513, "sha256sum0 a0, a1", "sha256sum0 a0, a1", "sha256sum0 a0, a1" }, \
+    { 64, 4, 0x3b928, 0x10159513, "sha256sum1 a0, a1", "sha256sum1 a0, a1", "sha256sum1 a0, a1" }, \
+    { 64, 4, 0x3ba54, 0x10659513, "sha512sig0 a0, a1", "sha512sig0 a0, a1", "sha512sig0 a0, a1" }, \
+    { 64, 4, 0x3bb80, 0x10759513, "sha512sig1 a0, a1", "sha512sig1 a0, a1", "sha512sig1 a0, a1" }, \
+    { 64, 4, 0x3bcac, 0x10459513, "sha512sum0 a0, a1", "sha512sum0 a0, a1", "sha512sum0 a0, a1" }, \
+    { 64, 4, 0x3bdd8, 0x10559513, "sha512sum1 a0, a1", "sha512sum1 a0, a1", "sha512sum1 a0, a1" }, \
+    { 64, 4, 0x1fd3c, 0x16c58073, "sinval.vma a1, a2", "sinval.vma a1, a2", "sinval.vma a1, a2" }, \
+    { 64, 4, 0x16590, 0x00c59533, "sll a0, a1, a2", "sll a0, a1, a2", "sll a0, a1, a2" }, \
+    { 64, 4, 0x26b6c, 0x0955951b, "slli.uw a0, a1, 21", "slli.uw a0, a1, 21", "slli.uw a0, a1, 21" }, \
+    { 64, 2, 0x2c52e, 0x00000556, "slli a0, a0, 21", "c.slli a0, 21", "c.slli a0, 21" }, \
+    { 64, 4, 0x15054, 0x01559513, "slli a0, a1, 21", "slli a0, a1, 21", "slli a0, a1, 21" }, \
+    { 64, 4, 0x1575c, 0x0155951b, "slliw a0, a1, 21", "slliw a0, a1, 21", "slliw a0, a1, 21" }, \
+    { 64, 4, 0x17710, 0x00c5953b, "sllw a0, a1, a2", "sllw a0, a1, a2", "sllw a0, a1, a2" }, \
+    { 64, 4, 0x16750, 0x00c5a533, "slt a0, a1, a2", "slt a0, a1, a2", "slt a0, a1, a2" }, \
+    { 64, 4, 0x142f8, 0x5555a513, "slti a0, a1, 1365", "slti a0, a1, 1365", "slti a0, a1, 1365" }, \
+    { 64, 4, 0x1461c, 0x5555b513, "sltiu a0, a1, 1365", "sltiu a0, a1, 1365", "sltiu a0, a1, 1365" }, \
+    { 64, 4, 0x16910, 0x00c5b533, "sltu a0, a1, a2", "sltu a0, a1, a2", "sltu a0, a1, a2" }, \
+    { 64, 4, 0x15e94, 0x0005a533, "sltz a0, a1", "slt a0, a1, zero", "sltz a0, a1" }, \
+    { 64, 4, 0x3c29c, 0x10859513, "sm3p0 a0, a1", "sm3p0 a0, a1", "sm3p0 a0, a1" }, \
+    { 64, 4, 0x3c3c8, 0x10959513, "sm3p1 a0, a1", "sm3p1 a0, a1", "sm3p1 a0, a1" }, \
+    { 64, 4, 0x3bf04, 0x70c58533, "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1", "sm4ed a0, a1, a2, 1" }, \
+    { 64, 4, 0x3c0d0, 0x74c58533, "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1", "sm4ks a0, a1, a2, 1" }, \
+    { 64, 4, 0x15d68, 0x00c03533, "snez a0, a2", "sltu a0, zero, a2", "snez a0, a2" }, \
+    { 64, 4, 0x16e50, 0x40c5d533, "sra a0, a1, a2", "sra a0, a1, a2", "sra a0, a1, a2" }, \
+    { 64, 2, 0x2c30a, 0x000085d5, "srai a1, a1, 21", "c.srai a1, 21", "c.srai a1, 21" }, \
+    { 64, 4, 0x152ec, 0x4155d513, "srai a0, a1, 21", "srai a0, a1, 21", "srai a0, a1, 21" }, \
+    { 64, 4, 0x159d4, 0x4155d51b, "sraiw a0, a1, 21", "sraiw a0, a1, 21", "sraiw a0, a1, 21" }, \
+    { 64, 4, 0x17a90, 0x40c5d53b, "sraw a0, a1, a2", "sraw a0, a1, a2", "sraw a0, a1, a2" }, \
+    { 64, 4, 0x1fb6c, 0x10200073, "sret", "sret", "sret" }, \
+    { 64, 4, 0x16c90, 0x00c5d533, "srl a0, a1, a2", "srl a0, a1, a2", "srl a0, a1, a2" }, \
+    { 64, 2, 0x2c2ea, 0x000081d5, "srli a1, a1, 21", "c.srli a1, 21", "c.srli a1, 21" }, \
+    { 64, 4, 0x151a0, 0x0155d513, "srli a0, a1, 21", "srli a0, a1, 21", "srli a0, a1, 21" }, \
+    { 64, 4, 0x15898, 0x0155d51b, "srliw a0, a1, 21", "srliw a0, a1, 21", "srliw a0, a1, 21" }, \
+    { 64, 4, 0x178d0, 0x00c5d53b, "srlw a0, a1, a2", "srlw a0, a1, a2", "srlw a0, a1, a2" }, \
+    { 64, 4, 0x1b1b8, 0x4cc5b52f, "ssamoswap.d.aq a0, a2, (a1)", "ssamoswap.d.aq a0, a2, (a1)", "ssamoswap.d.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x1b1c0, 0x4ec5b52f, "ssamoswap.d.aqrl a0, a2, (a1)", "ssamoswap.d.aqrl a0, a2, (a1)", "ssamoswap.d.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x1b1bc, 0x4ac5b52f, "ssamoswap.d.rl a0, a2, (a1)", "ssamoswap.d.rl a0, a2, (a1)", "ssamoswap.d.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x1b1b4, 0x48c5b52f, "ssamoswap.d a0, a2, (a1)", "ssamoswap.d a0, a2, (a1)", "ssamoswap.d a0, a2, (a1)" }, \
+    { 64, 4, 0x1b000, 0x4cc5a52f, "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)", "ssamoswap.w.aq a0, a2, (a1)" }, \
+    { 64, 4, 0x1b008, 0x4ec5a52f, "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)", "ssamoswap.w.aqrl a0, a2, (a1)" }, \
+    { 64, 4, 0x1b004, 0x4ac5a52f, "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)", "ssamoswap.w.rl a0, a2, (a1)" }, \
+    { 64, 4, 0x1affc, 0x48c5a52f, "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)", "ssamoswap.w a0, a2, (a1)" }, \
+    { 64, 2, 0x1b40a, 0x00006281, "sspopchk t0", "c.sspopchk t0", "c.sspopchk t0" }, \
+    { 64, 4, 0x1b374, 0xcdc0c073, "sspopchk ra", "sspopchk ra", "sspopchk ra" }, \
+    { 64, 2, 0x1b408, 0x00006081, "sspush ra", "c.sspush ra", "c.sspush ra" }, \
+    { 64, 4, 0x1b36c, 0xce104073, "sspush ra", "sspush ra", "sspush ra" }, \
+    { 64, 4, 0x1b37c, 0xcdc04573, "ssrdp a0", "ssrdp a0", "ssrdp a0" }, \
+    { 64, 2, 0x2c36c, 0x00008d89, "sub a1, a1, a0", "c.sub a1, a0", "c.sub a1, a0" }, \
+    { 64, 4, 0x163d0, 0x40c58533, "sub a0, a1, a2", "sub a0, a1, a2", "sub a0, a1, a2" }, \
+    { 64, 2, 0x2c3e4, 0x00009d89, "subw a1, a1, a0", "c.subw a1, a0", "c.subw a1, a0" }, \
+    { 64, 4, 0x17550, 0x40c5853b, "subw a0, a1, a2", "subw a0, a1, a2", "subw a0, a1, a2" }, \
+    { 64, 2, 0x2c00e, 0x0000c9e8, "sw a0, 84(a1)", "c.sw a0, 84(a1)", "c.sw a0, 84(a1)" }, \
+    { 64, 2, 0x2c88a, 0x0000caae, "sw a1, 84(sp)", "c.swsp a1, 84(sp)", "c.swsp a1, 84(sp)" }, \
+    { 64, 4, 0x13ab4, 0x54c5aaa3, "sw a2, 1365(a1)", "sw a2, 1365(a1)", "sw a2, 1365(a1)" }, \
+    { 64, 2, 0x2bf60, 0x00000000, "unimp", "c.unimp", "c.unimp" }, \
+    { 64, 4, 0x32b10, 0xc0001073, "unimp", "unimp", "unimp" }, \
+    { 64, 4, 0x1fb70, 0x10500073, "wfi", "wfi", "wfi" }, \
+    { 64, 4, 0x25df8, 0x00d00073, "wrs.nto", "wrs.nto", "wrs.nto" }, \
+    { 64, 4, 0x25dfc, 0x01d00073, "wrs.sto", "wrs.sto", "wrs.sto" }, \
+    { 64, 4, 0x27164, 0x40c5c533, "xnor a0, a1, a2", "xnor a0, a1, a2", "xnor a0, a1, a2" }, \
+    { 64, 2, 0x2c38a, 0x00008da9, "xor a1, a1, a0", "c.xor a1, a0", "c.xor a1, a0" }, \
+    { 64, 4, 0x16ad0, 0x00c5c533, "xor a0, a1, a2", "xor a0, a1, a2", "xor a0, a1, a2" }, \
+    { 64, 4, 0x14940, 0x5555c513, "xori a0, a1, 1365", "xori a0, a1, 1365", "xori a0, a1, 1365" }, \
+    { 64, 4, 0x2afb0, 0x28c5a533, "xperm4 a0, a1, a2", "xperm4 a0, a1, a2", "xperm4 a0, a1, a2" }, \
+    { 64, 4, 0x2b170, 0x28c5c533, "xperm8 a0, a1, a2", "xperm8 a0, a1, a2", "xperm8 a0, a1, a2" }, \
+    { 64, 4, 0x14d30, 0x0ff5f513, "zext.b a0, a1", "andi a0, a1, 255", "zext.b a0, a1" }, \
+    { 64, 2, 0x2ca24, 0x00009de1, "zext.b a1, a1", "c.zext.b a1", "c.zext.b a1" }, \
+    { 64, 2, 0x2ca44, 0x00009de9, "zext.h a1, a1", "c.zext.h a1", "c.zext.h a1" }, \
+    { 64, 4, 0x26cb8, 0x0805c53b, "zext.h a0, a1", "zext.h a0, a1", "zext.h a0, a1" }, \
+    { 64, 4, 0x25e00, 0x0805853b, "zext.w a0, a1", "add.uw a0, a1, zero", "zext.w a0, a1" }, \
+    { 64, 2, 0x2ca64, 0x00009df1, "zext.w a1, a1", "c.zext.w a1", "c.zext.w a1" }, \
 

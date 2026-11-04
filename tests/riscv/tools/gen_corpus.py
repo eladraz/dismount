@@ -21,6 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rvlib
 import riscvdsl
 import riscvinsns
+import riscvvector
+import gen_encoding_tables
+import gen_vector_corpus
 
 CORPUS = os.path.join(rvlib.REPO, 'tests', 'riscv', 'corpus')
 
@@ -208,11 +211,14 @@ def collect():
         current[0] = name
 
     def ins(mn, ops, feat, flags=(), flow=None, feat2=None, rv=None, probe=None, cond=None, width=32):
-        e = riscvdsl.Entry(mn, ops, 'FEAT_' + feat, list(flags), flow, ('FEAT_' + feat2) if feat2 else None,
-                           rv, probe, cond, width)
+        e = riscvdsl.Entry(mn, ops, 'AUTO' if feat == 'AUTO' else 'FEAT_' + feat, list(flags), flow,
+                           ('FEAT_' + feat2) if feat2 else None, rv, probe, cond, width)
         entries.append((current[0], e))
 
     riscvinsns.define(ins, table)
+    riscvvector.define_vector(ins, table)
+    # (the feature and the constraints of the vector entries come from llvm-mc)
+    gen_encoding_tables.resolve_vector([e for _, e in entries])
     return entries
 
 
@@ -277,10 +283,14 @@ def main():
         for name in os.listdir(directory):
             os.unlink(os.path.join(directory, name))
         files = {}
+        vector_files = {}
         for table, entry in entries:
             if entry.rv not in (None, bits):
                 continue
             features = feature_names(entry, llvm_names)
+            if table.startswith('vector_'):
+                vector_files.setdefault(table[len('vector_'):], []).append((entry, features))
+                continue
             if table == 'privileged':
                 file_name = 'privileged'
             elif features:
@@ -292,6 +302,24 @@ def main():
             bucket = files.setdefault(file_name, [])
             for line in lines:
                 bucket.append((line, features))
+        # The vector corpora: chunks of whole entries
+        for kind, items in sorted(vector_files.items()):
+            chunk, count, number = [], 0, 0
+            for item in items + [None]:
+                if item is not None:
+                    lines = gen_vector_corpus.entry_lines(item[0])
+                    if kind == 'config':
+                        pass
+                    if item[0].mn.endswith(('e8.v', '.vv', '.vx')) or kind == 'mem' and 'e8' in item[0].mn:
+                        lines += gen_vector_corpus.shape_lines(item[0])
+                    chunk.append((lines, item[1]))
+                    count += len(lines)
+                if item is None or count >= 12000:
+                    if chunk:
+                        files['v_%s_%d' % (kind, number)] = [(l, f) for lines, f in chunk for l in lines]
+                        number += 1
+                    chunk, count = [], 0
+        files['v_pseudo'] = [(l, []) for l in gen_vector_corpus.pseudo_lines()]
         for file_name, lines in sorted(files.items()):
             seen = set()
             with open(os.path.join(directory, file_name + '.s'), 'w') as f:

@@ -5,8 +5,9 @@
  * Implementation file
  *
  * The pseudo instructions of more than one instruction, as llvm-mc expands
- * them: li (the sequences of LLVM's RISCVMatInt), la / lla, call / tail and the
- * loads and stores of a symbol.
+ * them: li (the sequences of LLVM's RISCVMatInt), la / lla, call / tail, the
+ * loads and stores of a symbol and the vector compares vmsge.vx / vmsgeu.vx
+ * (one to four instructions) and vmsge.vi / vmsgeu.vi / vmslt.vi / vmsltu.vi.
  *
  * Author: Elad Raz <e@eladraz.com>
  */
@@ -461,6 +462,159 @@ bool isLabel(const Operand& operand)
     return operand.m_kind == Operand::KIND_NAME;
 }
 
+bool isVectorRegister(const Operand& operand)
+{
+    return (operand.m_kind == Operand::KIND_REGISTER) &&
+           (operand.m_register >= RISCV_REG_V0) && (operand.m_register <= RISCV_REG_V31);
+}
+
+Operand makeVectorMask()
+{
+    Operand operand;
+    operand.m_kind = Operand::KIND_VECTOR_MASK;
+    return operand;
+}
+
+// Assemble "mnemonic a, b, c[, v0.t]" of vector registers and one more
+// operand into 'units'
+void assembleVector(const Target& target, const char* mnemonic, const Operand& first,
+                    const Operand& second, const Operand& third, bool isMasked,
+                    cArray<Unit>& units)
+{
+    cArray<Operand> ops;
+    ops.append(first);
+    ops.append(second);
+    ops.append(third);
+    if (isMasked)
+        ops.append(makeVectorMask());
+    assembleOne(target, cString(mnemonic), ops, false, units);
+}
+
+// vmsge.vx / vmsgeu.vx, as llvm-mc expands them (RISCVAsmParser::emitVMSGE)
+bool expandVectorGreaterEqual(const Target& target, const cString& mnemonic,
+                              const cArray<Operand>& operands, cArray<Unit>& units)
+{
+    const bool isUnsigned = (mnemonic == "vmsgeu.vx");
+    const char* compare = isUnsigned ? "vmsltu.vx" : "vmslt.vx";
+    const uint count = operands.getSize();
+    if (count < 3 || count > 5)
+        return false;
+    if (!isVectorRegister(operands[0]) || !isVectorRegister(operands[1]) || !isRegister(operands[2]))
+        return false;
+    Operand v0;
+    v0.m_kind = Operand::KIND_REGISTER;
+    v0.m_register = RISCV_REG_V0;
+    const Operand& destination = operands[0];
+    const Operand& source = operands[1];
+    const bool isDestinationV0 = (destination.m_register == RISCV_REG_V0);
+    if (count == 3)
+    {
+        // vmslt vd, va, x; vmnot.m vd (vmnand.mm vd, vd, vd)
+        cArray<Operand> ops;
+        ops.append(destination);
+        ops.append(source);
+        ops.append(operands[2]);
+        assembleOne(target, cString(compare), ops, false, units);
+        assembleVector(target, "vmnand.mm", destination, destination, destination, false, units);
+        return true;
+    }
+    ASM_CHECK(operands[3].m_kind == Operand::KIND_VECTOR_MASK, "expected v0.t");
+    if (count == 4)
+    {
+        // vmslt vd, va, x, v0.t; vmxor.mm vd, vd, v0
+        ASM_CHECK(!isDestinationV0, "the destination cannot overlap the mask");
+        cArray<Operand> ops;
+        ops.append(destination);
+        ops.append(source);
+        ops.append(operands[2]);
+        ops.append(makeVectorMask());
+        assembleOne(target, cString(compare), ops, false, units);
+        assembleVector(target, "vmxor.mm", destination, destination, v0, false, units);
+        return true;
+    }
+    // With a temporary register (not v0, not the destination)
+    const Operand& temporary = operands[4];
+    ASM_CHECK(isVectorRegister(temporary) && (temporary.m_register != RISCV_REG_V0),
+              "invalid temporary register");
+    ASM_CHECK(temporary.m_register != destination.m_register,
+              "the temporary cannot be the destination");
+    cArray<Operand> ops;
+    ops.append(temporary);
+    ops.append(source);
+    ops.append(operands[2]);
+    assembleOne(target, cString(compare), ops, false, units);
+    if (isDestinationV0)
+    {
+        // vmandn.mm vd, vd, vt
+        assembleVector(target, "vmandn.mm", destination, destination, temporary, false, units);
+    } else
+    {
+        // vmandn.mm vt, v0, vt; vmandn.mm vd, vd, v0; vmor.mm vd, vt, vd
+        assembleVector(target, "vmandn.mm", temporary, v0, temporary, false, units);
+        assembleVector(target, "vmandn.mm", destination, destination, v0, false, units);
+        assembleVector(target, "vmor.mm", destination, temporary, destination, false, units);
+    }
+    return true;
+}
+
+// vmsge.vi / vmsgeu.vi / vmslt.vi / vmsltu.vi: the compare with the immediate
+// - 1 (vmsgt.vi, vmsgtu.vi, vmsle.vi, vmsleu.vi), for the immediates of -15 to
+// 16. The unsigned compare with 0 is a compare of the source with itself
+// (vmseq.vv for vmsgeu.vi: always true; vmsne.vv for vmsltu.vi: always false)
+bool expandVectorCompareImmediate(const Target& target, const cString& mnemonic,
+                                  const cArray<Operand>& operands, cArray<Unit>& units)
+{
+    static const struct {
+        const char* m_pseudo;
+        const char* m_real;
+        const char* m_zero;
+    } pseudos[] = {
+        { "vmsge.vi", "vmsgt.vi", NULL },
+        { "vmsgeu.vi", "vmsgtu.vi", "vmseq.vv" },
+        { "vmslt.vi", "vmsle.vi", NULL },
+        { "vmsltu.vi", "vmsleu.vi", "vmsne.vv" }
+    };
+    const char* real = NULL;
+    const char* zero = NULL;
+    for (uint i = 0; i < sizeof(pseudos) / sizeof(pseudos[0]); i++)
+    {
+        if (mnemonic == pseudos[i].m_pseudo)
+        {
+            real = pseudos[i].m_real;
+            zero = pseudos[i].m_zero;
+        }
+    }
+    if (real == NULL)
+        return false;
+    const uint count = operands.getSize();
+    if (count < 3 || count > 4)
+        return false;
+    if (!isVectorRegister(operands[0]) || !isVectorRegister(operands[1]) ||
+        operands[2].m_kind != Operand::KIND_IMMEDIATE)
+        return false;
+    if (count == 4 && operands[3].m_kind != Operand::KIND_VECTOR_MASK)
+        return false;
+    int64 value = operands[2].m_immediate;
+    ASM_CHECK(value >= -15 && value <= 16, "immediate out of range");
+    cArray<Operand> ops;
+    ops.append(operands[0]);
+    ops.append(operands[1]);
+    const char* name;
+    if (zero != NULL && value == 0)
+    {
+        name = zero;
+        ops.append(operands[1]);
+    } else
+    {
+        name = real;
+        ops.append(makeImmediate(value - 1));
+    }
+    if (count == 4)
+        ops.append(operands[3]);
+    assembleOne(target, cString(name), ops, false, units);
+    return true;
+}
+
 } // anonymous namespace
 
 namespace riscvasm {
@@ -506,6 +660,12 @@ bool expandPseudo(const Target& target, const cString& mnemonic,
             }
         }
     }
+
+    if (mnemonic == "vmsge.vx" || mnemonic == "vmsgeu.vx")
+        return expandVectorGreaterEqual(target, mnemonic, operands, units);
+    if (mnemonic == "vmsge.vi" || mnemonic == "vmsgeu.vi" || mnemonic == "vmslt.vi" ||
+        mnemonic == "vmsltu.vi")
+        return expandVectorCompareImmediate(target, mnemonic, operands, units);
 
     if (mnemonic == "li")
     {

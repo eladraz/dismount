@@ -74,7 +74,13 @@ enum RiscvOperandKind {
     // group depends on vtype and is checked at runtime, not by the decoder.
     // m_flags RISCV_VR_* (RiscvOperandCodec.h) are the constraints which
     // LLVM checks when it assembles (the destination of a widening
-    // instruction overlapping a source, a masked destination of v0)
+    // instruction overlapping a source, a masked destination of v0); they
+    // are set on the destination (vd) spec. m_extra is the register class
+    // of the operand: bits 0-2 the log2 of the alignment (vmv2r.v, vl4re8.v
+    // and vs8r.v name the first register of a group of 2, 4 or 8 registers:
+    // the encoding of an unaligned register is invalid), bits 3-6 the number
+    // of registers of a segment tuple (vlseg3e8.v: 3), which only the
+    // overlap constraints of the assembler use. 0 for a single register
     RISCV_KIND_VR,
     // The fixed v0 of the carry / merge instructions (vadc.vvm, vmerge.vvm,
     // vfmerge.vfm): printed "v0", no bits
@@ -271,7 +277,7 @@ struct RiscvEncodingEntry {
  * The tables, each ended by an entry whose mnemonic is NULL. The
  * disassembler searches the tables of the size of the instruction in this
  * order: the compressed table for the 16 bit instructions, the base, the
- * vector and the privileged tables for the 32 bit ones.
+ * vector (V, memory, extensions) and the privileged tables for the 32 bit ones.
  */
 // The 32 bit unprivileged scalar instructions: RV32I / RV64I, M, A, F, D,
 // Zicsr, Zifencei, Zfh, Zfa, Zfbfmin, the bit manipulation and the scalar
@@ -281,9 +287,16 @@ extern const RiscvEncodingEntry gRiscvBaseEncodingTable[];
 // The 16 bit compressed instructions: Zca, Zcf, Zcd, Zcb, Zcmop and the
 // compressed Zicfiss
 extern const RiscvEncodingEntry gRiscvCompressedEncodingTable[];
-// The vector instructions: V (the Zve subsets) and the vector extensions
-// (Zvfh, Zvfbf*, Zvbb, Zvbc, the vector cryptography)
+// The vector instructions: V (the Zve subsets): the configuration, the
+// integer, fixed point, floating point, mask, permutation and reduction
+// instructions
 extern const RiscvEncodingEntry gRiscvVectorEncodingTable[];
+// The vector loads and stores: the unit stride, strided, indexed, segment,
+// fault only first, whole register and mask ones
+extern const RiscvEncodingEntry gRiscvVectorMemoryEncodingTable[];
+// The vector extensions: Zvfbfmin, Zvfbfwma, Zvbb, Zvkb, Zvbc and the vector
+// cryptography (Zvkg, Zvkned, Zvknha, Zvknhb, Zvksed, Zvksh)
+extern const RiscvEncodingEntry gRiscvVectorExtensionEncodingTable[];
 // The privileged instructions: mret, sret, wfi, sfence.vma, Svinval, H
 extern const RiscvEncodingEntry gRiscvPrivilegedEncodingTable[];
 

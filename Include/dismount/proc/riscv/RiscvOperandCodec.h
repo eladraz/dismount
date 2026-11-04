@@ -127,15 +127,25 @@ enum RiscvRoundingFlags {
     RISCV_ROUNDING_DEFAULT_RNE  = 0x01
 };
 
-// The flags of RISCV_KIND_VR: the constraints LLVM checks when it assembles
-// (the decoder doesn't check them, LLVM decodes the reserved overlaps)
+// The flags of RISCV_KIND_VR, on the destination spec: the constraints LLVM
+// checks when it assembles (the decoder doesn't check them, LLVM decodes the
+// reserved overlaps). The generator probes them from llvm-mc for each entry
+// (tests/riscv/tools/gen_encoding_tables.py); RiscvOperandCodec::
+// checkAssemblerConstraints applies them
 enum RiscvVectorRegisterFlags {
     // The destination of a masked instruction (vm = 0) can't be v0
     RISCV_VR_NOT_MASK_WHEN_MASKED   = 0x01,
-    // The destination group can't overlap the source groups of the entry
-    // (the widening instructions, vrgather, vslideup, vcompress, the
-    // segment loads...)
-    RISCV_VR_NO_SOURCE_OVERLAP      = 0x02
+    // The destination can't be the register of vs2 / of vs1 (the widening
+    // instructions, vrgather, vslideup, vcompress, viota...). A segment tuple
+    // destination (m_extra of the spec) overlaps a source which is any of its
+    // registers
+    RISCV_VR_NO_VS2_OVERLAP         = 0x02,
+    RISCV_VR_NO_VS1_OVERLAP         = 0x04,
+    // The destination can't be v0 whether or not it is masked (vadc, vsbc,
+    // vmerge, vfmerge)
+    RISCV_VR_NOT_V0                 = 0x08,
+    // Both of the sources
+    RISCV_VR_NO_SOURCE_OVERLAP      = RISCV_VR_NO_VS2_OVERLAP | RISCV_VR_NO_VS1_OVERLAP
 };
 
 /*
@@ -238,6 +248,17 @@ public:
      * operand
      */
     static bool isMnemonicPart(const riscvdis::RiscvOperandSpec& spec);
+
+    /*
+     * Return true if the encoding passes the constraints of the vector
+     * registers which LLVM checks when it assembles (the RISCV_VR_* flags of
+     * the destination spec of the entry): the destination of a masked
+     * instruction isn't v0, the destination doesn't overlap vs2 / vs1. The
+     * decoder never calls this: LLVM decodes the reserved overlaps. The
+     * assembler calls it for the bits of the entry it encoded
+     */
+    static bool checkAssemblerConstraints(const riscvdis::RiscvEncodingEntry& entry,
+                                          uint32 encoding);
 
     /*
      * Return true if a spec never has text (RISCV_KIND_GPR_TIED). The decoder

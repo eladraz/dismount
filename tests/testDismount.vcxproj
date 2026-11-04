@@ -166,6 +166,7 @@
     <ClCompile Include="TestAMD64Assembler.cpp" />
     <ClCompile Include="TestArm64Disassembler.cpp" />
     <ClCompile Include="TestRiscvDisassembler.cpp" />
+    <ClCompile Include="TestRiscvVector.cpp" />
     <ClCompile Include="TestArm64Sve.cpp" />
     <ClCompile Include="TestArm64Sme.cpp" />
     <ClCompile Include="TestArm64Simd.cpp" />

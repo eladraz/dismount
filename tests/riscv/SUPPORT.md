@@ -9,11 +9,11 @@ The names are the LLVM 23 target features (`llvm-mc -mattr`). The RVA23 column i
 * RVA23S64 mandatory, more than RVA23U64 (Sha is H with Ssstateen, Shcounterenw, Shvstvala, Shtvala, Shvstvecd, Shvsatpa, Shgatpa): zifencei, svinval, h, sstc, sscofpmf, ssnpm, ssstateen, svpbmt, svnapot, svade, svbare, ssccptr, sstvecd, sstvala, sscounterenw, ssu64xl, shcounterenw, shvstvala, shtvala, shvstvecd, shvsatpa, shgatpa
 * RVA23S64 optional: the RVA23U64 optional ones and zkr, sdtrig, ssstrict, svvptc, sspm (Sv48, Sv57 and Svadu have no feature here)
 
-The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded; *lift* and *lift verified* belong to the semantic layer (`RiscvArchitecture`, `RiscvSemantics`: not part of this matrix, the marks are set by it); *encoding verified*: the decoder and the assembler are compared with llvm-objdump and llvm-mc (the corpus, `fuzz_decode.py`, `fuzz_roundtrip.py`). The vector features (Zve*, V, Zvf*, Zvk*, Zvb*) have an empty table (`RiscvEncodingTableVector.cpp`) and no marks. The corpus columns are the lines of `tests/riscv/corpus` whose first feature is the row, with no FAIL in any check (lines/passing).
+The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded; *lift* and *lift verified* belong to the semantic layer (`RiscvArchitecture`, `RiscvSemantics`: not part of this matrix, the marks are set by it); *encoding verified*: the decoder and the assembler are compared with llvm-objdump and llvm-mc (the corpus, `fuzz_decode.py`, `fuzz_roundtrip.py`). The vector features (Zve*, V, Zvf*, Zvk*, Zvb*) are in `RiscvEncodingTableVector*.cpp`: LLVM gates each instruction by the weakest of them (the integer ones by Zve32x, the floating point ones by Zve32f, the 64 bit loads and Zvbc by Zve64x), so V, Zve64f, Zve64d, Zvfh, Zvfhmin and Zvknhb have no encodings of their own. The corpus columns are the lines of `tests/riscv/corpus` whose first feature is the row, with no FAIL in any check (lines/passing).
 
 | feature | RVA23 | encodings RV32 / RV64 | marks | corpus RV32 | corpus RV64 |
 |---|---|---|---|---|---|
-| (base) | RVA23U64 mandatory | 66 / 80 | disassemble, assemble, encoding verified | 6593/6593 | 8034/8034 |
+| (base) | RVA23U64 mandatory | 66 / 80 | disassemble, assemble, encoding verified | 7379/7379 | 8820/8820 |
 | m | RVA23U64 mandatory | 4 / 8 | disassemble, assemble, encoding verified | 448/448 | 896/896 |
 | zmmul | RVA23U64 mandatory | 4 / 5 | disassemble, assemble, encoding verified | 448/448 | 560/560 |
 | zalrsc | RVA23U64 mandatory | 2 / 4 | disassemble, assemble, encoding verified | 182/182 | 364/364 |
@@ -59,25 +59,25 @@ The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded;
 | zcd | RVA23U64 mandatory | 4 / 4 | disassemble, assemble, encoding verified | 296/296 | 296/296 |
 | zcb | RVA23U64 mandatory | 11 / 12 | disassemble, assemble, encoding verified | 359/359 | 367/367 |
 | zcmop | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, encoding verified | 8/8 | 8/8 |
-| zve32x | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zve32f | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zve64x | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zve64f | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zve64d | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| v | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zvfh | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvfhmin | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zvfbfmin | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvfbfwma | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvkb | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zvbb | RVA23U64 mandatory | 0 / 0 |  | 0/0 | 0/0 |
-| zvbc | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvkg | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvkned | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvknha | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvknhb | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvksed | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
-| zvksh | RVA23U64 optional | 0 / 0 |  | 0/0 | 0/0 |
+| zve32x | RVA23U64 mandatory | 463 / 463 | disassemble, assemble, encoding verified | 72226/72226 | 72226/72226 |
+| zve32f | RVA23U64 mandatory | 103 / 103 | disassemble, assemble, encoding verified | 15900/15900 | 15900/15900 |
+| zve64x | RVA23U64 mandatory | 44 / 76 | disassemble, assemble, encoding verified | 2937/2937 | 10475/10475 |
+| zve64f | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| zve64d | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| v | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| zvfh | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| zvfhmin | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| zvfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 281/281 | 281/281 |
+| zvfbfwma | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 668/668 | 668/668 |
+| zvkb | RVA23U64 mandatory | 9 / 9 | disassemble, assemble, encoding verified | 1155/1155 | 1155/1155 |
+| zvbb | RVA23U64 mandatory | 7 / 7 | disassemble, assemble, encoding verified | 1224/1224 | 1224/1224 |
+| zvbc | RVA23U64 optional | 4 / 4 | disassemble, assemble, encoding verified | 620/620 | 620/620 |
+| zvkg | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 230/230 | 230/230 |
+| zvkned | RVA23U64 optional | 11 / 11 | disassemble, assemble, encoding verified | 1157/1157 | 1157/1157 |
+| zvknha | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 789/789 | 789/789 |
+| zvknhb | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 |
+| zvksed | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 294/294 | 294/294 |
+| zvksh | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 337/337 | 337/337 |
 | zvkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
 | ziccif | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
 | ziccrse | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 |
@@ -114,6 +114,6 @@ The marks: *disassemble* and *assemble* are the LLVM syntax decoded and encoded;
 | ssstrict | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
 | svvptc | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
 | sspm | RVA23S64 optional | 0 / 0 | no instructions | 0/0 | 0/0 |
-| **total** | | 486 / 550 | | 44228/44228 | 48249/48249 |
+| **total** | | 1141 / 1237 | | 142832/142832 | 154391/154391 |
 
 The pseudo instructions (`pseudo.s`: li of many values, la, call, tail, the symbol loads and stores, zext/sext without their extension) are not attributed to a feature: 2299/2299 lines pass in RV32 and 1682/1682 in RV64 (the li sequences of every bit manipulation extension are also compared by `RiscvPseudoRows.inc` of the unit test).

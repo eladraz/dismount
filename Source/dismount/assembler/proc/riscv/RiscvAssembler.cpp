@@ -468,6 +468,8 @@ void parseOperand(const cString& text, Operand& operand)
                 ASM_CHECK(parseNumber(offsetText, offset), "invalid offset");
                 operand.m_hasOffset = true;
                 operand.m_offset = offset;
+                // (the codec of "(base)" wants one integer token)
+                operand.m_name = offsetText;
             }
             return;
         }
@@ -584,14 +586,19 @@ bool tryEntry(const Target& target, const RiscvEncodingEntry* entry, const cStri
             if (operands[next].m_kind == Operand::KIND_NAME)
             {
                 cString joined = operands[next].m_name;
+                // (an uppercase word: LLVM reads them in lowercase only)
+                uint32 isUppercase = (operands[next].m_immediate != 0) ? 1 : 0;
                 next++;
                 while (next < operands.getSize() && operands[next].m_kind == Operand::KIND_NAME)
                 {
                     joined += cString(",") + operands[next].m_name;
+                    if (operands[next].m_immediate != 0)
+                        isUppercase = 1;
                     next++;
                 }
                 operand.m_kind = Operand::KIND_NAME;
                 operand.m_name = joined;
+                operand.m_immediate = isUppercase;
             } else
             {
                 operand = operands[next++];
@@ -621,6 +628,9 @@ bool tryEntry(const Target& target, const RiscvEncodingEntry* entry, const cStri
     // decide which of the encodings is printed
     if (!RiscvStreamDisassembler::matches(entry, target.m_type, bits, target.m_address,
                                           target.m_features))
+        return false;
+    // The constraints which llvm-mc checks of the vector registers
+    if (!RiscvOperandCodec::checkAssemblerConstraints(*entry, bits))
         return false;
     encoding = bits;
     return true;
@@ -981,9 +991,9 @@ void assembleSingle(const Target& target, const cString& line, cArray<Unit>& uni
 {
     cString original = trimmed(line);
     ASM_CHECK(original.length() != 0, "empty instruction");
-    // (llvm-mc reads 0X10 and the uppercase compressed instructions with their
-    // registers as errors; the rounding modes and the fence sets in lowercase only)
-    ASM_CHECK(original.find(XSTL_STRING("0X")) >= original.length(), "invalid number");
+    // (llvm-mc reads the uppercase compressed instructions with their
+    // registers as errors; the rounding modes and the fence sets in lowercase
+    // only; 0X10 is a number)
     cString text(original);
     text.makeLower();
 
@@ -1003,14 +1013,38 @@ void assembleSingle(const Target& target, const cString& line, cArray<Unit>& uni
     cArray<cString> originalParts;
     splitOperands(trimmed(original.part(split, original.length())), originalParts);
     cArray<Operand> operands;
-    for (uint i = 0; i < parts.getSize(); i++)
+    uint partsCount = parts.getSize();
+    // LLVM reads one comma after the last word of the vtype of vsetvli /
+    // vsetivli ("e8, m1,")
+    if ((mnemonic == "vsetvli" || mnemonic == "vsetivli") && (partsCount >= 4) &&
+        (parts[partsCount - 1].length() == 0) && (parts[partsCount - 2].length() != 0) &&
+        cChar::isLetter(parts[partsCount - 2][0]))
+        partsCount--;
+    for (uint i = 0; i < partsCount; i++)
     {
         Operand operand;
         parseOperand(parts[i], operand);
-        // (an identifier written with uppercase letters: see the codec)
-        if (operand.m_kind == Operand::KIND_NAME && i < originalParts.getSize() &&
-            hasUppercase(originalParts[i]))
-            operand.m_immediate = 1;
+        if (i < originalParts.getSize() && hasUppercase(originalParts[i]))
+        {
+            // (an identifier written with uppercase letters: see the codec)
+            if (operand.m_kind == Operand::KIND_NAME)
+                operand.m_immediate = 1;
+            // llvm-mc reads the names of the registers and the v0.t mask in
+            // lowercase only (the mnemonics, the CSR names and the numbers
+            // are not case sensitive)
+            ASM_CHECK(operand.m_kind != Operand::KIND_REGISTER &&
+                      operand.m_kind != Operand::KIND_VECTOR_MASK,
+                      "invalid operand");
+            if (operand.m_kind == Operand::KIND_MEMORY)
+            {
+                // (the base register is in the last parentheses)
+                uint open = originalParts[i].length();
+                while (open > 0 && originalParts[i][open - 1] != XSTL_CHAR('('))
+                    open--;
+                ASM_CHECK(!hasUppercase(originalParts[i].part(open, originalParts[i].length())),
+                          "invalid operand");
+            }
+        }
         // RV32: 0x80000000-0xffffffff are the negative values
         if (target.m_type == RiscvInstructionSet::RISCV_RV32)
         {
@@ -1093,6 +1127,10 @@ void RiscvAssemblerStream::assemble()
     cString text = getData();
     // The buffered text has been consumed (even if a line is invalid)
     clean();
+    // (endl is "\r\n" on Windows: a '\r' ends a line too; the empty lines are skipped)
+    for (uint i = 0; i < text.length(); i++)
+        if (cChar::isNewLine(text[i]))
+            text[i] = XSTL_CHAR('\n');
     cList<cString> lines = text.split(XSTL_STRING("\n"));
     for (cList<cString>::iterator line = lines.begin(); line != lines.end(); line++)
     {
