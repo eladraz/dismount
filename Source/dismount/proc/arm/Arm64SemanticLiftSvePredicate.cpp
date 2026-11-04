@@ -297,7 +297,7 @@ void liftBreakPropagate(SveLift& s, const SveDescriptor& d)
 void liftWhile(SveLift& s, const SveDescriptor& d)
 {
     const SemanticType i64 = SemanticType::integer(64);
-    const SemanticType boolean = SemanticType::integer(1);
+    const SemanticType bitType = SemanticType::integer(1);
     const uint e = SveLift::elementBitsOf(operandOf(s, 0));
     const uint operandIndex = (operandOf(s, 0).m_kind == ArmDecodedOperand::KIND_REGISTER_LIST) ? 1 : 1;
     const ArmDecodedOperand& reg = operandOf(s, operandIndex);
@@ -374,13 +374,13 @@ void liftWhile(SveLift& s, const SveDescriptor& d)
     }
     // The flags test the sequence as it is laid out
     SemanticOperand none = s.compareScalar(Op::COND_EQUAL, active, s.integer(0, 64));
-    SemanticOperand any = s.emit(Op::OP_XOR, boolean, none, s.integer(1, 1));
+    SemanticOperand any = s.emit(Op::OP_XOR, bitType, none, s.integer(1, 1));
     SemanticOperand full = s.compareScalar(Op::COND_EQUAL, active, totalValue);
     SemanticOperand isFirst = isDown ? full : any;
     SemanticOperand isLast = isDown ? any : full;
     s.context().setFlags(SemanticFlags::FLAG_SIGN, isFirst);
     s.context().setFlags(SemanticFlags::FLAG_ZERO, none);
-    s.context().setFlags(SemanticFlags::FLAG_CARRY, s.emit(Op::OP_XOR, boolean, isLast, s.integer(1, 1)));
+    s.context().setFlags(SemanticFlags::FLAG_CARRY, s.emit(Op::OP_XOR, bitType, isLast, s.integer(1, 1)));
     s.context().setFlags(SemanticFlags::FLAG_OVERFLOW, booleanConstant(s.context(), false));
 }
 

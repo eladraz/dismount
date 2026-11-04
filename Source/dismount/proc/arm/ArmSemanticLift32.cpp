@@ -101,7 +101,7 @@ SemanticType word()
     return SemanticType::integer(32);
 }
 
-SemanticType boolean()
+SemanticType bitType()
 {
     return SemanticType::integer(1);
 }
@@ -165,7 +165,7 @@ SemanticOperand field(ArmLiftContext& c, const SemanticOperand& value,
 // Return a copy of the carry flag in a temporary
 SemanticOperand carryIn(ArmLiftContext& c)
 {
-    return c.emit(Op::OP_MOVE, boolean(), c.getRegister(ARM_REG_C));
+    return c.emit(Op::OP_MOVE, bitType(), c.getRegister(ARM_REG_C));
 }
 
 // Return a 32 bit value of the 1 bit 'value'
@@ -366,7 +366,7 @@ Shifted shiftByRegister(ArmLiftContext& c, const SemanticOperand& value,
         break;
     }
     if (wantCarry)
-        result.m_carry = c.emit(Op::OP_SELECT, boolean(), isZero, carry,
+        result.m_carry = c.emit(Op::OP_SELECT, bitType(), isZero, carry,
                                 carryOut);
     return result;
 }
@@ -415,7 +415,7 @@ Shifted evaluateShifter(ArmLiftContext& c, uint index, bool wantCarry)
         {
             if (isRotatedImmediate(c))
                 result.m_carry = c.getImmediate(
-                    (int64)((getImmediateValue(operand) >> 31) & 1), boolean());
+                    (int64)((getImmediateValue(operand) >> 31) & 1), bitType());
             else
                 result.m_carry = cin;
         }
@@ -1288,7 +1288,7 @@ void liftBranchLinkExchangeImmediate(ArmLiftContext& c)
 {
     c.move(c.getRegister(ARM_REG_LR), getReturnAddress(c));
     c.move(c.getRegister(ARM_REG_T),
-           c.getImmediate(isThumb(c) ? 0 : 1, boolean()));
+           c.getImmediate(isThumb(c) ? 0 : 1, bitType()));
     c.call(target(c));
 }
 

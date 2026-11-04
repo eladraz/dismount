@@ -413,13 +413,13 @@ public:
         check("p file", defaults.getRegister(ARM64_REG_P0).m_file,
               ArchitectureRegister::FILE_MASK);
 
-        Arm64Architecture small(256, 128);
-        check("small VL", small.getVectorBits(), 256);
-        check("small SVL", small.getStreamingVectorBits(), 128);
-        check("small max vector bits", small.getMaximumVectorBits(), 256);
-        check("small z bits", small.getRegister(ARM64_REG_Z0 + 31).m_bits, 256);
-        check("small p bits", small.getRegister(ARM64_REG_P0 + 15).m_bits, 32);
-        check("small za bits", small.getRegister(ARM64_REG_ZA_ROW0).m_bits, 128);
+        Arm64Architecture narrowVectors(256, 128);
+        check("small VL", narrowVectors.getVectorBits(), 256);
+        check("small SVL", narrowVectors.getStreamingVectorBits(), 128);
+        check("small max vector bits", narrowVectors.getMaximumVectorBits(), 256);
+        check("small z bits", narrowVectors.getRegister(ARM64_REG_Z0 + 31).m_bits, 256);
+        check("small p bits", narrowVectors.getRegister(ARM64_REG_P0 + 15).m_bits, 32);
+        check("small za bits", narrowVectors.getRegister(ARM64_REG_ZA_ROW0).m_bits, 128);
 
         Arm64Architecture large(512, 512);
         check("large z bits", large.getRegister(ARM64_REG_Z0).m_bits, 512);

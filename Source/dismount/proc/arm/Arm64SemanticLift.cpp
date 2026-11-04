@@ -837,18 +837,18 @@ void liftSetf(ArmLiftContext& c)
     const uint32 e = c.getInstruction().getEncoding();
     const uint size = (bits(e, 14, 14) != 0) ? 16 : 8;
     const SemanticType word = SemanticType::integer(32);
-    const SemanticType small = SemanticType::integer(size);
+    const SemanticType narrowType = SemanticType::integer(size);
     const SemanticOperand value = readGpr(c, bits(e, 9, 5), false, false);
     const SemanticType booleanType = SemanticType::integer(1);
-    SemanticOperand narrow = c.emit(Op::OP_TRUNCATE, small, value);
+    SemanticOperand narrow = c.emit(Op::OP_TRUNCATE, narrowType, value);
     SemanticOperand sign = c.emit(Op::OP_TRUNCATE, booleanType,
         emitImmediate(c, Op::OP_SHIFT_RIGHT_LOGICAL, word, value, size - 1));
     SemanticOperand next = c.emit(Op::OP_TRUNCATE, booleanType,
         emitImmediate(c, Op::OP_SHIFT_RIGHT_LOGICAL, word, value, size));
     c.setFlags(SemanticFlags::FLAG_SIGN, sign);
     c.setFlags(SemanticFlags::FLAG_ZERO,
-               compare(c, Op::COND_EQUAL, small, narrow,
-                       c.getImmediate(0, small)));
+               compare(c, Op::COND_EQUAL, narrowType, narrow,
+                       c.getImmediate(0, narrowType)));
     c.setFlags(SemanticFlags::FLAG_OVERFLOW,
                c.emit(Op::OP_XOR, booleanType, next, sign));
 }
