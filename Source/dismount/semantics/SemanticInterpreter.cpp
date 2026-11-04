@@ -2323,7 +2323,8 @@ void SemanticInterpreter::buildFloatEnvironment(
     {
         if (guest.m_roundingOffset != FloatEnvironment::NO_FIELD)
             environment.m_rounding = (SemanticOperation::RoundingMode)
-                guest.m_roundingModes[(control >> guest.m_roundingOffset) & 3];
+                guest.m_roundingModes[(control >> guest.m_roundingOffset) &
+                                      (((uint64)1 << guest.m_roundingBits) - 1)];
     }
     if (guest.m_precisionOffset != FloatEnvironment::NO_FIELD)
     {
@@ -2341,9 +2342,11 @@ void SemanticInterpreter::buildFloatEnvironment(
     // The underflow mask
     const uint underflow = 4;
     const bool maskBit =
-        ((control >> guest.m_maskOffsets[underflow]) & 1) != 0;
+        (guest.m_maskOffsets[underflow] != FloatEnvironment::NO_FIELD) &&
+        (((control >> guest.m_maskOffsets[underflow]) & 1) != 0);
     environment.m_isUnderflowUnmasked =
         (guest.m_trapMode != FloatEnvironment::TRAP_NONE) &&
+        (guest.m_maskOffsets[underflow] != FloatEnvironment::NO_FIELD) &&
         (guest.m_isMaskSetDisabled ? !maskBit : maskBit);
     environment.m_isInputFlushSignaled = guest.m_isInputFlushSignaled;
     environment.m_isFlushInexact = guest.m_isFlushInexact;
@@ -2403,7 +2406,12 @@ SemanticInterpreter::FloatCommit SemanticInterpreter::commitFloatFlags(
     {
         if ((flags & ((uint32)1 << i)) == 0)
             continue;
-        status.setBits(guest.m_flagOffsets[i], 1, 1);
+        // An exception which the architecture doesn't record (RISC-V
+        // denormal operand) or can't unmask is dropped
+        if (guest.m_flagOffsets[i] != FloatEnvironment::NO_FIELD)
+            status.setBits(guest.m_flagOffsets[i], 1, 1);
+        if (guest.m_maskOffsets[i] == FloatEnvironment::NO_FIELD)
+            continue;
         const bool maskBit = ((control >> guest.m_maskOffsets[i]) & 1) != 0;
         const bool isMasked = guest.m_isMaskSetDisabled ? maskBit : !maskBit;
         if (!isMasked)

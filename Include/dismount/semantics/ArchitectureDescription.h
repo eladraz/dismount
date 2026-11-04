@@ -85,7 +85,12 @@ public:
  *   x87      fcw       bits 10-11    fsw     bits 0-5         deferred (#MF)
  *   SSE      mxcsr     bits 13-14    mxcsr   bits 0-5         #XM (19)
  *   ARM64    fpcr      bits 22-23    fpsr    bits 0-4, 7      (enable bits)
- *   RISC-V   frm       bits 0-2      fflags  bits 0-4         none
+ *   RISC-V   fcsr      bits 5-7      fcsr    bits 0-4         none
+ *
+ * A field which an architecture doesn't have is NO_FIELD: the mask of an
+ * exception (never trapping: the exception is masked) and the flag of an
+ * exception (the exception is not recorded: RISC-V has no denormal operand
+ * flag).
  */
 struct FloatEnvironment {
     // The value of a field offset which doesn't exist
@@ -119,10 +124,14 @@ struct FloatEnvironment {
 
     // The register of the control fields
     uint m_controlRegister;
-    // The 2 bit rounding field, and the SemanticOperation::RoundingMode of
-    // each of its values
+    // The rounding field (m_roundingBits wide, 2 by default), and the
+    // SemanticOperation::RoundingMode of each of its values. A value of the
+    // field which is not a mode (the reserved ones of RISC-V frm, 5 to 7)
+    // has an entry too (round to nearest even): the lifter of the processor
+    // checks them before the operation
     uint8 m_roundingOffset;
-    uint8 m_roundingModes[4];
+    uint8 m_roundingBits;
+    uint8 m_roundingModes[8];
     // The 2 bit precision control field of x87 (0: 24 bits, 2: 53 bits, 3:
     // 64 bits significand)
     uint8 m_precisionOffset;
@@ -183,6 +192,7 @@ struct FloatEnvironment {
 
     // The defaults of the fields above are the ones of IA-32
     FloatEnvironment() :
+        m_roundingBits(2),
         m_defaultNanOffset(NO_FIELD),
         m_isTininessBeforeRounding(false),
         m_isInputFlushSignaled(false),
