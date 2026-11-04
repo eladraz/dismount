@@ -156,6 +156,43 @@ struct FloatEnvironment {
     // RISC-V are positive). The default NaN is the quiet NaN with only the
     // top significand bit set
     bool m_isDefaultNanNegative;
+
+    // The bit of the control register which selects the default NaN for every
+    // NaN result (ARM DN), NO_FIELD for none
+    uint8 m_defaultNanOffset;
+    // Tininess is detected before rounding (ARM), not after (IA-32)
+    bool m_isTininessBeforeRounding;
+    // A denormal operand flushed to zero raises the denormal flag (ARM IDC)
+    bool m_isInputFlushSignaled;
+    // A tiny result flushed to zero raises the inexact flag with the
+    // underflow one (IA-32); ARM raises the underflow flag only
+    bool m_isFlushInexact;
+
+    // BEHAVIOR_MINMAX_NUMBER returns a NaN for a signaling NaN operand (ARM
+    // FMAXNM, with any NaN rule)
+    bool m_isMinMaxNanSignaling;
+    // The bits of the control register of the half precision flush to zero
+    // (ARM FZ16) and of the alternative half precision format (ARM AHP),
+    // NO_FIELD for none. The half precision has its own flush control when it
+    // is present
+    uint8 m_flushToZeroHalfOffset;
+    uint8 m_alternativeHalfOffset;
+    // The NaN operand of a multiply-add is chosen in the order addend, first
+    // and second multiplicand (ARM FPMulAdd)
+    bool m_isAddendNanFirst;
+
+    // The defaults of the fields above are the ones of IA-32
+    FloatEnvironment() :
+        m_defaultNanOffset(NO_FIELD),
+        m_isTininessBeforeRounding(false),
+        m_isInputFlushSignaled(false),
+        m_isFlushInexact(true),
+        m_isMinMaxNanSignaling(false),
+        m_flushToZeroHalfOffset(NO_FIELD),
+        m_alternativeHalfOffset(NO_FIELD),
+        m_isAddendNanFirst(false)
+    {
+    }
 };
 
 /*

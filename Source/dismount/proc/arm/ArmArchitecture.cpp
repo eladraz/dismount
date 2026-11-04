@@ -96,7 +96,9 @@ const ArchitectureRegister ArmArchitecture::gRegisters[ARM_REGISTERS_COUNT] =
     { "mvfr1", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
     { "mvfr2", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
     { "tpidruro", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
-    { "tpidrurw", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false }
+    { "tpidrurw", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
+    { "exclusive_address", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false },
+    { "exclusive_size", FILE_CONTROL, 32, NO_PARENT, 0, false, 0, false }
 };
 
 namespace {
@@ -280,6 +282,16 @@ bool ArmArchitecture::getFloatEnvironment(uint32,
     // default NaN is positive
     environment.m_nanRule = FloatEnvironment::NAN_SIGNALING_FIRST;
     environment.m_isDefaultNanNegative = false;
+    // DN (bit 25) selects the default NaN, a flushed denormal operand raises
+    // IDC, a flushed result UFC only, the tininess is detected before rounding
+    environment.m_defaultNanOffset = 25;
+    environment.m_isTininessBeforeRounding = true;
+    environment.m_isInputFlushSignaled = true;
+    environment.m_isFlushInexact = false;
+    environment.m_isMinMaxNanSignaling = true;
+    environment.m_flushToZeroHalfOffset = 19;
+    environment.m_alternativeHalfOffset = 26;
+    environment.m_isAddendNanFirst = true;
     return true;
 }
 

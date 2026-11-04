@@ -106,6 +106,10 @@ class Arm32Oracle(object):
                 raise OracleError('mem outside of the window: %x' % a)
             uc.mem_write(a, bytes([b]))
 
+        # The mode first: sp and lr are banked, the ones written in the SVC mode the engine
+        # starts in are not the ones of the user mode
+        uc.reg_write(A.UC_ARM_REG_CPSR, (state['apsr'] & S.APSR_MASK) | CPSR_USER |
+                     (CPSR_T if self.thumb else 0))
         uc.reg_write(A.UC_ARM_REG_FPSCR, state['fpscr'])
         for i in range(16):
             uc.reg_write(A.UC_ARM_REG_Q0 + i, state['q'][i])
@@ -113,8 +117,6 @@ class Arm32Oracle(object):
             uc.reg_write(A.UC_ARM_REG_R0 + i, state['r'][i])
         uc.reg_write(A.UC_ARM_REG_SP, state['sp'])
         uc.reg_write(A.UC_ARM_REG_LR, state['lr'])
-        uc.reg_write(A.UC_ARM_REG_CPSR, (state['apsr'] & S.APSR_MASK) | CPSR_USER |
-                     (CPSR_T if self.thumb else 0))
 
         exit_ = self._start(pc | 1 if self.thumb else pc, end)
         final_pc = uc.reg_read(A.UC_ARM_REG_PC)
@@ -151,6 +153,13 @@ class Arm32Oracle(object):
                            UC.UC_ERR_WRITE_UNALIGNED, UC.UC_ERR_FETCH_UNALIGNED,
                            UC.UC_ERR_READ_PROT, UC.UC_ERR_WRITE_PROT, UC.UC_ERR_FETCH_PROT):
                 self.trap = 'fault'
+            elif e.errno in (UC_ERR_EXCEPTION, UC_ERR_INSN_INVALID) and \
+                    (self.uc.reg_read(A.UC_ARM_REG_PC) & ~1) == self.hi:
+                # `yield` raises EXCP_YIELD, which Unicorn reports as an unhandled exception
+                # (UC_ERR_INSN_INVALID) after the instruction completed, with the pc at the
+                # end of the code (the interrupt hook is not called for it; an UNDEFINED
+                # instruction goes through the hook)
+                pass
             elif e.errno in (UC_ERR_INSN_INVALID, UC_ERR_EXCEPTION):
                 self.trap = 'undef'
             else:

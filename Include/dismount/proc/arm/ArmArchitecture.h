@@ -75,6 +75,11 @@ enum {
     ARM_REG_TPIDRURO,
     // The read / write thread id register of user mode (c13, c0, 2)
     ARM_REG_TPIDRURW,
+    // The global exclusive monitor of ldrex / strex: the address recorded by
+    // the last load exclusive and its size in bytes (0: the monitor is open
+    // for no address, a store exclusive fails)
+    ARM_REG_EXCLUSIVE_ADDRESS,
+    ARM_REG_EXCLUSIVE_SIZE,
 
     // The number of registers. Must be last
     ARM_REGISTERS_COUNT

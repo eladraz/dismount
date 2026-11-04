@@ -55,33 +55,41 @@ enum {
 
 const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // --- AArch32
-    /* FEAT_A32_BASE */      { "",                SUPPORT_FULL },
-    /* FEAT_T32_BASE */      { "",                SUPPORT_FULL },
-    /* FEAT_V5TE */          { "v5te",            SUPPORT_FULL },
-    /* FEAT_V6 */            { "v6",              SUPPORT_FULL },
-    /* FEAT_V6K */           { "v6k",             SUPPORT_FULL },
-    /* FEAT_V6T2 */          { "v6t2",            SUPPORT_FULL },
-    /* FEAT_V7 */            { "v7",              SUPPORT_FULL },
-    /* FEAT_DIV */           { "hwdiv",           SUPPORT_FULL },
-    /* FEAT_V8_AA32 */       { "v8",              SUPPORT_FULL },
-    /* FEAT_CRC32_AA32 */    { "crc",             SUPPORT_FULL },
-    /* FEAT_AES_AA32 */      { "aes",             SUPPORT_FULL },
-    /* FEAT_SHA1_AA32 */     { "sha2",            SUPPORT_FULL },
-    /* FEAT_SHA256_AA32 */   { "sha2",            SUPPORT_FULL },
-    /* FEAT_VFP2 */          { "vfp2",            SUPPORT_FULL },
-    /* FEAT_VFP3 */          { "vfp3",            SUPPORT_FULL },
-    /* FEAT_VFP4 */          { "vfp4",            SUPPORT_FULL },
-    /* FEAT_NEON */          { "neon",            SUPPORT_FULL },
+    // The A32 / T32 integer, VFP and Advanced SIMD tables (ArmSemanticTable.cpp,
+    // ArmSemanticTableSimd.cpp) lift every encoding of a feature marked LIFT. The base
+    // features are PARTIAL: the privileged instructions (cps, setend, srs, rfe, eret,
+    // hvc, smc), the exception return forms, the coprocessors but the thread id
+    // registers, swp and the pac / bti hints are not lifted. VERIFIED means lines of the
+    // feature pass against Unicorn (the only AArch32 processor oracle); FP16, BF16 and
+    // i8mm are not in Unicorn 2.1.4 and are checked by the unit rows of
+    // tests/TestArmAArch32Semantics.cpp (an independent Python model) only.
+    /* FEAT_A32_BASE */      { "",                SUPPORT_PARTIAL_VERIFIED },
+    /* FEAT_T32_BASE */      { "",                SUPPORT_PARTIAL_VERIFIED },
+    /* FEAT_V5TE */          { "v5te",            SUPPORT_PARTIAL_VERIFIED },
+    /* FEAT_V6 */            { "v6",              SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_V6K */           { "v6k",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_V6T2 */          { "v6t2",            SUPPORT_PARTIAL_VERIFIED },
+    /* FEAT_V7 */            { "v7",              SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_DIV */           { "hwdiv",           SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_V8_AA32 */       { "v8",              SUPPORT_PARTIAL_VERIFIED },
+    /* FEAT_CRC32_AA32 */    { "crc",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_AES_AA32 */      { "aes",             SUPPORT_LIFTED },
+    /* FEAT_SHA1_AA32 */     { "sha2",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SHA256_AA32 */   { "sha2",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_VFP2 */          { "vfp2",            SUPPORT_LIFTED },
+    /* FEAT_VFP3 */          { "vfp3",            SUPPORT_LIFTED },
+    /* FEAT_VFP4 */          { "vfp4",            SUPPORT_LIFTED },
+    /* FEAT_NEON */          { "neon",            SUPPORT_LIFTED_VERIFIED },
     // (the NEON vfma.f32 / vfms.f32 are tagged FEAT_VFP4: LLVM needs neon and vfp4)
     /* FEAT_NEON_VFP4 */     { "vfp4",            SUPPORT_NONE },
-    /* FEAT_RDM_AA32 */      { "v8.1a",             SUPPORT_FULL },
-    /* FEAT_FP16_AA32 */     { "fullfp16",        SUPPORT_FULL },
-    /* FEAT_DOTPROD_AA32 */  { "dotprod",         SUPPORT_FULL },
-    /* FEAT_I8MM_AA32 */     { "i8mm",            SUPPORT_FULL },
-    /* FEAT_BF16_AA32 */     { "bf16",            SUPPORT_FULL },
-    /* FEAT_FCMA_AA32 */     { "v8.3a",       SUPPORT_FULL },
-    /* FEAT_JSCVT_AA32 */    { "v8.3a",          SUPPORT_FULL },
-    /* FEAT_FHM_AA32 */      { "fp16fml",         SUPPORT_FULL },
+    /* FEAT_RDM_AA32 */      { "v8.1a",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FP16_AA32 */     { "fullfp16",        SUPPORT_LIFTED },
+    /* FEAT_DOTPROD_AA32 */  { "dotprod",         SUPPORT_LIFTED },
+    /* FEAT_I8MM_AA32 */     { "i8mm",            SUPPORT_LIFTED },
+    /* FEAT_BF16_AA32 */     { "bf16",            SUPPORT_LIFTED },
+    /* FEAT_FCMA_AA32 */     { "v8.3a",       SUPPORT_LIFTED },
+    /* FEAT_JSCVT_AA32 */    { "v8.3a",          SUPPORT_LIFTED },
+    /* FEAT_FHM_AA32 */      { "fp16fml",         SUPPORT_LIFTED },
 
     // --- AArch64
     // The A64 base table (data processing, branches, loads and stores, system):
@@ -202,18 +210,18 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_FPRCVT */        { "fprcvt",          SUPPORT_FULL },
 
     // --- AArch32 features added with the A32 / T32 tables
-    /* FEAT_V5T */           { "v5t",             SUPPORT_FULL },
-    /* FEAT_V6M */           { "v6m",             SUPPORT_FULL },
-    /* FEAT_MP */            { "mp",              SUPPORT_FULL },
-    /* FEAT_DIV_ARM */       { "hwdiv-arm",       SUPPORT_FULL },
-    /* FEAT_VIRT */          { "virtualization",  SUPPORT_FULL },
+    /* FEAT_V5T */           { "v5t",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_V6M */           { "v6m",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_MP */            { "mp",              SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_DIV_ARM */       { "hwdiv-arm",       SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_VIRT */          { "virtualization",  SUPPORT_PARTIAL },
     /* FEAT_TRUSTZONE */     { "trustzone",       SUPPORT_FULL },
-    /* FEAT_SB_AA32 */       { "sb",              SUPPORT_FULL },
-    /* FEAT_RAS_AA32 */      { "ras",             SUPPORT_FULL },
+    /* FEAT_SB_AA32 */       { "sb",              SUPPORT_LIFTED },
+    /* FEAT_RAS_AA32 */      { "ras",             SUPPORT_LIFTED_VERIFIED },
     /* FEAT_PAN_AA32 */      { "v8.1a",           SUPPORT_FULL },
-    /* FEAT_V8_4A_AA32 */    { "v8.4a",           SUPPORT_FULL },
-    /* FEAT_FPARMV8 */       { "fp-armv8",        SUPPORT_FULL },
-    /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_FULL },
+    /* FEAT_V8_4A_AA32 */    { "v8.4a",           SUPPORT_LIFTED },
+    /* FEAT_FPARMV8 */       { "fp-armv8",        SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_LIFTED_VERIFIED },
 
     // --- More SVE
     /* FEAT_SVE2P2 */        { "sve2p2",          SUPPORT_FULL },

@@ -315,7 +315,7 @@ public:
         for (uint i = 0; i < expectedCount; i++)
         {
             const Token& t = tokens[i];
-            uint index;
+            uint index = 0;
             const cSArray<char> ascii = cString(t.m_name).getASCIIstring();
             if (t.m_name == "exit")
             {

@@ -121,6 +121,27 @@ public:
         uint8 m_nanRule;
         // The sign of the default NaN
         bool m_isDefaultNanNegative;
+        // The ARM rule of the denormal operands: only a denormal operand
+        // flushed to zero (m_denormalsAreZero) raises FLOAT_DENORMAL (ARM FZ:
+        // IDC); the other denormal operands are silent. Otherwise (SSE) a
+        // flushed operand is silent (DAZ) and the others raise the flag
+        bool m_isInputFlushSignaled;
+        // A result flushed to zero (m_flushToZero) raises FLOAT_INEXACT with
+        // FLOAT_UNDERFLOW (SSE FTZ); ARM raises FLOAT_UNDERFLOW only
+        bool m_isFlushInexact;
+        // BEHAVIOR_MINMAX_NUMBER gives a NaN for a signaling NaN operand
+        bool m_isMinMaxNanSignaling;
+        // The half precision format has its own flush to zero control
+        // (m_flushHalfToZero, ARM FZ16) instead of m_flushToZero /
+        // m_denormalsAreZero
+        bool m_isHalfFlushSeparate;
+        bool m_flushHalfToZero;
+        // The conversions from and to the half precision format use the
+        // alternative format (ARM AHP): no infinities and NaNs
+        bool m_isAlternativeHalf;
+        // The NaN operand of a multiply-add is chosen in the order addend,
+        // first and second multiplicand (ARM)
+        bool m_isAddendNanFirst;
     };
 
     //////////////////////////////////////////////////////////////////////
@@ -240,14 +261,34 @@ public:
                         const Bits& a, uint32& flags);
 
     /*
+     * The estimates of the ARM reciprocal and reciprocal square root
+     * instructions (FPRecipEstimate and FPRSqrtEstimate of the Arm ARM,
+     * for the 16, 32 and 64 bit formats)
+     */
+    static Bits reciprocalEstimate(Format format, const Environment& environment,
+                                   const Bits& a, uint32& flags);
+    static Bits reciprocalSqrtEstimate(Format format,
+                                       const Environment& environment,
+                                       const Bits& a, uint32& flags);
+    /*
+     * The AArch32 reciprocal step 2 - a * b (FPRecipStep) or, with isSqrt, the
+     * reciprocal square root step (3 - a * b) / 2 (FPRSqrtStep): the product
+     * is rounded, they are not fused (the A64 steps are)
+     */
+    static Bits reciprocalStep(Format format, const Environment& environment,
+                               const Bits& a, const Bits& b, bool isSqrt,
+                               uint32& flags);
+
+    /*
      * Convert an integer to a number
      *
      * integerBits - The size of the integer, 1 to 64 bits
      * value       - The integer, in its low bits
+     * fractionBits - The number is value / 2^fractionBits (fixed point)
      */
     static Bits fromInteger(Format format, const Environment& environment,
                             uint64 value, uint integerBits, bool isSigned,
-                            uint32& flags);
+                            uint32& flags, uint fractionBits = 0);
 
     /*
      * Convert a number to an integer, rounded by the rounding mode of the
@@ -259,12 +300,15 @@ public:
      *               value is the minimum for a signed integer and all ones for
      *               an unsigned one
      *
+     * fractionBits - The integer is the number times 2^fractionBits (fixed
+     *                 point)
+     *
      * Return the integer in the low bits of the result
      */
     static uint64 toInteger(Format format, const Environment& environment,
                             const Bits& a, uint integerBits, bool isSigned,
                             SemanticOperation::Behavior behavior,
-                            uint32& flags);
+                            uint32& flags, uint fractionBits = 0);
 };
 
 #endif // __TBA_DISMOUNT_SEMANTICS_SEMANTICFLOAT_H

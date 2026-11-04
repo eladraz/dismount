@@ -380,8 +380,15 @@ def compare_results(arch, code, state, a, b, names=('a', 'b'), ignore=()):
     else:
         for i in range(13):
             cmp('r%d' % i, a['r'][i], b['r'][i], 8)
-        for n in ('sp', 'lr', 'pc'):
+        for n in ('sp', 'lr'):
             cmp(n, a[n], b[n], 8)
+        # A branch to the A32 address xxx10 (bx, blx, a load of pc): BXWritePC is CONSTRAINED
+        # UNPREDICTABLE (Unpredictable_A32FORCEALIGNPC): dismount forces the alignment, QEMU
+        # keeps bit 1. The two choices are both the architecture
+        if ea == 'branch' and eb == 'branch' and a['t'] == 0 and b['t'] == 0:
+            cmp('pc', a['pc'] & ~2, b['pc'] & ~2, 8)
+        else:
+            cmp('pc', a['pc'], b['pc'], 8)
         cmp('apsr', a['apsr'] & APSR_MASK, b['apsr'] & APSR_MASK, 8)
         cmp('t', a['t'], b['t'], 1)
         cmp('fpscr', a['fpscr'], b['fpscr'], 8)

@@ -75,3 +75,36 @@
 # not in the corpus at all (clang can't assemble it)
 ^(ldclrp|ldsetp|swpp)[a-z]* [wx]  # neither oracle has FEAT_LSE128
 ^(ldiapp|stilp) [wx]  # neither oracle has FEAT_LRCPC3
+
+# --- AArch32 integer instructions (Unicorn)
+# SMLAD / SMLADX: the Arm ARM computes result = product1 + product2 + SInt(R[a]) in unbounded integers and
+# sets Q only if the final sum does not fit in 32 bits. QEMU 5.0.1 adds product1 + product2 with a saturation
+# check (add_setq) and then the accumulator with a second one, so Q is also set when product1 + product2 alone
+# overflows and the accumulator brings the sum back: r1 = r2 = 0x80008000 gives 2^30 + 2^30 = 2^31, with
+# r3 = 0x80000000 (-2^31) the sum is 0 and the Arm ARM leaves Q clear (QEMU sets it). The case is the only one
+# (product1 + product2 overflows only for 0x8000 * 0x8000 twice); SMLSD subtracts without the check and agrees.
+[a32,t32] ^smladx?\b  # Unicorn: SMLAD sets Q when product1 + product2 alone overflows (QEMU's two step add_setq), the Arm ARM checks the final sum
+
+# --- AArch32 VFP / floating point (Agent F)
+# The AArch32 processor oracle is Unicorn 2.1.4 (QEMU 5.0.1, CPU "max") only: the M4 cannot run AArch32. These
+# entries are the instructions Unicorn does not implement or implements differently; each is backed by rows of
+# tests/TestArmAArch32Semantics.cpp (tests/arm/AArch32SemanticRowsVfp.inc) computed by an independent Python
+# model of the Arm ARM pseudocode (tests/arm/tools/fpmodel.py).
+#
+# Unicorn: no FEAT_FP16 arithmetic (MVFR1.FPHP = 0): every half precision VFP / Advanced SIMD instruction, vmov.f16,
+# vins, vmovx, vldr.16 and vstr.16 are UNDEFINED (exit=trap:undef in all states; reproduce with
+# run_semantics.py --arch a32 --file a32_vfp --oracle-only --grep "vadd.f16"). The conversions between half and
+# single / double (vcvtb, vcvtt, vcvt.f16.f32, vcvt.f32.f16) are FEAT_FP16_CVT and run on Unicorn; FHM (vfmal,
+# vfmsl) runs too.
+^(?!vcvt[bt]\.f(16\.f(32|64)|(32|64)\.f16)|vcvt\.f(16\.f32|32\.f16)|vfm[as]l)\w+(\.\w+)*\.f16\b  # Unicorn: no FEAT_FP16 (half precision arithmetic is UNDEFINED)
+^(vldr|vstr)\.16\b  # Unicorn: no FEAT_FP16 (vldr.16 / vstr.16 are UNDEFINED)
+# Unicorn: no FEAT_BF16 (ID_ISAR6.BF16 = 0): vdot.bf16, vmmla.bf16, vfmab / vfmat and the bfloat16 conversions are UNDEFINED
+^\w+(\.\w+)*\.bf16\b  # Unicorn: no FEAT_BF16 (UNDEFINED)
+# QEMU 5.0.1 bug: helper_gvec_fcmlas_idx handles the vectors in segments of 16 bytes (the A64 shape) and a D
+# register form (8 bytes) also writes the next D register: vcmla.f32 d0, d1, d2[0], #rot changes d1 (the upper half
+# of q0) with the result of the next pair. The Arm ARM writes Dd only; reproduce with --oracle-only on that line
+# (q0 upper half changes) and its fpscr flags are those of the garbage pair
+^vcmla\.f32 d\d+, d\d+, d\d+\[\d\], #\d+$  # Unicorn: the D register by element form of vcmla.f32 writes 16 bytes (clobbers the next D register)
+# FPSCR bits 21:20 (Stride) and 18:16 (Len) are RES0 in the Arm ARM for AArch32 ARMv8 and read as zero; QEMU keeps them
+# (and has no FZ16, bit 19, without FEAT_FP16). The corpus lines with a random register mask them
+^vmsr fpscr, r[01]( ; vmrs r2, fpscr)?$  # Unicorn: FPSCR keeps the RES0 Stride / Len bits (21:20, 18:16) and has no FZ16 (bit 19)

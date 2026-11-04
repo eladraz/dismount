@@ -49,6 +49,9 @@
     <ClCompile Include="TestArm64Semantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestArmAArch32Semantics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

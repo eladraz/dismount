@@ -10,7 +10,15 @@
 [a64,a32,t32] \b(hvc|smc|swi)\b  # privileged: calls the hypervisor / the secure monitor
 [a64,a32,t32] ^(wfi|wfe|wfit|wfet|sev|sevl|hlt|eret|drps|dcps[123])$  # waits for an event / privileged
 [a64] \b(tlbi|at|sys|sysl) \b  # system maintenance (privileged)
-[a32,t32] \b(mrc|mcr|mrrc|mcrr|cdp|ldc|stc|cps|cpsid|cpsie|srs|rfe|setend|smc|hvc|eret)\b  # coprocessors and privileged
+[a32,t32] \b(mrrc|mcrr|cdp|ldc|stc|cps|cpsid|cpsie|srs|rfe|setend|smc|hvc|eret)\b  # coprocessors and privileged
+[a32,t32] \b(mrc|mcr)\b(?!.* c13, c0, #[23]$)  # coprocessors and privileged (only the thread id registers of the user mode are lifted)
 [a32,t32] \bmsr (cpsr|spsr)  # privileged state
 [a64,a32,t32] ^b \.$  # an endless loop
 [a64] ^wf[ei]t \w+$  # waits with a timeout (the host raises SIGILL for the EL0 wait, Unicorn halts)
+
+# --- AArch32 Advanced SIMD (Agent N)
+# Unicorn 2.1.4 crashes (the host process dies with SIGILL, rc -4) executing the 64 bit element d register forms of the
+# saturating add / subtract and of the shift by a register (the q forms and every other size run). The lines are covered by
+# the unit rows of tests/arm/tools/gen_semantic_rows_aarch32_neon.py (tests/TestArmAArch32Semantics.cpp)
+[a32,t32] ^(vqadd|vqsub)\.[su]64 d\d+, d\d+, d\d+$  # Unicorn: SIGILL of the host executing the 64 bit d register form
+[a32,t32] ^vshl\.[su]64 d\d+, d\d+, d\d+$  # Unicorn: SIGILL of the host executing the 64 bit d register form

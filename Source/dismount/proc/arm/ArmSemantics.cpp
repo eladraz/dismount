@@ -116,6 +116,24 @@ uint getVectorBits(uint arrangement)
     }
 }
 
+// Return true and the register id if 'name' is the text of a fixed AArch32
+// operand which is a register (the operands of the encodings which have the
+// register implied: add r0, sp, #4; ldr r0, [sp]; push {lr}...)
+bool getNamedRegister(const cString& name, uint& registerId)
+{
+    if (name == cString("sp"))
+        registerId = ARM_REG_SP;
+    else if (name == cString("lr"))
+        registerId = ARM_REG_LR;
+    else if (name == cString("pc"))
+        registerId = ARM_REG_PC;
+    else if (name == cString("r12"))
+        registerId = ARM_REG_R12;
+    else
+        return false;
+    return true;
+}
+
 } // namespace
 
 /////////////////////////////////////////////////////////////////////////////
@@ -588,6 +606,20 @@ SemanticOperand ArmLiftContext::read(uint index, const SemanticType& type)
         return getImmediate(operand.m_condition, type);
     case ArmDecodedOperand::KIND_MEMORY:
         return load(getAddress(index), type);
+    case ArmDecodedOperand::KIND_NAME:
+    {
+        // A fixed operand of AArch32: sp, lr, pc, r12 or the zero immediate
+        uint registerId;
+        if (getNamedRegister(operand.m_name, registerId))
+        {
+            if (registerId == ARM_REG_PC)
+                return getPcValue();
+            return getRegister(registerId);
+        }
+        CHECK((operand.m_name == cString("#0")) ||
+              (operand.m_name == cString("#0x0")));
+        return getImmediate(0, type);
+    }
     default:
         // Lists, options and the matrix operands are read by the lifter of
         // the mnemonic
@@ -657,6 +689,20 @@ void ArmLiftContext::write(uint index, const SemanticOperand& value)
     case ArmDecodedOperand::KIND_MEMORY:
         store(getAddress(index), value);
         break;
+    case ArmDecodedOperand::KIND_NAME:
+    {
+        // A fixed register operand of AArch32 (sub sp, #4)
+        uint registerId;
+        CHECK(getNamedRegister(operand.m_name, registerId));
+        if (registerId == ARM_REG_PC)
+        {
+            branchWritePc(value, m_instruction.getInstructionSet() ==
+                                 ArmInstructionSet::ARM_A32);
+            return;
+        }
+        move(getRegister(registerId), value);
+        break;
+    }
     default:
         // The immediates and the branch targets are not destinations
         CHECK_FAIL();
@@ -1014,13 +1060,19 @@ const armdis::ArmSemanticEntry* searchTable(const armdis::ArmSemanticEntry* tabl
                                             const char* name,
                                             uint operandsCount)
 {
+    // The T32 wide encodings are named "add.w", "ldr.w"...: the semantics are
+    // those of the mnemonic without the suffix
+    size_t length = strlen(name);
+    if ((length > 2) && (name[length - 2] == '.') && (name[length - 1] == 'w'))
+        length -= 2;
     for (const armdis::ArmSemanticEntry* entry = table;
          entry->m_template.m_name != NULL; entry++)
     {
         if ((entry->m_operandsCount != armdis::ArmSemanticEntry::ANY_OPERANDS_COUNT) &&
             (entry->m_operandsCount != operandsCount))
             continue;
-        if (strcmp(entry->m_template.m_name, name) == 0)
+        if ((strlen(entry->m_template.m_name) == length) &&
+            (strncmp(entry->m_template.m_name, name, length) == 0))
             return entry;
     }
     return NULL;
@@ -1113,10 +1165,22 @@ OpcodeClassification ArmSemanticLifter::classify(const OpcodePtr& instruction) c
         properties |= OpcodeClassification::PROPERTY_MAY_FAULT;
     }
 
+    // AArch32 data processing: the table has the flags of the S form, the
+    // instruction writes them only with the S bit (the compares always do)
+    uint32 flagsWritten = semanticTemplate.m_flagsWritten;
+    if ((arm.getInstructionSet() != ArmInstructionSet::ARM_A64) &&
+        !arm.isSettingFlags() &&
+        ((semanticTemplate.m_category == OpcodeClassification::CATEGORY_ARITHMETIC) ||
+         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_LOGIC) ||
+         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_MOVE) ||
+         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_SHIFT) ||
+         (semanticTemplate.m_category == OpcodeClassification::CATEGORY_MULTIPLY)))
+        flagsWritten = 0;
+
     // The flags properties follow the flags sets
     if (semanticTemplate.m_flagsRead != 0)
         properties |= OpcodeClassification::PROPERTY_READS_FLAGS;
-    if (semanticTemplate.m_flagsWritten != 0)
+    if (flagsWritten != 0)
         properties |= OpcodeClassification::PROPERTY_WRITES_FLAGS;
     if (semanticTemplate.m_flagsUndefined != 0)
         properties |= OpcodeClassification::PROPERTY_UNDEFINED_FLAGS;
@@ -1129,8 +1193,7 @@ OpcodeClassification ArmSemanticLifter::classify(const OpcodePtr& instruction) c
     OpcodeClassification result(
                 (OpcodeClassification::Category)semanticTemplate.m_category,
                 units, properties);
-    result.setFlags(semanticTemplate.m_flagsRead,
-                    semanticTemplate.m_flagsWritten,
+    result.setFlags(semanticTemplate.m_flagsRead, flagsWritten,
                     semanticTemplate.m_flagsUndefined);
 
     // The size of the data: the entry gives the vector and the floating point

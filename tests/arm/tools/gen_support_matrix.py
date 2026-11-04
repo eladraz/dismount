@@ -38,12 +38,78 @@ def mark(support, bit):
     return 'yes' if support & bit else '-'
 
 
+_ENTRIES = {}
+# The first byte of the 32 bit Thumb encodings of Advanced SIMD and the A32 byte they translate to
+_T32_SIMD_TO_A32 = {0xEF: 0xF2, 0xFF: 0xF3, 0xF9: 0xF4}
+
+
+def aarch32_entries(arch):
+    if arch not in _ENTRIES:
+        _ENTRIES[arch] = armlib.entries(arch)
+    return _ENTRIES[arch]
+
+
+def aarch32_features(arch, hexbytes):
+    """The feature indexes of the encodings of the instructions in the bytes of a corpus line."""
+    code = bytes.fromhex(hexbytes)
+    found = set()
+    position = 0
+    while position < len(code):
+        if arch == 'a32':
+            size = 4
+            word = int.from_bytes(code[position:position + 4], 'little')
+            candidates = [word]
+        else:
+            first = int.from_bytes(code[position:position + 2], 'little')
+            if (first >> 11) in (0x1D, 0x1E, 0x1F):
+                size = 4
+                word = (first << 16) | int.from_bytes(code[position + 2:position + 4], 'little')
+                top = word >> 24
+                translated = ((_T32_SIMD_TO_A32.get(top, top)) << 24) | (word & 0xFFFFFF)
+                candidates = [word, translated]
+            else:
+                size = 2
+                word = first
+                candidates = [word]
+        position += size
+        for candidate in candidates:
+            hit = None
+            for mask, value, feature, flags, esize, mnemonic in aarch32_entries(arch):
+                if esize == size and (candidate & mask) == value:
+                    hit = feature
+                    break
+            if hit is None and arch == 't32' and size == 4 and candidate == candidates[-1]:
+                for mask, value, feature, flags, esize, mnemonic in aarch32_entries('a32'):
+                    if (candidate & mask) == value:
+                        hit = feature
+                        break
+            if hit is not None:
+                found.add(hit)
+                break
+    return found
+
+
+def count_aarch32_line(r, counters):
+    """Count a line of an AArch32 semantics report by the features of its instructions."""
+    status = r.get('status')
+    if status in ('SKIP', 'ASM_ERR') or not r.get('hex'):
+        return
+    arch = r['arch']
+    names = dict((index, name) for index, name, isa, support, entries in armlib.features(arch))
+    for feature in aarch32_features(arch, r['hex']):
+        key = '' if names.get(feature, '-') == '-' else names[feature]
+        counters[(arch, key)][status] += 1
+        counters[(arch, key)]['total'] += 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--report', default=os.path.join(armlib.REPO, 'out', 'compat-arm', 'report.json'))
     parser.add_argument('--semantics', nargs='*', default=[
         os.path.join(armlib.REPO, 'out', 'semantics_arm', 'report.json'),
-        os.path.join(armlib.REPO, 'out', 'semantics_arm_host', 'report.json')])
+        os.path.join(armlib.REPO, 'out', 'semantics_arm_host', 'report.json'),
+        os.path.join(armlib.REPO, 'out', 'semantics_arm_a32', 'report.json'),
+        os.path.join(armlib.REPO, 'out', 'semantics_arm_t32', 'report.json')])
     args = parser.parse_args()
 
     # The reports of run_compat.py of each instruction set: --report (a64 by
@@ -68,7 +134,9 @@ def main():
                 lines_of[arch][name]['pass'] += 1 if ok else 0
                 if any(r[c]['status'] == 'FAIL' for c in ('asm', 'dis', 'rt', 'feat')):
                     failed[arch][name] += 1
-    # The semantics reports: the A64 lines by the feature of their tag or of their mnemonic
+    # The semantics reports: the A64 lines by the feature of their tag or of their mnemonic, the
+    # AArch32 ones by the features of the encodings of their instructions (sem32[(arch, feature name)])
+    sem32 = collections.defaultdict(collections.Counter)
     unlifted = collections.Counter()
     sem_failed = collections.Counter()
     sem_pass = collections.Counter()
@@ -82,6 +150,7 @@ def main():
         for path in reports:
             for r in json.load(open(path)).get('lines', []):
                 if r.get('arch', 'a64') != 'a64':
+                    count_aarch32_line(r, sem32)
                     continue
                 tag = r.get('feature', '')
                 keys = [tag] if tag else sorted(by_mnemonic.get(r.get('mnemonic', '').split('.')[0], ['']))
@@ -128,8 +197,13 @@ def main():
             counts = lines_of.get(arch, {}).get(key, collections.Counter())
             corpus = '%d / %d' % (counts['pass'], counts['total']) if counts['total'] else '-'
             lift = 'yes' if support & SUPPORT_LIFT else ('partial' if support & SUPPORT_PARTIAL_LIFT else '-')
-            semantics = '%d / %d' % (sem_pass.get(key, 0), sem_total.get(key, 0)) \
-                if (sem_total.get(key) and arch == 'a64') else '-'
+            if arch == 'a64':
+                semantics = '%d / %d' % (sem_pass.get(key, 0), sem_total.get(key, 0)) \
+                    if sem_total.get(key) else '-'
+            else:
+                counts32 = sem32.get((arch, key), collections.Counter())
+                semantics = '%d / %d' % (counts32['PASS'] + counts32['ORACLE_BUG'], counts32['total']) \
+                    if counts32['total'] else '-'
             out.append('| %d | %s | %d | %s | %s | %s | %s | %s | %s | %s |' % (
                 index, shown, entries, mark(support, SUPPORT_DISASSEMBLE),
                 mark(support, SUPPORT_ASSEMBLE), lift, mark(support, SUPPORT_LIFT_VERIFIED),
@@ -140,8 +214,20 @@ def main():
                 if failed.get(arch, {}).get(key):
                     problems.append('%s (%s) is marked and %d corpus lines fail' % (
                         shown, arch, failed[arch][key]))
-            if support & SUPPORT_LIFT and unlifted.get(key):
+            if support & SUPPORT_LIFT and unlifted.get(key) and arch == 'a64':
                 problems.append('%s is marked SUPPORT_LIFT and has %d unlifted lines' % (shown, unlifted[key]))
+            if arch != 'a64' and reports:
+                counts32 = sem32.get((arch, key), collections.Counter())
+                if support & SUPPORT_LIFT and counts32['UNLIFTED']:
+                    problems.append('%s (%s) is marked SUPPORT_LIFT and has %d unlifted semantics lines' %
+                                    (shown, arch, counts32['UNLIFTED']))
+                if support & SUPPORT_LIFT_VERIFIED:
+                    if counts32['FAIL']:
+                        problems.append('%s (%s) is marked SUPPORT_LIFT_VERIFIED and %d semantics lines fail' %
+                                        (shown, arch, counts32['FAIL']))
+                    if not counts32['PASS'] and not (sem32.get(('a32' if arch == 't32' else 't32', key)) or {}):
+                        problems.append('%s (%s) is marked SUPPORT_LIFT_VERIFIED and no semantics line passes' %
+                                        (shown, arch))
             if support & SUPPORT_LIFT_VERIFIED and reports and arch == 'a64':
                 if sem_failed.get(key):
                     problems.append('%s is marked SUPPORT_LIFT_VERIFIED and %d semantics lines fail' %

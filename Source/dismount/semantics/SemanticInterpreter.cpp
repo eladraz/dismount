@@ -992,8 +992,27 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
     }
     case SemanticOperation::OP_FLOAT_RECIPROCAL_ESTIMATE:
     case SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE:
-        // The estimate tables of the processors are not interpreted
-        return EVAL_UNDEFINED;
+    {
+        // The estimate tables of the ARM instructions only
+        if (instruction.getBehavior() !=
+            SemanticOperation::BEHAVIOR_ESTIMATE_ARM)
+            return EVAL_UNDEFINED;
+        const SemanticType type = getFloatType(instruction);
+        const SemanticType::FloatFormat format = type.getFloatFormat();
+        if (!SF::isSupported(format))
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+        {
+            const uint offset = lane * type.getElementBits();
+            const FloatBits a = loadFloat(sources[0], offset, format);
+            storeFloat(value, offset, format,
+                (operation == SemanticOperation::OP_FLOAT_RECIPROCAL_ESTIMATE) ?
+                    SF::reciprocalEstimate(format, env, a, flags) :
+                    SF::reciprocalSqrtEstimate(format, env, a, flags));
+        }
+        result = value;
+        return EVAL_OK;
+    }
     default:
         break;
     }
@@ -1025,6 +1044,8 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         if (operand.isValid() &&
             (operand.getType().getKind() == SemanticType::KIND_INTEGER))
             integerBits = operand.getType().getElementBits();
+        const uint fractionBits = instruction.getSource(1).isValid() ?
+                    (uint)instruction.getSource(1).getValue() : 0;
         if (!SF::isSupported(toType.getFloatFormat()) || (integerBits > 64))
             return EVAL_UNDEFINED;
         for (uint lane = 0; lane < toType.getLanes(); lane++)
@@ -1034,7 +1055,7 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
                     sources[0].getBits(lane * integerBits, integerBits),
                     integerBits,
                     operation == SemanticOperation::OP_SIGNED_TO_FLOAT,
-                    flags));
+                    flags, fractionBits));
         result = value;
         return EVAL_OK;
     }
@@ -1048,6 +1069,10 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         if (toType.getKind() != SemanticType::KIND_INTEGER)
             toType = instruction.getDestination().getType();
         const uint integerBits = toType.getElementBits();
+        // The fixed point conversions: the source 1 is the immediate count
+        // of fraction bits
+        const uint fractionBits = instruction.getSource(1).isValid() ?
+                    (uint)instruction.getSource(1).getValue() : 0;
         if (!SF::isSupported(fromType.getFloatFormat()) ||
             (integerBits < 1) || (integerBits > 64))
             return EVAL_UNDEFINED;
@@ -1062,7 +1087,7 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
                 r = SF::toInteger(fromType.getFloatFormat(), env, a,
                         integerBits,
                         operation == SemanticOperation::OP_FLOAT_TO_SIGNED,
-                        instruction.getBehavior(), flags);
+                        instruction.getBehavior(), flags, fractionBits);
             value.setBits(lane * integerBits, integerBits, r);
         }
         result = value;
@@ -1093,7 +1118,15 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         case SemanticOperation::OP_FLOAT_DIVIDE:
             r = SF::divide(format, env, a, b, flags); break;
         case SemanticOperation::OP_FLOAT_MULTIPLY_ADD:
-            r = SF::multiplyAdd(format, env, a, b, c, flags); break;
+            // (the kind 1 and 2 are the ARM reciprocal step 2 - a * b and
+            // the reciprocal square root step (3 - a * b) / 2, which ignore
+            // the third source)
+            if (instruction.getKind() != 0)
+                r = SF::reciprocalStep(format, env, a, b,
+                                       instruction.getKind() == 2, flags);
+            else
+                r = SF::multiplyAdd(format, env, a, b, c, flags);
+            break;
         case SemanticOperation::OP_FLOAT_SQUARE_ROOT:
             r = SF::squareRoot(format, env, a, flags); break;
         case SemanticOperation::OP_FLOAT_MINIMUM:
@@ -2201,6 +2234,40 @@ void SemanticInterpreter::buildFloatEnvironment(
     environment.m_isUnderflowUnmasked =
         (guest.m_trapMode != FloatEnvironment::TRAP_NONE) &&
         (guest.m_isMaskSetDisabled ? !maskBit : maskBit);
+    environment.m_isInputFlushSignaled = guest.m_isInputFlushSignaled;
+    environment.m_isFlushInexact = guest.m_isFlushInexact;
+    environment.m_isTininessBeforeRounding = guest.m_isTininessBeforeRounding;
+    environment.m_isMinMaxNanSignaling = guest.m_isMinMaxNanSignaling;
+    environment.m_isAddendNanFirst = guest.m_isAddendNanFirst;
+    if (guest.m_flushToZeroHalfOffset != FloatEnvironment::NO_FIELD)
+    {
+        environment.m_isHalfFlushSeparate = true;
+        environment.m_flushHalfToZero =
+                ((control >> guest.m_flushToZeroHalfOffset) & 1) != 0;
+    }
+    if (guest.m_alternativeHalfOffset != FloatEnvironment::NO_FIELD)
+        environment.m_isAlternativeHalf =
+                ((control >> guest.m_alternativeHalfOffset) & 1) != 0;
+    // The default NaN mode (ARM DN)
+    if ((guest.m_defaultNanOffset != FloatEnvironment::NO_FIELD) &&
+        (((control >> guest.m_defaultNanOffset) & 1) != 0))
+        environment.m_nanRule = FloatEnvironment::NAN_DEFAULT;
+    if ((instruction.getAttributes() &
+         SemanticInstruction::ATTRIBUTE_FLOAT_IEEE_HALF) != 0)
+        environment.m_isAlternativeHalf = false;
+    if ((instruction.getAttributes() &
+         SemanticInstruction::ATTRIBUTE_FLOAT_STANDARD) != 0)
+    {
+        // The standard environment, whatever the control register says (an
+        // explicit rounding mode of the instruction stays)
+        if (instruction.getRoundingMode() == SemanticOperation::ROUND_DYNAMIC)
+            environment.m_rounding = SemanticOperation::ROUND_NEAREST_EVEN;
+        environment.m_flushToZero = true;
+        environment.m_denormalsAreZero = true;
+        environment.m_flushHalfToZero = false;
+        environment.m_isUnderflowUnmasked = false;
+        environment.m_nanRule = FloatEnvironment::NAN_DEFAULT;
+    }
 }
 
 SemanticInterpreter::FloatCommit SemanticInterpreter::commitFloatFlags(

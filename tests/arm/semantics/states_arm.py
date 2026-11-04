@@ -108,6 +108,21 @@ def draw_vector(rng, bits, lane):
     return v
 
 
+EDGE_BYTES = [0x00, 0x01, 0x02, 0x7f, 0x80, 0x81, 0xfe, 0xff, 0x40, 0xc0, 0x3f, 0x20]
+
+
+def draw_vector_a32(rng, bits, lane):
+    """AArch32: like draw_vector, and for the integer data (lane 0) 40% of the vectors are made of
+    boundary bytes (0, 1, 0x7f, 0x80, 0xff...), so the saturation, the shifts by a register and the
+    comparisons reach their edges."""
+    if lane == 0 and rng.random() < 0.4:
+        v = 0
+        for i in range(bits // 8):
+            v |= rng.choice(EDGE_BYTES) << (8 * i)
+        return v
+    return draw_vector(rng, bits, lane)
+
+
 def lane_width(arch, text):
     """The lane size in bits that the vector registers of the instruction are drawn with, 0 for
     none (integer data)."""
@@ -225,7 +240,7 @@ def make_state(arch, rng, text, overrides, mode):
     else:
         st['apsr'] = (rng.getrandbits(4) << 28) | (rng.getrandbits(1) << 27) | (rng.getrandbits(4) << 16)
         st['fpscr'] = fp_control(rng, 'a32') | (rng.getrandbits(4) << 28)
-        st['q'] = [draw_vector(rng, 128, lane) for _ in range(16)]
+        st['q'] = [draw_vector_a32(rng, 128, lane) for _ in range(16)]
     for key in ('x', 'r'):
         for i, v in overrides.get(key, {}).items():
             if key in st:

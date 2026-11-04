@@ -63,7 +63,17 @@ public:
         ATTRIBUTE_FLOAT_EXCEPTIONS  = 0x0080,
         // The floating point operation doesn't raise the denormal operand
         // exception (the x87 stores to a narrower format: fst m32, m64)
-        ATTRIBUTE_IGNORE_DENORMAL   = 0x0100
+        ATTRIBUTE_IGNORE_DENORMAL   = 0x0100,
+        // The floating point operation uses the "standard" environment
+        // instead of the control register of the guest: round to nearest,
+        // flush to zero, default NaN (the standard FPSCR value of the
+        // AArch32 Advanced SIMD). The exception flags still accumulate in
+        // the status register
+        ATTRIBUTE_FLOAT_STANDARD    = 0x0200,
+        // The half precision conversions of the operation are the IEEE ones
+        // whatever the alternative half precision control of the guest says
+        // (ARM FEAT_FHM: the widening multiply adds)
+        ATTRIBUTE_FLOAT_IEEE_HALF   = 0x0400
     };
 
     /*

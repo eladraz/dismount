@@ -13,6 +13,8 @@
 #include "xStl/except/assert.h"
 #include "xStl/exceptions.h"
 #include "dismount/proc/arm/ArmOpcode.h"
+#include "dismount/proc/arm/ArmOperandCodec.h"
+#include "dismount/proc/arm/ArmOperandCodecA32.h"
 
 ArmDecodedOperand::ArmDecodedOperand() :
     m_kind(KIND_NONE),
@@ -199,7 +201,12 @@ bool ArmOpcode::isSettingFlags() const
         if (spec.m_kind == armdis::ARM_KIND_NONE)
             break;
         if (spec.m_kind == armdis::ARM_KIND_SETS_FLAGS)
+        {
+            // The T16 "adds": outside of an it block
+            if ((spec.m_flags & armdis::ARM_A32_SETS_FLAGS_OUTSIDE_IT) != 0)
+                return m_itState == 0;
             return ((m_encoding >> spec.m_position) & 1) != 0;
+        }
     }
     return false;
 }

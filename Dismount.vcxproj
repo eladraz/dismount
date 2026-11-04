@@ -48,6 +48,13 @@
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemantics.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTable.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLift32.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLift32Memory.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftVfp.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftNeon.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftNeonMemory.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftCrypto.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableSimd.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableStubs.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLift.cpp" />
@@ -149,6 +156,9 @@
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemantics.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmSemanticInternal.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmSemanticVfp.h" />
+    <ClInclude Include="Include\dismount\proc\arm\ArmSemanticNeon.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticInternal.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32eInstructionSet.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32IntelNotation.h" />
