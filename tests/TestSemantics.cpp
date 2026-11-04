@@ -972,7 +972,7 @@ public:
         uint modeRegister;
         TESTS_ASSERT(!arch->getModeRegister(modeRegister));
         TESTS_EXCEPTION(ArchitectureDescriptionFactory::getArchitecture(
-                                OpcodeSubsystems::DISASSEMBLER_ARM_32_LE));
+                                OpcodeSubsystems::DISASSEMBLER_ARM_32_BE));
 
         // Every name is found at its own id, and the sub-registers point to
         // full registers

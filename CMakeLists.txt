@@ -76,6 +76,9 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/ia32/IA32SemanticTableAMD64.cpp
 	Source/dismount/proc/ia32/IA32SemanticTableX87.cpp
 	Source/dismount/proc/ia32/IA32SemanticTableSimd.cpp
+	# ARM: the architecture descriptions of the semantic layer
+	Source/dismount/proc/arm/ArmArchitecture.cpp
+	Source/dismount/proc/arm/Arm64Architecture.cpp
 )
 
 add_library(dismount_static STATIC ${DISMOUNT_LIB_FILES})
@@ -126,6 +129,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestSemantics.cpp
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp
+		tests/TestArmArchitecture.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)
 	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
 endif()

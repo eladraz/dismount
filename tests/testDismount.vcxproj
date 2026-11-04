@@ -164,6 +164,7 @@
     <ClCompile Include="TestAMD64Assembler.cpp" />
     <ClCompile Include="TestSemantics.cpp" />
     <ClCompile Include="TestAMD64Semantics.cpp" />
+    <ClCompile Include="TestArmArchitecture.cpp" />
     <ClCompile Include="TestSemanticFloat.cpp" />
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp" />
   </ItemGroup>

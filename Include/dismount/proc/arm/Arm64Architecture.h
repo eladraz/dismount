@@ -35,9 +35,10 @@ namespace armdis {
  *     floating point register zeroes the bits above it, up to the top of z
  *     (writing d0 zeroes v0[64..127] and z0[128..VL-1]); m_zeroExtendsParent
  *     is set on all of them.
- *   - z0-z31 are VL bits, p0-p15 and ffr VL / 8 bits, see
- *     Arm64Architecture::Arm64Architecture(). In streaming mode (SME) the
- *     vector length is SVL instead of VL.
+ *   - z0-z31 are max(VL, SVL) bits, p0-p15 and ffr max(VL, SVL) / 8 bits,
+ *     see Arm64Architecture::Arm64Architecture(): the description has one
+ *     register file for both modes (in the streaming mode of SME the vector
+ *     length is SVL instead of VL), so it is as wide as the wider mode.
  *   - za is SVL x SVL bits, kept as SVL / 8 rows of SVL bits, the
  *     horizontal slices of the za.b tile. The tiles of the larger elements
  *     are rows of it (za1.s is the rows 1, 5, 9...) and their vertical

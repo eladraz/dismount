@@ -16,7 +16,7 @@ endif
 
 bin_PROGRAMS = test_dismount
 
-test_dismount_SOURCES = TestIA32AssemblerDisassembler.cpp TestAMD64Disassembler.cpp TestSemantics.cpp TestAMD64Semantics.cpp TestSemanticFloat.cpp $(XSTL_PATH)/tests/tests.cpp $(PETESTS)
+test_dismount_SOURCES = TestIA32AssemblerDisassembler.cpp TestAMD64Disassembler.cpp TestSemantics.cpp TestAMD64Semantics.cpp TestSemanticFloat.cpp TestArmArchitecture.cpp $(XSTL_PATH)/tests/tests.cpp $(PETESTS)
 
 test_dismount_CFLAGS = $(CFLAGS_DISMOUNT_COMMON) $(DBGFLAGS) $(AM_CFLAGS)
 test_dismount_CPPFLAGS = $(CFLAGS_DISMOUNT_COMMON) $(DBGFLAGS) $(AM_CFLAGS)

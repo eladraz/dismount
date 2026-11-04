@@ -12,6 +12,8 @@
 #include "dismount/semantics/ArchitectureDescription.h"
 #include "dismount/proc/ia32/IA32Architecture.h"
 #include "dismount/proc/ia32/AMD64Architecture.h"
+#include "dismount/proc/arm/ArmArchitecture.h"
+#include "dismount/proc/arm/Arm64Architecture.h"
 
 ArchitectureDescriptionPtr ArchitectureDescriptionFactory::getArchitecture(
                                     OpcodeSubsystems::DisassemblerType type)
@@ -23,6 +25,12 @@ ArchitectureDescriptionPtr ArchitectureDescriptionFactory::getArchitecture(
         return ArchitectureDescriptionPtr(new IA32Architecture(type));
     case OpcodeSubsystems::DISASSEMBLER_AMD_64:
         return ArchitectureDescriptionPtr(new AMD64Architecture());
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_LE:
+    case OpcodeSubsystems::DISASSEMBLER_THUMB_LE:
+        // A32 and T32 share the description, the T bit selects between them
+        return ArchitectureDescriptionPtr(new ArmArchitecture());
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
+        return ArchitectureDescriptionPtr(new Arm64Architecture());
     default:
         // No description for this processor
         CHECK_FAIL();
