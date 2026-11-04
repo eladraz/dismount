@@ -351,7 +351,7 @@ public:
         for (uint i = 0; i < count; i++)
         {
             const SmeToken& t = tokens[i];
-            uint index = 0;
+            unsigned int index = 0;
             const cSArray<char> name = t.m_name.getASCIIstring();
             if (t.m_name == "mem")
             {
@@ -443,7 +443,7 @@ public:
         for (uint i = 0; i < count; i++)
         {
             const SmeToken& t = tokens[i];
-            uint index = 0;
+            unsigned int index = 0;
             const cSArray<char> name = t.m_name.getASCIIstring();
             if (t.m_name == "exit")
             {

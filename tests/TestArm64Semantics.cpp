@@ -241,7 +241,7 @@ public:
             const Token& t = tokens[i];
             const SemanticValue value = (t.m_name == "mem") ? SemanticValue() :
                                         parseHex(t.m_value, t.m_end);
-            uint index = 0;
+            unsigned int index = 0;
             const cSArray<char> name = t.m_name.getASCIIstring();
             if (t.m_name == "mem")
                 parseMemory(t.m_value, t.m_end, memory, NULL);
@@ -315,7 +315,7 @@ public:
         for (uint i = 0; i < expectedCount; i++)
         {
             const Token& t = tokens[i];
-            uint index = 0;
+            unsigned int index = 0;
             const cSArray<char> ascii = cString(t.m_name).getASCIIstring();
             if (t.m_name == "exit")
             {
