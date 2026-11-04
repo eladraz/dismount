@@ -16,7 +16,7 @@ Per corpus line (tests/arm/corpus/<arch>/<file>.s):
         base, with just the features clang asks for it decodes them to the
         same text (the lines whose features dismount has no name for are
         skipped)
-The lines of sve.s and sme.s are the classes which are not implemented yet:
+The lines of sme.s are the class which is not implemented yet:
 where dismount says invalid / error they are UNSUPPORTED, not failures.
 
 Writes OUT/report.json (the format of tests/ia32/run_compat.py, so
@@ -38,7 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'tools'))
 import armlib
 
-UNIMPLEMENTED_FILES = ('sve', 'sme')
+UNIMPLEMENTED_FILES = ('sme',)
 DEFAULT_OUT = os.path.join(armlib.REPO, 'out', 'compat-arm')
 
 

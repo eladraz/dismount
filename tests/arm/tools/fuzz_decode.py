@@ -22,7 +22,7 @@ import armlib
 
 
 # The classes whose words are compared (the others are not implemented yet)
-IMPLEMENTED_CLASSES = ('base', 'simd')
+IMPLEMENTED_CLASSES = ('base', 'simd', 'sve')
 
 
 def generate(arch, count, seed, rows, only_class=None, tops=None):
@@ -50,6 +50,9 @@ def generate(arch, count, seed, rows, only_class=None, tops=None):
         else:
             word = (rng.getrandbits(8) << 24) | rng.getrandbits(24)
         word &= 0xffffffff
+        if only_class == 'sve':
+            # The SVE class is the bits 28-25 = 0010: not rare, but sparse
+            word = (word & ~0x1e000000) | 0x04000000
         if only_class and armlib.a64_class(word) != only_class:
             continue
         words.add(word)

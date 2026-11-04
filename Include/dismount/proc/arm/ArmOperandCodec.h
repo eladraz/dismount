@@ -122,28 +122,248 @@ enum ArmFprSizeScheme {
     ARM_FPR_SCHEMES_COUNT
 };
 
-// ARM_KIND_SVE_Z / Z_LIST / PREDICATE / SME_TILE: the element size
+// ARM_KIND_SVE_Z / Z_LIST / PREDICATE / SME_TILE: the element size. A scheme
+// reads the field(s) of the instruction which give the size and maps the
+// field value to b / h / s / d / q (a reserved value makes the operand not
+// decode: the encoding is not that entry). The table of the schemes is in
+// ArmOperandCodecSve.cpp, add a row there with the enumerator.
 enum ArmSveSizeScheme {
-    // No size (p0 without a suffix)
+    // No size (p0 without a suffix, ldr z0, [x0])
     ARM_SVE_NONE,
     // Fixed b, h, s, d, q
     ARM_SVE_B, ARM_SVE_H, ARM_SVE_S, ARM_SVE_D, ARM_SVE_Q,
     // The size field 22-23: b h s d
     ARM_SVE_SIZE_22,
     // The size field, the wider element of the widening instructions (h s d
-    // by size 1-3) and the narrower element (b h s)
+    // by size 1-3) and the narrower element (b h s by size 1-3)
     ARM_SVE_SIZE_22_WIDE,
     ARM_SVE_SIZE_22_NARROW,
-    // tsz (22-23 : 8-9) of the shifts, and imm2:tsz of dup / index
+    // tsz (22-23 : 8-9) of the predicated shifts, and imm2:tsz of dup /
+    // index (23-22 : 20-16): the highest set bit of the tsz of the shifts
+    // and the lowest set bit of the dup one give the size, the other bits
+    // are the immediate (read by the immediate or the indexed operand)
     ARM_SVE_TSZ,
     ARM_SVE_DUP_TSZ,
     // The sz bit 22 of the floating point instructions (s d) and the size
-    // 22-23 without b (h s d)
+    // 22-23 without b (h s d: the same as ARM_SVE_SIZE_22_WIDE)
     ARM_SVE_SZ_22,
     ARM_SVE_SIZE_22_FLOAT,
-    // The dtype of the contiguous loads (ld1b / ld1sb ... into .h .s .d)
+    // (reserved, the contiguous loads have one entry for each dtype)
     ARM_SVE_LOAD_DTYPE,
+    // ---- Added by the SVE table
+    // The size field 22-23, s and d only (size 10 and 11: the divides)
+    ARM_SVE_SIZE_22_SD,
+    // The size field 22-23, b h s (d reserved: saddv)
+    ARM_SVE_SIZE_22_BHS,
+    // The size field 22-23, h s (sdot by element: the half and word)
+    // The bit 22 alone: b h (the sources of the dot products of 32 / 64 bits)
+    ARM_SVE_BIT_22_BH,
+    // The bit 22 alone: s d (the destination of the dot products)
+    ARM_SVE_BIT_22_SD,
+    // The bit 22 alone: h s (the narrow source of the widening bfloat16)
+    ARM_SVE_BIT_22_HS,
+    // The bit 22 alone: s d
+    // tsz of the unpredicated shifts, 22-23 : 19-20
+    ARM_SVE_TSZ_UNPRED,
+    // tsz of the narrowing shifts, 22 : 19-20 (3 bits): the size of the
+    // narrow destination (b h s)
+    ARM_SVE_TSZ_NARROW,
+    // The wide source of the narrowing shifts, one larger (h s d)
+    ARM_SVE_TSZ_NARROW_SOURCE,
+    // tsz of the widening shifts (sshllb), 22 : 19-20: the size of the
+    // narrow source (b h s) and of the wide destination (h s d)
+    ARM_SVE_TSZ_WIDEN_SOURCE,
+    ARM_SVE_TSZ_WIDEN_DEST,
+    // The element size from the bitmask immediate of dupm / and / orr / eor
+    // (the smallest element which repeats the value)
+    ARM_SVE_LOGICAL_IMM,
+    // tsz (23-22 : 18-17) of pmov
+    ARM_SVE_TSZ_PMOV,
+    // tsz of sqxtnb... (22 : 20-19, the other bits of the shift field are
+    // zero): only 001 (b), 010 (h) and 100 (s) exist; the sources are one
+    // larger (h, s, d)
+    ARM_SVE_XTN_DEST,
+    ARM_SVE_XTN_SOURCE,
     ARM_SVE_SIZE_SCHEMES_COUNT
+};
+
+// ARM_KIND_SVE_Z_INDEXED: the fields of the index (and of zm). The element
+// size is in the m_flags of the spec, except for ARM_SVE_IDX_DUP
+enum ArmSveIndexScheme {
+    // dup / mov z0.s, z1.s[3]: imm2:tsz (23-22 : 20-16), zn at m_position,
+    // the lowest set bit of tsz is the size and the bits above it the index
+    ARM_SVE_IDX_DUP,
+    // by element: i3h:i3l (22, 20-19) and zm (18-16): half
+    ARM_SVE_IDX_I3H,
+    // i2 (20-19) and zm (18-16): word
+    ARM_SVE_IDX_I2,
+    // i1 (20) and zm (19-16): double
+    ARM_SVE_IDX_I1,
+    // the long multiplies by element (smlalb...): i3h:i3l (20-19 : 11) and
+    // zm (18-16), i2h:i2l (20 : 11) and zm (19-16)
+    ARM_SVE_IDX_WIDE_I3,
+    ARM_SVE_IDX_WIDE_I2,
+    // the FP8 multiply-add by element: i4 (20-19 : 11-10) and zm (18-16)
+    ARM_SVE_IDX_I4,
+    // dupq: tsz (20-16), the lowest set bit is the size (b h s d) and the
+    // bits above it the index (zn at m_position)
+    ARM_SVE_IDX_DUPQ,
+    // luti2 / luti4 / luti6: the index register zm (20-16) has the index in
+    // the bits 23-22, in the bit 23, or 23-22 : 12
+    ARM_SVE_IDX_LUT_2,
+    ARM_SVE_IDX_LUT_1,
+    ARM_SVE_IDX_LUT_3,
+    // pmov to / from a vector: tsz (23-22 : 18-17), the highest set bit is the
+    // size and the bits below it the index (none for the bytes); zn at
+    // m_position, no element size is printed
+    ARM_SVE_IDX_PMOV,
+    // the two and four register AES instructions: zm (m_position) and the
+    // index (20-19) of the quadword
+    ARM_SVE_IDX_AES,
+    ARM_SVE_IDX_SCHEMES_COUNT
+};
+
+// ARM_KIND_SVE_PREDICATE / PREDICATE_COUNTER m_flags
+enum ArmSvePredicateFlags {
+    // The register field has 3 bits (p0-p7) and not 4
+    ARM_SVE_PRED_3BIT       = 0x01,
+    // pn8-pn15 of a 3 bit field (PREDICATE_COUNTER)
+    ARM_SVE_PRED_HIGH       = 0x01,
+    // The qualifier (bits 1-3): none, /m, /z, or /m when the bit of the
+    // encoding is set and /z when it is clear
+    ARM_SVE_PRED_QUALIFIER_SHIFT = 1,
+    ARM_SVE_PRED_QUALIFIER_MASK  = 0x0e,
+    ARM_SVE_PRED_Q_NONE     = 0,
+    ARM_SVE_PRED_Q_MERGING  = 1,
+    ARM_SVE_PRED_Q_ZEROING  = 2,
+    ARM_SVE_PRED_Q_BIT4     = 3,
+    ARM_SVE_PRED_Q_BIT13    = 4,
+    ARM_SVE_PRED_Q_BIT16    = 5,
+    ARM_SVE_PRED_Q_BIT10    = 6,
+    ARM_SVE_PRED_Q_BIT20    = 7,
+    // The operand is a pair { p2.s, p3.s } of consecutive registers: with
+    // ARM_SVE_PRED_3BIT the field has 3 bits and is the even register, else it
+    // is a 4 bit register number
+    ARM_SVE_PRED_PAIR       = 0x10
+};
+
+// ARM_KIND_SVE_PREDICATE_INDEXED: the schemes
+enum ArmSvePredicateIndexScheme {
+    // psel: pn.<T>[wv, #imm] with pn (8-5), wv (17-16, w12-w15) and tsz
+    // (23-22 : 20-18): the lowest set bit is the size, the bits above it the
+    // index
+    ARM_SVE_PIDX_PSEL,
+    // pext: pnN[#imm] with the counter pn8-pn15 (7-5) and the index (9-8) or
+    // (8)
+    ARM_SVE_PIDX_PEXT_1,
+    ARM_SVE_PIDX_PEXT_2,
+    ARM_SVE_PIDX_SCHEMES_COUNT
+};
+
+// ARM_KIND_SVE_IMMEDIATE: the immediates, each scheme knows its fields
+enum ArmSveImmediateScheme {
+    // add / sub / subr / sqadd...: imm8 (12-5) with sh (13): "#1, lsl #8"
+    ARM_SVE_IMM_ADDSUB,
+    // dup / cpy / fcpy: simm8 (12-5) with sh (13)
+    ARM_SVE_IMM_DUP,
+    // smax / smin / mul: simm8 (12-5); umax / umin: imm8 (12-5)
+    ARM_SVE_IMM_SIGNED8,
+    ARM_SVE_IMM_UNSIGNED8,
+    // cmpeq...: simm5 (20-16); cmphs...: imm7 (20-14)
+    ARM_SVE_IMM_SIGNED5_16,
+    ARM_SVE_IMM_UNSIGNED7_14,
+    // index: simm5 at 5 and at 16
+    ARM_SVE_IMM_INDEX5,
+    ARM_SVE_IMM_INDEX5_16,
+    // The shifts by immediate: the predicated (tszh 23-22, tszl 9-8, imm3
+    // 7-5), the unpredicated (tszh 23-22, tszl 20-19, imm3 18-16), the
+    // narrowing (tszh 22, tszl 20-19, imm3 18-16) and the widening ones
+    // (the same fields): right shifts are esize * 2 - tsz:imm3
+    ARM_SVE_IMM_SHIFT_PRED_RIGHT,
+    ARM_SVE_IMM_SHIFT_PRED_LEFT,
+    ARM_SVE_IMM_SHIFT_RIGHT,
+    ARM_SVE_IMM_SHIFT_LEFT,
+    ARM_SVE_IMM_SHIFT_NARROW,
+    ARM_SVE_IMM_SHIFT_WIDEN,
+    // The floating point constants selected by bit 5: 0.5 / 1.0, 0.5 / 2.0,
+    // 0.0 / 1.0, and the constant 0.0 (no field)
+    ARM_SVE_IMM_FP_HALF_ONE,
+    ARM_SVE_IMM_FP_HALF_TWO,
+    ARM_SVE_IMM_FP_ZERO_ONE,
+    ARM_SVE_IMM_FP_ZERO,
+    // fdup / fcpy: the 8 bit floating point (12-5)
+    ARM_SVE_IMM_FP8,
+    // The complex rotations: 90 / 270 by bit 16, by bit 10, and 0 / 90 / 180
+    // / 270 by bits 14-13 and by bits 11-10
+    ARM_SVE_IMM_ROT_90_270_16,
+    ARM_SVE_IMM_ROT_90_270_10,
+    ARM_SVE_IMM_ROT_13,
+    ARM_SVE_IMM_ROT_10,
+    // ext: imm8h:imm8l (20-16 : 12-10)
+    ARM_SVE_IMM_EXT,
+    // extq: imm4 (19-16)
+    ARM_SVE_IMM_EXTQ,
+    // the multi vector narrowing shifts (sqrshrn...): 16 - imm4 (19-16)
+    ARM_SVE_IMM_SHIFT_MULTI,
+    // The multiplier of cntb... "mul #n": imm4 (19-16) + 1
+    ARM_SVE_IMM_MUL,
+    // addvl / rdvl...: simm6 (10-5)
+    ARM_SVE_IMM_SIMM6,
+    // ftmad: imm3 (18-16)
+    ARM_SVE_IMM_UIMM3_16,
+    // dupm / and / orr / eor: the bitmask immediate N:immr:imms (17-5), of
+    // the element size of ARM_SVE_LOGICAL_IMM
+    ARM_SVE_IMM_LOGICAL,
+    ARM_SVE_IMM_SCHEMES_COUNT
+};
+
+// ARM_KIND_SVE_MEMORY: the addressing forms. The base register is at
+// m_position (5), m_flags is the scale of the form (documented below)
+enum ArmSveAddressScheme {
+    // [Xn|SP{, #simm4 * m_flags, mul vl}]: simm4 (19-16), m_flags is the
+    // multiplier (the number of registers of ld2-ld4, 1 otherwise)
+    ARM_SVE_ADDR_MUL_VL4,
+    // [Xn|SP{, #simm9, mul vl}] of ldr / str z and p: imm9h:imm9l (21-16 :
+    // 12-10)
+    ARM_SVE_ADDR_MUL_VL9,
+    // [Xn|SP, Xm{, lsl #m_flags}]: rm (20-16); the amount is written when
+    // m_flags is not 0
+    ARM_SVE_ADDR_SCALAR_SCALAR,
+    // The same, and Rm = 31 is the form without the offset register
+    // ([Xn|SP]): the first fault loads
+    ARM_SVE_ADDR_SCALAR_SCALAR_OPTIONAL,
+    // [Xn|SP, Xm{, lsl #m_flags}] where Rm = 31 is xzr: the multi vector
+    // contiguous accesses
+    ARM_SVE_ADDR_SCALAR_SCALAR_ZR,
+    // [Xn|SP{, #imm6 << m_flags}]: imm6 (21-16), the broadcast loads ld1r*
+    ARM_SVE_ADDR_IMM6,
+    // [Xn|SP{, #simm4 << m_flags}]: simm4 (19-16), the quadword / octaword
+    // broadcast loads (ld1rq: 4, ld1ro: 5)
+    ARM_SVE_ADDR_SIMM4_SCALED,
+    // [Xn|SP, Zm.s, uxtw|sxtw{ #m_flags}]: zm (20-16), xs (22); and the
+    // 64 bit elements with a 32 bit offset [Xn|SP, Zm.d, uxtw|sxtw{ #s}]
+    ARM_SVE_ADDR_ZM_S_EXT,
+    ARM_SVE_ADDR_ZM_D_EXT,
+    // The same with xs at bit 14 (the scatter stores)
+    ARM_SVE_ADDR_ZM_S_EXT14,
+    ARM_SVE_ADDR_ZM_D_EXT14,
+    // [Xn|SP, Zm.d{, lsl #m_flags}]: zm (20-16)
+    ARM_SVE_ADDR_ZM_D_LSL,
+    // [Zn.s|d{, #imm5 << m_flags}]: the vector base (9-5), imm5 (20-16)
+    ARM_SVE_ADDR_ZN_S_IMM5,
+    ARM_SVE_ADDR_ZN_D_IMM5,
+    // [Zn.d{, Xm}]: the vector base and a scalar offset, rm (20-16)
+    ARM_SVE_ADDR_ZN_D_SCALAR,
+    ARM_SVE_ADDR_ZN_S_SCALAR,
+    // adr: [Zn.<T>, Zm.<T>{, lsl #msz}] with msz (11-10), zn (9-5), zm (20-16);
+    // the sxtw / uxtw ones are [Zn.d, Zm.d, sxtw{ #msz}]
+    ARM_SVE_ADDR_ADR_S,
+    ARM_SVE_ADDR_ADR_D,
+    ARM_SVE_ADDR_ADR_SXTW,
+    ARM_SVE_ADDR_ADR_UXTW,
+    // [Xn|SP{, #simm6, mul vl}]: simm6 (21-16), the prefetches
+    ARM_SVE_ADDR_MUL_VL6,
+    ARM_SVE_ADDR_SCHEMES_COUNT
 };
 
 // ARM_KIND_A64_MEMORY: the addressing form. The base register is at m_position
@@ -370,8 +590,20 @@ enum ArmOptionScheme {
     ARM_OPT_RPRFM,
     // The fixed operand "nb" of tchangef, tchangeb and texit
     ARM_OPT_NB,
+    // ---- SVE (ArmOperandCodecSve.cpp reads the fields; m_position of the
+    // spec is the low bit of the field)
+    // The predicate pattern (5 bits): pow2, vl1-vl8, vl16-vl256, mul4, mul3,
+    // all, and "#0x0e" for the others
+    ARM_OPT_SVE_PATTERN,
+    // The prefetch operation (4 bits): pldl1keep... pstl3strm
+    ARM_OPT_SVE_PREFETCH,
+    // vlx2 / vlx4 (1 bit)
+    ARM_OPT_SVE_VLX,
     ARM_OPT_SCHEMES_COUNT
 };
+
+// The first SVE option scheme (ArmOperandCodecSve.cpp handles them)
+enum { ARM_OPT_SVE_FIRST = ARM_OPT_SVE_PATTERN };
 
 // ARM_KIND_BRANCH_TARGET: the m_flags values
 enum ArmBranchScheme {

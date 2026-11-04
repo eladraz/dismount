@@ -40,14 +40,14 @@ LLVM names them), so features that only add such names have no encodings.
 | 45 | rcpc-immo | 13 | yes | yes | yes | yes | yes | 171 / 171 | 182 / 182 |
 | 46 | flagm | 4 | yes | yes | yes | yes | yes | 30 / 30 | 64 / 64 |
 | 47 | altnzcv | 2 | yes | yes | yes | yes | yes | 2 / 2 | 20 / 20 |
-| 48 | fptoint | 12 | yes | yes | - | - | yes | 183 / 183 | - |
+| 48 | fptoint | 20 | yes | yes | - | - | yes | 183 / 183 | - |
 | 49 | sb | 1 | yes | yes | yes | yes | yes | 1 / 1 | 4 / 4 |
 | 50 | bti | 0 | - | - | - | - | - | - | - |
 | 51 | mte | 40 | yes | yes | - | - | yes | 387 / 387 | 11 / 18 |
 | 52 | rand | 0 | - | - | - | - | - | - | - |
 | 53 | predres | 4 | yes | yes | yes | - | yes | - | - |
-| 54 | i8mm | 6 | yes | yes | - | - | yes | 126 / 156 | - |
-| 55 | bf16 | 10 | yes | yes | - | - | yes | 181 / 211 | - |
+| 54 | i8mm | 12 | yes | yes | - | - | yes | 126 / 156 | - |
+| 55 | bf16 | 22 | yes | yes | - | - | yes | 181 / 211 | - |
 | 56 | ls64 | 4 | yes | yes | partial | - | yes | 15 / 15 | 0 / 16 |
 | 57 | wfxt | 2 | yes | yes | yes | - | yes | 15 / 15 | - |
 | 58 | mops | 108 | yes | yes | - | - | yes | 667 / 667 | - |
@@ -57,24 +57,24 @@ LLVM names them), so features that only add such names have no encodings.
 | 62 | lse128 | 12 | yes | yes | yes | - | yes | 109 / 109 | 0 / 200 |
 | 63 | d128 | 5 | yes | yes | - | - | yes | 285 / 285 | - |
 | 64 | gcs | 10 | yes | yes | - | - | yes | 59 / 59 | - |
-| 65 | cpa | 4 | yes | yes | - | - | yes | 53 / 77 | - |
-| 66 | fp8 | 14 | yes | yes | - | - | yes | 236 / 240 | - |
-| 67 | fp8fma | 12 | yes | yes | - | - | yes | 228 / 228 | - |
-| 68 | fp8dot4 | 2 | yes | yes | - | - | yes | 34 / 34 | - |
-| 69 | fp8dot2 | 2 | yes | yes | - | - | yes | 36 / 36 | - |
-| 70 | faminmax | 4 | yes | yes | - | - | yes | 69 / 82 | - |
-| 71 | lut | 4 | yes | yes | - | - | yes | 76 / 88 | - |
-| 72 | sve | 0 | - | - | - | - | - | 0 / 1560 | - |
-| 73 | f32mm | 0 | - | - | - | - | - | - | - |
-| 74 | f64mm | 0 | - | - | - | - | - | 0 / 24 | - |
-| 75 | sve2 | 0 | - | - | - | - | - | 0 / 1024 | - |
-| 76 | sve2-aes | 0 | - | - | - | - | - | - | - |
-| 77 | sve2-sha3 | 0 | - | - | - | - | - | - | - |
-| 78 | sve2-sm4 | 0 | - | - | - | - | - | - | - |
-| 79 | sve2-bitperm | 0 | - | - | - | - | - | - | - |
-| 80 | sve2p1 | 0 | - | - | - | - | - | 0 / 345 | - |
-| 81 | sve-b16b16 | 0 | - | - | - | - | - | 0 / 48 | - |
-| 82 | sme | 0 | - | - | - | - | - | 0 / 2304 | - |
+| 65 | cpa | 10 | yes | yes | - | - | yes | 53 / 77 | - |
+| 66 | fp8 | 26 | yes | yes | - | - | yes | 236 / 240 | - |
+| 67 | fp8fma | 24 | yes | yes | - | - | yes | 228 / 228 | - |
+| 68 | fp8dot4 | 4 | yes | yes | - | - | yes | 34 / 34 | - |
+| 69 | fp8dot2 | 4 | yes | yes | - | - | yes | 36 / 36 | - |
+| 70 | faminmax | 6 | yes | yes | - | - | yes | 69 / 82 | - |
+| 71 | lut | 9 | yes | yes | - | - | yes | 76 / 88 | - |
+| 72 | sve | 898 | yes | yes | - | - | yes | 0 / 1560 | 1644 / 1644 |
+| 73 | f32mm | 1 | yes | yes | - | - | yes | - | - |
+| 74 | f64mm | 15 | yes | yes | - | - | yes | 0 / 24 | - |
+| 75 | sve2 | 279 | yes | yes | - | - | yes | 0 / 1024 | 76 / 76 |
+| 76 | sve2-aes | 6 | yes | yes | - | - | yes | - | - |
+| 77 | sve2-sha3 | 1 | yes | yes | - | - | yes | - | - |
+| 78 | sve2-sm4 | 2 | yes | yes | - | - | yes | - | - |
+| 79 | sve2-bitperm | 3 | yes | yes | - | - | yes | - | - |
+| 80 | sve2p1 | 211 | yes | yes | - | - | yes | 0 / 345 | - |
+| 81 | sve-b16b16 | 16 | yes | yes | - | - | yes | 0 / 48 | - |
+| 82 | sme | 3 | - | - | - | - | - | 0 / 2304 | - |
 | 83 | sme-f64f64 | 0 | - | - | - | - | - | 0 / 4 | - |
 | 84 | sme-i16i64 | 0 | - | - | - | - | - | 0 / 15 | - |
 | 85 | sme-f16f16 | 0 | - | - | - | - | - | 0 / 16 | - |
@@ -95,9 +95,13 @@ LLVM names them), so features that only add such names have no encodings.
 | 100 | pcdphint | 1 | yes | yes | yes | - | yes | 2 / 2 | 0 / 4 |
 | 101 | poe2 | 8 | yes | yes | - | - | yes | 80 / 80 | - |
 | 102 | tev | 4 | yes | yes | - | - | yes | 22 / 22 | - |
-| 103 | f8f32mm | 1 | yes | yes | - | - | yes | 19 / 24 | - |
-| 104 | f8f16mm | 1 | yes | yes | - | - | yes | 19 / 19 | - |
+| 103 | f8f32mm | 2 | yes | yes | - | - | yes | 19 / 24 | - |
+| 104 | f8f16mm | 2 | yes | yes | - | - | yes | 19 / 19 | - |
 | 105 | fprcvt | 48 | yes | yes | - | - | yes | 762 / 762 | - |
+| 118 | sve2p2 | 110 | yes | yes | - | - | yes | 0 / 195 | 230 / 230 |
+| 119 | sve2p3 | 10 | yes | yes | - | - | yes | 0 / 37 | - |
+| 120 | sve-aes2 | 10 | yes | yes | - | - | yes | 0 / 11 | - |
+| 121 | sve-bfscale | 1 | yes | yes | - | - | yes | 0 / 3 | - |
 
 ## A32
 

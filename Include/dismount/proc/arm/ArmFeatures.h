@@ -249,7 +249,8 @@ public:
         // A64 SIMD: the FP8 matrix multiply of Advanced SIMD (fmmla
         // v0.4s, v1.16b, v2.16b: FEAT_F8F32MM, v0.8h: FEAT_F8F16MM) and the
         // conversions between floating point registers without the general
-        // registers (fcvtas s0, d1: FEAT_FPRCVT)
+        // registers (fcvtas s0, d1: FEAT_FPRCVT). The SVE fmmla z.s, z.b, z.b and
+        // z.h, z.b, z.b need the same F8F32MM / F8F16MM
         FEAT_F8F32MM,
         FEAT_F8F16MM,
         FEAT_FPRCVT,
@@ -280,6 +281,17 @@ public:
         FEAT_FPARMV8,
         // The half precision conversions vcvtb / vcvtt (LLVM fp16)
         FEAT_FP16_CVT,
+
+        // More of the scalable vector extensions, as LLVM names them (the
+        // SVE table of the instructions objdump decodes): SVE2.2 (the zeroing
+        // predicated forms, compact and expand of b / h, firstp, lastp),
+        // SVE2.3 (luti6, scvtflt, the narrowing converts to FP8), the
+        // two register AES instructions (aesd { z0.b - z1.b }, pmull to .q:
+        // FEAT_SVE_AES2) and bfscale (FEAT_SVE_BFSCALE)
+        FEAT_SVE2P2,
+        FEAT_SVE2P3,
+        FEAT_SVE_AES2,
+        FEAT_SVE_BFSCALE,
 
         // The number of features. Must be last
         FEATURES_COUNT

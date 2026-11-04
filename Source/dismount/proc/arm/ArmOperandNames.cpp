@@ -221,6 +221,8 @@ bool findCondition(const cString& name, uint& condition)
 
 const char* getOptionName(uint scheme, uint value)
 {
+    if (scheme >= ARM_OPT_SVE_FIRST)
+        return getSveOptionName(scheme, value);
     if (scheme >= ARM_OPT_SCHEMES_COUNT)
         return NULL;
     const ArmNamedValue* names = gArmOptionNames[scheme];
@@ -247,6 +249,8 @@ bool optionTakesRegister(uint scheme, uint value)
 
 bool findOption(uint scheme, const cString& name, uint& value)
 {
+    if (scheme >= ARM_OPT_SVE_FIRST)
+        return findSveOption(scheme, name, value);
     if (scheme >= ARM_OPT_SCHEMES_COUNT)
         return false;
     const ArmNamedValue* names = gArmOptionNames[scheme];

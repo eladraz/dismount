@@ -121,28 +121,56 @@ enum ArmOperandKind {
     // ---- SVE and SME registers ------------------------------------------
     // zN.<T>: the number at m_position (5 bits), the element size from
     // ArmSveSizeScheme m_extra (fixed, the size field 22-23, the tsz field
-    // of the shifts and dup...)
+    // of the shifts and dup...). ARM_SVE_NONE prints "zN" alone
     ARM_KIND_SVE_Z,
     // zN.<T>[index]: by element (fmla z0.s, z1.s, z2.s[1]) or dup / mov
-    // (z0.s, z1.s[3]), the scheme ArmSveIndexScheme m_extra. The number of
-    // bits of zm is in m_flags bits 0-2 (3 or 4, zm at m_position)
+    // (z0.s, z1.s[3]), the scheme ArmSveIndexScheme m_extra gives the fields
+    // of the index (and of the register for the by element forms, zm at
+    // m_position); m_flags bits 0-2 is the element size (0-4: b h s d q,
+    // 7: none, "z2[1]") of the operand, except for the schemes which read it
+    // from the encoding (ARM_SVE_IDX_DUP)
     ARM_KIND_SVE_Z_INDEXED,
-    // A list of z registers: { zN.<T> - zN+k.<T> } (ld2 / tbl / SME2 multi
-    // vector), the count in m_flags bits 0-2, with ARM_SPEC_LIST_STRIDED the
-    // strided list of SME2 { z0.s, z8.s }; the number of encoded bits and the
-    // multiple of the first register (the multi vector operands use zN*2 or
-    // zN*4) in m_flags bits 4-7. The element size from m_extra
+    // A list of z registers: { zN.<T>, zN+1.<T> } or { zN.<T> - zN+3.<T> }
+    // (ld2-ld4, tbl, st2-st4, SME2 multi vector). The registers wrap around
+    // z31. m_position is the low bit of the encoded register number, m_flags
+    // bits 0-2 the count (1-4), bits 4-5 the multiple of the first register
+    // (0: 1, 1: 2, 2: 4, 3: 8: the field has fewer bits and the register
+    // number is field * multiple, the SME2 multi vector operands), bit 3
+    // ARM_SPEC_LIST_STRIDED (SME2 { z0.s, z8.s }). The element size from
+    // m_extra (ArmSveSizeScheme). Lists of 3 and 4 are printed as a range
     ARM_KIND_SVE_Z_LIST,
-    // pN, pN/m, pN/z, pN.<T>: the number at m_position, 3 or 4 bits in
-    // m_flags bits 0-2, the qualifier (none, /m, /z, by the M bit 4 of the
-    // predicated instructions) in ArmPredicateFlags m_flags bits 4-7, the
-    // element size from m_extra (ArmSveSizeScheme, 0 for none)
+    // pN, pN/m, pN/z, pN.<T>: the number at m_position, m_flags
+    // ArmPredicatFlags (3 or 4 bits, the qualifier: none, /m, /z or by a bit
+    // of the encoding), the element size from m_extra (ArmSveSizeScheme,
+    // ARM_SVE_NONE for none)
     ARM_KIND_SVE_PREDICATE,
     // pnN.<T> of SME2 / SVE2.1, a predicate used as a counter: 3 bits at
-    // m_position (pn8-pn15 with ARM_SPEC_PN_HIGH)
+    // m_position (pn8-pn15 with ARM_SVE_PRED_HIGH, otherwise 4 bits), the
+    // qualifier and the size as for ARM_KIND_SVE_PREDICATE
     ARM_KIND_SVE_PREDICATE_COUNTER,
     // ffr
     ARM_KIND_SVE_FFR,
+    // vN.<T> of the quadword reductions (addqv v0.4s, p0, z1.s): the number
+    // at m_position, the arrangement 16b 8h 4s 2d from the element size
+    // scheme m_extra (ArmSveSizeScheme)
+    ARM_KIND_SVE_V128,
+    // A register field which is a copy of another field (the Zm of mov z0.d,
+    // z1.d = orr z0.d, z1.d, z1.d; the predicates of mov p0.b, p1.b): m_position
+    // is the field, m_extra the position of the field it copies, m_flags the
+    // width in bits. Not an operand of the text: never decoded (the entry's
+    // condition checks the equality), encoded by copying, like
+    // ARM_KIND_A64_TIED_REGISTER
+    ARM_KIND_SVE_TIED,
+    // A general purpose register whose size follows the element size of the
+    // instruction: x when the element is a double word (the scheme m_extra,
+    // ArmSveSizeScheme, reads the size field), w otherwise (dup z0.s, w1; index
+    // z0.d, x1, x2; clasta w0, p0, w0, z1.s). The number at m_position (5
+    // bits), m_flags 1: the number 31 is sp / wsp and not the zero register
+    ARM_KIND_SVE_GPR,
+    // The predicate of psel / pext / pmov, with an element or slice index:
+    // pN.<T>[wV, #imm] (psel), pnN[#imm] (pext), the scheme in m_extra
+    // (ArmSvePredicateIndexScheme)
+    ARM_KIND_SVE_PREDICATE_INDEXED,
     // za tile: za<n>.<T>, or za for the whole array; m_extra is the element
     // size (ArmSveSizeScheme) and m_position the tile number field
     ARM_KIND_SME_TILE,
@@ -204,7 +232,10 @@ enum ArmOperandKind {
     // (add, sub, dup, cpy: sh at 13), the shift of the shift by immediate
     // instructions (tsz:imm3), the floating point 0.5 / 1.0 / 2.0 / 0.0
     // selected by one bit (fadd z0.s, p0/m, z0.s, #0.5), the rotation of the
-    // complex instructions (#90, #270, by m_extra values)
+    // complex instructions (#90, #270), the multiplier "mul #4" of the
+    // element count instructions, the 8 bit floating point of fdup. The
+    // fields are in the scheme ArmSveImmediateScheme m_extra (the position of
+    // a scheme is fixed by the encoding, m_position is not used)
     ARM_KIND_SVE_IMMEDIATE,
 
     // ---- Shifts and extends ---------------------------------------------
@@ -380,7 +411,12 @@ enum ArmSpecFlags {
     // (cset, cinc, cneg print the condition which is the inverse of the
     // field). Shares the bit with ARM_SPEC_SCALE_MASK, which a condition
     // doesn't use
-    ARM_SPEC_INVERT         = 0x01
+    ARM_SPEC_INVERT         = 0x01,
+    // ARM_KIND_SVE_Z_LIST (m_flags): the strided list of SME2 / SVE2.1 ({ z0.s,
+    // z8.s }, { z1.s, z5.s, z9.s, z13.s }): the stride is 16 / count, the
+    // first register is bit m_position + 4 : the low 3 (2 registers) or 2
+    // (4 registers) bits at m_position
+    ARM_SPEC_LIST_STRIDED   = 0x08
 };
 
 /*

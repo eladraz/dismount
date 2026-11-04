@@ -156,16 +156,16 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_LUT */           { "lut",             SUPPORT_FULL },
 
     // --- SVE
-    /* FEAT_SVE */           { "sve",             SUPPORT_NONE },
-    /* FEAT_F32MM */         { "f32mm",           SUPPORT_NONE },
-    /* FEAT_F64MM */         { "f64mm",           SUPPORT_NONE },
-    /* FEAT_SVE2 */          { "sve2",            SUPPORT_NONE },
-    /* FEAT_SVE_AES */       { "sve2-aes",        SUPPORT_NONE },
-    /* FEAT_SVE_SHA3 */      { "sve2-sha3",       SUPPORT_NONE },
-    /* FEAT_SVE_SM4 */       { "sve2-sm4",        SUPPORT_NONE },
-    /* FEAT_SVE_BITPERM */   { "sve2-bitperm",    SUPPORT_NONE },
-    /* FEAT_SVE2P1 */        { "sve2p1",          SUPPORT_NONE },
-    /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_NONE },
+    /* FEAT_SVE */           { "sve",             SUPPORT_FULL },
+    /* FEAT_F32MM */         { "f32mm",           SUPPORT_FULL },
+    /* FEAT_F64MM */         { "f64mm",           SUPPORT_FULL },
+    /* FEAT_SVE2 */          { "sve2",            SUPPORT_FULL },
+    /* FEAT_SVE_AES */       { "sve2-aes",        SUPPORT_FULL },
+    /* FEAT_SVE_SHA3 */      { "sve2-sha3",       SUPPORT_FULL },
+    /* FEAT_SVE_SM4 */       { "sve2-sm4",        SUPPORT_FULL },
+    /* FEAT_SVE_BITPERM */   { "sve2-bitperm",    SUPPORT_FULL },
+    /* FEAT_SVE2P1 */        { "sve2p1",          SUPPORT_FULL },
+    /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_FULL },
 
     // --- SME
     /* FEAT_SME */           { "sme",             SUPPORT_NONE },
@@ -213,7 +213,13 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_PAN_AA32 */      { "v8.1a",           SUPPORT_FULL },
     /* FEAT_V8_4A_AA32 */    { "v8.4a",           SUPPORT_FULL },
     /* FEAT_FPARMV8 */       { "fp-armv8",        SUPPORT_FULL },
-    /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_FULL }
+    /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_FULL },
+
+    // --- More SVE
+    /* FEAT_SVE2P2 */        { "sve2p2",          SUPPORT_FULL },
+    /* FEAT_SVE2P3 */        { "sve2p3",          SUPPORT_FULL },
+    /* FEAT_SVE_AES2 */      { "sve-aes2",        SUPPORT_FULL },
+    /* FEAT_SVE_BFSCALE */   { "sve-bfscale",     SUPPORT_FULL }
 };
 
 /*
@@ -242,6 +248,12 @@ const Implication gImplications[] = {
     { ArmFeatures::FEAT_SVE_BITPERM,  ArmFeatures::FEAT_SVE2 },
     { ArmFeatures::FEAT_SVE2P1,       ArmFeatures::FEAT_SVE2 },
     { ArmFeatures::FEAT_SVE_B16B16,   ArmFeatures::FEAT_SVE },
+    { ArmFeatures::FEAT_SVE2P2,       ArmFeatures::FEAT_SVE2P1 },
+    { ArmFeatures::FEAT_SVE2P3,       ArmFeatures::FEAT_SVE2P2 },
+    { ArmFeatures::FEAT_SVE_AES2,     ArmFeatures::FEAT_SVE2 },
+    { ArmFeatures::FEAT_SVE_BFSCALE,  ArmFeatures::FEAT_SVE },
+    { ArmFeatures::FEAT_F8F32MM,      ArmFeatures::FEAT_FP8 },
+    { ArmFeatures::FEAT_F8F16MM,      ArmFeatures::FEAT_FP8 },
     { ArmFeatures::FEAT_SME_F64F64,   ArmFeatures::FEAT_SME },
     { ArmFeatures::FEAT_SME_I16I64,   ArmFeatures::FEAT_SME },
     { ArmFeatures::FEAT_SME2,         ArmFeatures::FEAT_SME },

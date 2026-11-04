@@ -108,6 +108,14 @@ cString formatFloat(double value)
     return text + cString(whole) + "." + cString::dup("0", 8 - digits.length()) + digits;
 }
 
+// Return the text of the SVE floating point constants: "0.5", "1.0", "2.0", "0.0"
+cString formatShortFloat(double value)
+{
+    if (value == 0.5)
+        return cString("0.5");
+    return cString((uint32)value) + ".0";
+}
+
 // Return the register name, with a fallback for the ids which have none
 cString formatRegisterName(InstructionSet type, uint registerId)
 {
@@ -126,6 +134,10 @@ cString formatRegister(InstructionSet type, const Operand& operand)
     text += gArrangements[operand.m_arrangement];
     if (operand.m_elementIndex >= 0)
         text += cString("[") + cString((uint32)operand.m_elementIndex) + "]";
+    // The slice of psel: p12.b[w13, 15]
+    if (operand.m_sliceRegister != ARM_NO_REGISTER)
+        text += cString("[") + formatRegisterName(type, operand.m_sliceRegister) + ", " +
+                cString((uint32)operand.m_sliceOffset) + "]";
     if (operand.m_predicateQualifier == Operand::PREDICATE_MERGING)
         text += "/m";
     else if (operand.m_predicateQualifier == Operand::PREDICATE_ZEROING)
@@ -172,6 +184,21 @@ cString formatList(InstructionSet type, const Operand& operand)
 
     uint stride = (operand.m_stride == 0) ? 1 : operand.m_stride;
     bool isGeneral = isA64GeneralRegister(operand.m_register);
+    // The lists of 3 or more consecutive z registers are a range, as long as
+    // they don't wrap around z31: { z0.s - z3.s }
+    if ((operand.m_register >= ARM64_REG_Z0) && (operand.m_register <= ARM64_REG_Z31) &&
+        (operand.m_count >= 3) && (stride == 1) &&
+        (operand.m_register - ARM64_REG_Z0 + operand.m_count <= 32))
+    {
+        Operand first;
+        first.m_register = operand.m_register;
+        first.m_arrangement = operand.m_arrangement;
+        Operand last;
+        last.m_register = operand.m_register + operand.m_count - 1;
+        last.m_arrangement = operand.m_arrangement;
+        return cString("{ ") + formatRegister(type, first) + " - " +
+               formatRegister(type, last) + " }";
+    }
     // The pair of general purpose registers has no braces (casp x0, x1, ...)
     cString text = isGeneral ? cString() : cString("{ ");
     for (uint i = 0; i < operand.m_count; i++)
@@ -220,8 +247,45 @@ cString formatShift(const Operand& operand)
     return text + " #" + cString((uint32)operand.m_shiftAmount);
 }
 
+// True if the register id is a z register
+bool isZRegisterId(uint registerId)
+{
+    return (registerId >= ARM64_REG_Z0) && (registerId <= ARM64_REG_Z31);
+}
+
+// The SVE addressing forms which the A64 formatter doesn't print: a vector
+// base ([z1.d, #0x10], [z1.d, x2]) and the multiple of the vector length
+// ([x0, #-0x2, mul vl])
+cString formatSveMemory(InstructionSet type, const Operand& operand)
+{
+    cString text = cString("[") + formatRegisterName(type, operand.m_base);
+    if (isZRegisterId(operand.m_base))
+    {
+        text += gArrangements[operand.m_indexArrangement];
+        if (isZRegisterId(operand.m_index))
+        {
+            // adr: [z1.d, z2.d, lsl #2], [z1.d, z2.d, sxtw]
+            text += cString(", ") + formatRegisterName(type, operand.m_index) +
+                    gArrangements[operand.m_indexArrangement];
+            if (operand.m_shift != Operand::SHIFT_NONE)
+            {
+                text += cString(", ") + gShifts[operand.m_shift];
+                if (operand.m_isExplicit)
+                    text += cString(" #") + cString((uint32)operand.m_shiftAmount);
+            }
+        } else if (operand.m_index != ARM_NO_REGISTER)
+            text += cString(", ") + formatRegisterName(type, operand.m_index);
+        else if (operand.m_offset != 0)
+            text += cString(", #") + formatNumber(operand.m_offset, true);
+        return text + "]";
+    }
+    return text + ", #" + formatNumber(operand.m_offset, true) + ", mul vl]";
+}
+
 cString formatMemory(InstructionSet type, const Operand& operand)
 {
+    if (isZRegisterId(operand.m_base) || (operand.m_shift == Operand::SHIFT_MUL_VL))
+        return formatSveMemory(type, operand);
     cString text = cString("[") + formatRegisterName(type, operand.m_base);
     if (operand.m_index != ARM_NO_REGISTER)
     {
@@ -372,11 +436,14 @@ cString ArmNotation::formatOperand(ArmInstructionSet::DisassemblerTypes type,
     case Operand::KIND_REGISTER_LIST:
         return formatList(type, operand);
     case Operand::KIND_IMMEDIATE:
+        // "mul #4" of the SVE element count instructions
+        if (operand.m_shift == Operand::SHIFT_MUL)
+            return cString("mul #") + formatNumber(operand.m_immediate, operand.m_isHex);
         return formatImmediate(operand);
     case Operand::KIND_FLOAT_IMMEDIATE:
-        // The explicit zero of fcmp / fcmeq is written "#0.0"
+        // The SVE constants 0.5 / 1.0 / 2.0 / 0.0 are written in the short form
         if (operand.m_isExplicit)
-            return cString("#0.0");
+            return cString("#") + formatShortFloat(operand.m_floatImmediate);
         return cString("#") + formatFloat(operand.m_floatImmediate);
     case Operand::KIND_SHIFTED_REGISTER:
     {

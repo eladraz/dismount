@@ -228,7 +228,7 @@ public:
         // The base is supported and verified, the A64 SIMD is not there yet
         ARM64_ASSERT((ArmFeatures::getSupport(ArmFeatures::FEAT_A64_BASE) &
                       ArmFeatures::SUPPORT_ENCODING_VERIFIED) != 0);
-        ARM64_ASSERT(ArmFeatures::getSupport(ArmFeatures::FEAT_SVE) == 0);
+        ARM64_ASSERT(ArmFeatures::getSupport(ArmFeatures::FEAT_SME2) == 0);
     }
 
     // The stream: addresses, fault tolerance, truncated data

@@ -210,13 +210,33 @@ bool parseRegister(Parser& parser, const cString& word, InstructionSet type,
         // v0.s[1]
         parser.readChar();
         skipBlanks(parser);
-        ASM_CHECK(isDigitAhead(parser), "element index was expected");
-        uint64 index = 0;
-        ASM_CHECK(parser.isUnsignedInteger64(&index, true), "invalid element index");
-        skipBlanks(parser);
-        ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
-        parser.readChar();
-        operand.m_elementIndex = (int)index;
+        if (!parser.isEOS() && cChar::isLetter(parser.peekChar()))
+        {
+            // The slice of psel: p12.b[w13, 15]
+            uint sliceRegister;
+            ASM_CHECK(findRegister(type, readWord(parser), sliceRegister), "register was expected");
+            operand.m_sliceRegister = sliceRegister;
+            skipBlanks(parser);
+            ASM_CHECK(isNextChar(parser, ','), "',' was expected");
+            parser.readChar();
+            skipBlanks(parser);
+            ASM_CHECK(isDigitAhead(parser), "slice offset was expected");
+            uint64 offset = 0;
+            ASM_CHECK(parser.isUnsignedInteger64(&offset, true), "invalid slice offset");
+            operand.m_sliceOffset = (uint)offset;
+            skipBlanks(parser);
+            ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
+            parser.readChar();
+        } else
+        {
+            ASM_CHECK(isDigitAhead(parser), "element index was expected");
+            uint64 index = 0;
+            ASM_CHECK(parser.isUnsignedInteger64(&index, true), "invalid element index");
+            skipBlanks(parser);
+            ASM_CHECK(isNextChar(parser, ']'), "']' was expected");
+            parser.readChar();
+            operand.m_elementIndex = (int)index;
+        }
     }
     if (isNextChar(parser, '!'))
     {
@@ -266,6 +286,13 @@ void parseMemory(Parser& parser, InstructionSet type, Operand& operand)
     uint registerId;
     ASM_CHECK(findRegister(type, word, registerId), "base register was expected");
     operand.m_base = registerId;
+    // The SVE vector base: [z1.d, #16]
+    if (isNextChar(parser, '.'))
+    {
+        parser.readChar();
+        ASM_CHECK(findArrangementName(readWord(parser), operand.m_indexArrangement),
+                  "unknown arrangement");
+    }
     skipBlanks(parser);
 
     while (isNextChar(parser, ','))
@@ -286,7 +313,13 @@ void parseMemory(Parser& parser, InstructionSet type, Operand& operand)
         {
             cString part = readWord(parser);
             uint partShift = findShiftName(part);
-            if (partShift != Operand::SHIFT_NONE)
+            if (part == "mul")
+            {
+                // The SVE multiple of the vector length: [x0, #1, mul vl]
+                skipBlanks(parser);
+                ASM_CHECK(readWord(parser) == "vl", "'vl' was expected");
+                operand.m_shift = Operand::SHIFT_MUL_VL;
+            } else if (partShift != Operand::SHIFT_NONE)
             {
                 // The shift or extend of the index
                 Operand shift;
@@ -317,6 +350,13 @@ void parseMemory(Parser& parser, InstructionSet type, Operand& operand)
     }
 }
 
+// True if the register id is a z or p register (or ffr) of SVE
+bool isSveRegister(uint registerId)
+{
+    return ((registerId >= ARM64_REG_Z0) && (registerId <= ARM64_REG_Z31)) ||
+           ((registerId >= ARM64_REG_P0) && (registerId <= ARM64_REG_FFR));
+}
+
 // Parse a list of registers: "{ v0.16b, v1.16b }", "{ v0.16b - v3.16b }"
 void parseList(Parser& parser, InstructionSet type, Operand& operand)
 {
@@ -325,6 +365,9 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
     uint count = 0;
     Operand first;
     Operand last;
+    // The distance between the first two registers of a list without a range
+    // ({ z0.s, z8.s }), 1 if they are consecutive or wrap around
+    uint stride = 1;
     for (;;)
     {
         cString word = readWord(parser);
@@ -332,6 +375,20 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
         ASM_CHECK(parseRegister(parser, word, type, item), "register was expected");
         if (count == 0)
             first = item;
+        else if ((count == 1) && isSveRegister(item.m_register) &&
+                 (item.m_register > first.m_register) &&
+                 (item.m_register - first.m_register != 1))
+        {
+            // A strided list of SVE registers ({ z0.s, z8.s })
+            stride = item.m_register - first.m_register;
+            ASM_CHECK(item.m_arrangement == first.m_arrangement, "invalid register list");
+        }
+        else if (stride != 1)
+        {
+            ASM_CHECK((item.m_register == last.m_register + stride) &&
+                      (item.m_arrangement == first.m_arrangement),
+                      "invalid register list");
+        }
         else
         {
             // The registers of a list are consecutive and of one arrangement
@@ -365,7 +422,7 @@ void parseList(Parser& parser, InstructionSet type, Operand& operand)
     operand = first;
     operand.m_kind = Operand::KIND_REGISTER_LIST;
     operand.m_count = count;
-    operand.m_stride = 1;
+    operand.m_stride = stride;
     if (isNextChar(parser, '['))
     {
         parser.readChar();
@@ -425,7 +482,20 @@ void parseOperand(const cString& text, InstructionSet type, uint64 address,
     {
         cString word = readWord(parser);
         ASM_CHECK(word.length() != 0, "invalid operand");
-        if (!parseRegister(parser, word, type, operand))
+        skipBlanks(parser);
+        if ((word == "mul") && isNextChar(parser, '#'))
+        {
+            // The SVE multiplier of the element count instructions: mul #4
+            parser.readChar();
+            skipBlanks(parser);
+            Operand number;
+            readNumber(parser, number);
+            ASM_CHECK(number.m_kind == Operand::KIND_IMMEDIATE, "invalid multiplier");
+            operand.m_kind = Operand::KIND_IMMEDIATE;
+            operand.m_immediate = number.m_immediate;
+            operand.m_shift = Operand::SHIFT_MUL;
+            operand.m_hasHash = true;
+        } else if (!parseRegister(parser, word, type, operand))
         {
             // A condition, an option, a system register or a label
             operand.m_kind = Operand::KIND_NAME;
@@ -594,12 +664,31 @@ bool isSameRegisters(const Operand& parsed, const Operand& decoded)
         // (a word which is a register name too, "za", can be an option)
         if (decoded.m_kind == Operand::KIND_OPTION)
             return true;
-        return ((decoded.m_kind == Operand::KIND_REGISTER) ||
-                (decoded.m_kind == Operand::KIND_SHIFTED_REGISTER) ||
-                (decoded.m_kind == Operand::KIND_REGISTER_LIST)) &&
-               (parsed.m_register == decoded.m_register) &&
-               isSameSimdOperand(parsed, decoded);
+        if (!(((decoded.m_kind == Operand::KIND_REGISTER) ||
+               (decoded.m_kind == Operand::KIND_SHIFTED_REGISTER) ||
+               (decoded.m_kind == Operand::KIND_REGISTER_LIST)) &&
+              (parsed.m_register == decoded.m_register)))
+            return false;
+        // The SVE registers: the element size, the qualifier and the index
+        // of the text are the ones of the bits (the size fields are shared
+        // by the operands, so the second one of the text could have won)
+        if (isSveRegister(parsed.m_register))
+            return (parsed.m_arrangement == decoded.m_arrangement) &&
+                   (parsed.m_predicateQualifier == decoded.m_predicateQualifier) &&
+                   (parsed.m_elementIndex == decoded.m_elementIndex) &&
+                   (parsed.m_isPredicateCounter == decoded.m_isPredicateCounter) &&
+                   (parsed.m_sliceRegister == decoded.m_sliceRegister) &&
+                   (parsed.m_sliceOffset == decoded.m_sliceOffset) &&
+                   ((parsed.m_kind != Operand::KIND_REGISTER_LIST) ||
+                    (parsed.m_count == decoded.m_count));
+        return isSameSimdOperand(parsed, decoded);
     case Operand::KIND_MEMORY:
+        if (isSveRegister(parsed.m_base) || isSveRegister(parsed.m_index))
+            return (decoded.m_kind == Operand::KIND_MEMORY) &&
+                   (parsed.m_base == decoded.m_base) &&
+                   (parsed.m_index == decoded.m_index) &&
+                   (parsed.m_indexArrangement == decoded.m_indexArrangement) &&
+                   (parsed.m_shift == decoded.m_shift);
         return (decoded.m_kind == Operand::KIND_MEMORY) &&
                (parsed.m_base == decoded.m_base) &&
                (parsed.m_index == decoded.m_index) &&
@@ -871,7 +960,8 @@ void assembleText(InstructionSet type,
         if (opcode.isEmpty())
             continue;
         if ((opcode->getEntry() != entry) &&
-            ((opcode->getEntry()->m_flags & ARM_ENTRY_ALIAS) == 0))
+            ((opcode->getEntry()->m_flags & ARM_ENTRY_ALIAS) == 0) &&
+            ((entry->m_flags & ARM_ENTRY_ASSEMBLE_ONLY) == 0))
             continue;
         // The registers of the text are the registers of the bits (an alias
         // has other operands: its bits were checked by the entry)

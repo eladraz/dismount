@@ -133,7 +133,7 @@ bool ArmOperandCodec::isMnemonicPart(const ArmOperandSpec& spec)
 
 bool ArmOperandCodec::isHidden(const ArmOperandSpec& spec)
 {
-    return spec.m_kind == ARM_KIND_A64_TIED_REGISTER;
+    return (spec.m_kind == ARM_KIND_A64_TIED_REGISTER) || (spec.m_kind == ARM_KIND_SVE_TIED);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -326,6 +326,8 @@ bool ArmOperandCodec::decode(const ArmOperandSpec& spec,
     }
 
     // The kinds of the areas
+    if (isSveSpec(spec))
+        return decodeSve(spec, encoding, context, operand);
     if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))
         return decodeSimd(spec, encoding, context, operand);
     if (context.m_type == ArmInstructionSet::ARM_A64)
@@ -453,6 +455,8 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
         break;
     }
 
+    if (isSveSpec(spec))
+        return encodeSve(spec, operand, context, encoding);
     if ((context.m_type == ArmInstructionSet::ARM_A64) && isSimdSpec(spec))
         return encodeSimd(spec, operand, context, encoding);
     if (context.m_type == ArmInstructionSet::ARM_A64)
