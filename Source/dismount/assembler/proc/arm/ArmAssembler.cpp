@@ -782,6 +782,15 @@ void splitOperands(const cString& text, cArray<cString>& parts)
 cString stripComment(const cString& line)
 {
     cString result(line);
+    // The end of the line: the lines of the stream end with "\r\n" where endl
+    // writes it (xStl on Windows)
+    const character* buffer = result.getBuffer();
+    for (uint i = 0; i < result.length(); i++)
+        if (cChar::isNewLine(buffer[i]))
+        {
+            result = result.left(i);
+            break;
+        }
     uint position = result.find(XSTL_STRING(";"));
     if (position < result.length())
         result = result.left(position);

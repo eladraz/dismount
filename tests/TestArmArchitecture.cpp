@@ -82,8 +82,9 @@ public:
             if (r.m_parent != ArchitectureRegister::NO_PARENT)
             {
                 const ArchitectureRegister& parent = arch.getRegister(r.m_parent);
+                // At the width of the field (NO_PARENT is an int on MSVC)
                 check("parent is full", parent.m_parent,
-                      ArchitectureRegister::NO_PARENT);
+                      (uint)ArchitectureRegister::NO_PARENT);
                 ARM_ASSERT(r.m_bitOffset + r.m_bits <= parent.m_bits);
             }
         }
