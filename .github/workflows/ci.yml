@@ -199,12 +199,26 @@ jobs:
       # installed v143 toolset. Building the tests also builds xStl and dismount.
       - name: Build tests
         working-directory: dismount
-        run: >
-          msbuild tests\testDismount.vcxproj -m
-          /p:Configuration=${{ matrix.configuration }}
-          /p:Platform=${{ matrix.platform }}
-          /p:PlatformToolset=v143
-          /p:WindowsTargetPlatformVersion=10.0
+        shell: pwsh
+        run: |
+          msbuild tests\testDismount.vcxproj -m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ matrix.platform }} `
+            /p:PlatformToolset=v143 `
+            /p:WindowsTargetPlatformVersion=10.0 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
+
+      # Show the compiler and linker errors as annotations of the run
+      - name: Show build errors
+        if: failure()
+        working-directory: dismount
+        shell: pwsh
+        run: |
+          if (Test-Path build.log) {
+            Select-String -Path build.log -Pattern ': (fatal )?error |error LNK|error MSB' |
+              ForEach-Object { $_.Line.Trim() } | Sort-Object -Unique | Select-Object -First 50 |
+              ForEach-Object { Write-Output "::error::$_" }
+          }
 
       - name: Run tests
         shell: pwsh
