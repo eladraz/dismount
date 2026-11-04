@@ -1652,6 +1652,32 @@ EvalStatus evaluateOperation(const SemanticInstruction& instruction,
                 (operation == SemanticOperation::OP_AES_INVERSE_MIX_COLUMNS),
                 value);
         break;
+    case SemanticOperation::OP_CRC32:
+    {
+        // d = the reflected CRC-32 of the data s0 (the size of its operand,
+        // up to 64 bits) continued from the CRC s1. The type is the one of
+        // the CRC (32 bits). The data is consumed 32 bits at a time: the
+        // accumulator is xored with the data and shifted through the
+        // polynomial by the number of bits
+        if (totalBits != 32)
+            return EVAL_UNDEFINED;
+        const uint dataBits = getSourceType(instruction, 0).getTotalBits();
+        if ((dataBits < 1) || (dataBits > 64))
+            return EVAL_UNDEFINED;
+        const uint32 polynomial = (instruction.getBehavior() ==
+            SemanticOperation::BEHAVIOR_CRC32_IEEE) ? 0xEDB88320u : 0x82F63B78u;
+        uint32 crc = (uint32)sources[1].getWord(0);
+        for (uint done = 0; done < dataBits; done += 32)
+        {
+            const uint steps = (dataBits - done < 32) ? (dataBits - done) : 32;
+            const uint64 part = sources[0].getBits(done, steps);
+            crc ^= (uint32)part;
+            for (uint i = 0; i < steps; i++)
+                crc = (crc >> 1) ^ ((crc & 1) != 0 ? polynomial : 0);
+        }
+        value.setWord(0, crc);
+        break;
+    }
     case SemanticOperation::OP_MASK_COUNT:
     case SemanticOperation::OP_MASK_FIRST:
     {

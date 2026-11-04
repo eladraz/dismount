@@ -157,8 +157,22 @@ public:
      * Condition on the flags (eq -> COND_EQUAL...)
      */
     SemanticOperation::Condition getCondition() const;
-    // Convert an ARM condition code (0-15) into a SemanticOperation::Condition
+    /*
+     * Convert an ARM condition code (0-15) into a SemanticOperation::Condition
+     * which is true on the flag registers N Z C V as the ARM processors keep
+     * them: C is the ARM carry (the inverted borrow of a subtraction), so hs
+     * is COND_CARRY and lo is COND_NOT_CARRY, not the unsigned conditions of
+     * the IA-32 convention. hi (C and not Z) and ls (not C or Z) are not a
+     * single condition: COND_NONE is returned for them, use testCondition()
+     */
     static SemanticOperation::Condition convertCondition(uint condition);
+
+    /*
+     * Return a 1 bit temporary which is true when the ARM condition code
+     * (0-15) holds on the flags (hi and ls included), or when it doesn't hold
+     * if 'invert' is set. al and nv are always true
+     */
+    SemanticOperand testCondition(uint condition, bool invert = false);
 
     // Return a new temporary / label
     SemanticOperand newTemporary(const SemanticType& type);
@@ -205,6 +219,28 @@ public:
 
     // Add an OP_TRAP
     void trap(SemanticOperation::TrapKind kind, uint number);
+
+    /*
+     * Continue at the address in the register or the temporary 'target'
+     * (OP_BRANCH_INDIRECT), as a call (OP_CALL, the link register is written
+     * by the caller) or as a return (OP_RETURN)
+     */
+    void branchIndirect(const SemanticOperand& target);
+    void call(const SemanticOperand& target);
+    void returnTo(const SemanticOperand& target);
+
+    /*
+     * AArch32: branch to the 32 bit address 'target' which is written to pc.
+     * With 'interwork' (bx, blx, the loads of pc, the A32 data processing)
+     * bit 0 selects the instruction set: T is set from it, and the address
+     * is aligned to 2 (T32) or 4 (A32). Without it (the T32 data processing,
+     * b) the address is only aligned to 2 and the T bit is kept
+     */
+    void branchWritePc(const SemanticOperand& target, bool interwork);
+
+    // Return the 32 bit value which reading pc gives in AArch32: the address
+    // of the instruction + 8 in A32, + 4 in T32
+    SemanticOperand getPcValue() const;
 
 private:
     // The instruction, the block and the description
@@ -328,7 +364,12 @@ public:
 
     /*
      * Return the semantic entry of a decoded instruction, or NULL if the
-     * mnemonic has none
+     * mnemonic has none. The table searched is the one of the area of the
+     * encoding entry of the instruction (the encoding tables of ArmEncodingTable.h
+     * and the semantic tables above correspond one to one): the vector add and
+     * the scalar add are the same mnemonic in two areas. An instruction built
+     * by hand, whose entry is in none of the encoding tables, searches all the
+     * semantic tables of its instruction set
      */
     static const armdis::ArmSemanticEntry* findEntry(const ArmOpcode& instruction);
 

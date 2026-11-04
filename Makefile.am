@@ -54,6 +54,12 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/IA32SemanticTableSimd.cpp \
                          Source/dismount/proc/arm/ArmArchitecture.cpp           \
                          Source/dismount/proc/arm/Arm64Architecture.cpp \
+                         Source/dismount/proc/arm/ArmSemantics.cpp \
+                         Source/dismount/proc/arm/ArmSemanticTable.cpp \
+                         Source/dismount/proc/arm/ArmSemanticTableStubs.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticTable.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLift.cpp \
+                         Source/dismount/proc/arm/Arm64SemanticLiftMemory.cpp \
                          Source/dismount/assembler/proc/arm/ArmAssembler.cpp \
                          Source/dismount/assembler/proc/arm/ArmAssemblerA32.cpp \
                          Source/dismount/proc/arm/ArmInstructionSet.cpp \

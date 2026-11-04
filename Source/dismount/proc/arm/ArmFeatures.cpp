@@ -39,7 +39,18 @@ enum {
     // The decoder, the assembler and the comparison with LLVM
     SUPPORT_FULL = ArmFeatures::SUPPORT_DISASSEMBLE |
                    ArmFeatures::SUPPORT_ASSEMBLE |
-                   ArmFeatures::SUPPORT_ENCODING_VERIFIED
+                   ArmFeatures::SUPPORT_ENCODING_VERIFIED,
+    // ... and every instruction is lifted. The lifted instructions of the
+    // A64 base table (Arm64SemanticLift*.cpp) which pass the differential
+    // tests against Unicorn and the Apple M4 (tests/arm/semantics) are
+    // LIFTED_VERIFIED; the ones neither processor implements (CSSC, HBC, LSUI,
+    // CMPBR, LSE128...) are LIFTED only: tests/TestArm64Semantics.cpp checks
+    // them against the pseudocode of the Arm ARM
+    SUPPORT_LIFTED = SUPPORT_FULL | ArmFeatures::SUPPORT_LIFT,
+    SUPPORT_LIFTED_VERIFIED = SUPPORT_LIFTED | ArmFeatures::SUPPORT_LIFT_VERIFIED,
+    // ... and some of the instructions are lifted
+    SUPPORT_PARTIAL = SUPPORT_FULL | ArmFeatures::SUPPORT_PARTIAL_LIFT,
+    SUPPORT_PARTIAL_VERIFIED = SUPPORT_PARTIAL | ArmFeatures::SUPPORT_LIFT_VERIFIED
 };
 
 const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
@@ -73,7 +84,14 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_FHM_AA32 */      { "fp16fml",         SUPPORT_FULL },
 
     // --- AArch64
-    /* FEAT_A64_BASE */      { "",                SUPPORT_FULL },
+    // The A64 base table (data processing, branches, loads and stores, system):
+    // every instruction is lifted but the ones that need state the IR doesn't
+    // have (the privileged and exception level instructions eret, drps, dcps,
+    // hvc, smc, at, tlbi, sys, sysl, the debug and trace hints brb, trcit...) and
+    // the SIMD&FP data processing, which is the table of another area: this
+    // feature is PARTIAL until the Advanced SIMD and floating point table is
+    // there (the scalar SIMD&FP loads and stores of the base table are lifted)
+    /* FEAT_A64_BASE */      { "",                SUPPORT_PARTIAL_VERIFIED },
     /* FEAT_AES */           { "aes",             SUPPORT_FULL },
     /* FEAT_SHA1 */          { "sha2",            SUPPORT_FULL },
     /* FEAT_SHA256 */        { "sha2",            SUPPORT_FULL },
@@ -81,37 +99,54 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_SHA3 */          { "sha3",            SUPPORT_FULL },
     /* FEAT_SM3 */           { "sm4",             SUPPORT_FULL },
     /* FEAT_SM4 */           { "sm4",             SUPPORT_FULL },
-    /* FEAT_CRC32 */         { "crc",             SUPPORT_FULL },
-    /* FEAT_LSE */           { "lse",             SUPPORT_FULL },
+    /* FEAT_CRC32 */         { "crc",             SUPPORT_LIFTED_VERIFIED },
+    // LSE: cas, casp, swp, ld<op>, st<op>. Unicorn swaps ldsmax / ldsmin (the host,
+    // which is the arbiter, agrees with dismount, see oracle_bugs.txt)
+    /* FEAT_LSE */           { "lse",             SUPPORT_LIFTED_VERIFIED },
     /* FEAT_RDM */           { "rdm",             SUPPORT_FULL },
     /* FEAT_FP16 */          { "fullfp16",        SUPPORT_FULL },
     /* FEAT_FHM */           { "fp16fml",         SUPPORT_FULL },
     /* FEAT_DOTPROD */       { "dotprod",         SUPPORT_FULL },
     /* FEAT_DPB */           { "ccpp",            SUPPORT_NONE },
-    /* FEAT_PAUTH */         { "pauth",           SUPPORT_FULL },
+    // PAuth: xpaci, xpacd and xpaclri strip the code exactly (47 bit addresses of
+    // the user mode, checked against the M4); the hint space forms (paciasp,
+    // autiasp...) are lifted to a helper (ARM_HELPER_INSTRUCTION); the keys and the
+    // QARMA algorithm are not modeled, so pac*, aut*, the branches and returns with
+    // authentication and ldraa / ldrab are not lifted
+    /* FEAT_PAUTH */         { "pauth",           SUPPORT_PARTIAL_VERIFIED },
     /* FEAT_FCMA */          { "complxnum",       SUPPORT_FULL },
     /* FEAT_JSCVT */         { "jsconv",          SUPPORT_FULL },
-    /* FEAT_LRCPC */         { "rcpc",            SUPPORT_FULL },
-    /* FEAT_LRCPC2 */        { "rcpc-immo",       SUPPORT_FULL },
-    /* FEAT_FLAGM */         { "flagm",           SUPPORT_FULL },
-    /* FEAT_FLAGM2 */        { "altnzcv",         SUPPORT_FULL },
+    /* FEAT_LRCPC */         { "rcpc",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_LRCPC2 */        { "rcpc-immo",       SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FLAGM */         { "flagm",           SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FLAGM2 */        { "altnzcv",         SUPPORT_LIFTED_VERIFIED },
     /* FEAT_FRINTTS */       { "fptoint",         SUPPORT_FULL },
-    /* FEAT_SB */            { "sb",              SUPPORT_FULL },
+    /* FEAT_SB */            { "sb",              SUPPORT_LIFTED_VERIFIED },
     /* FEAT_BTI */           { "bti",             SUPPORT_NONE },
+    // MTE: the allocation tags are not part of the memory of the IR: not lifted
     /* FEAT_MTE */           { "mte",             SUPPORT_FULL },
     /* FEAT_RNG */           { "rand",            SUPPORT_NONE },
-    /* FEAT_SPECRES */       { "predres",         SUPPORT_FULL },
+    // SPECRES: cfp, dvp, cpp, cosp restrict the speculation: no architectural
+    // effect (neither oracle implements them: TestArm64Semantics.cpp)
+    /* FEAT_SPECRES */       { "predres",         SUPPORT_LIFTED },
     /* FEAT_I8MM */          { "i8mm",            SUPPORT_FULL },
     /* FEAT_BF16 */          { "bf16",            SUPPORT_FULL },
-    /* FEAT_LS64 */          { "ls64",            SUPPORT_FULL },
-    /* FEAT_WFXT */          { "wfxt",            SUPPORT_FULL },
+    // LS64: ld64b and st64b are eight loads / stores (neither oracle runs them);
+    // st64bv and st64bv0 (the status result of the device write) are not lifted
+    /* FEAT_LS64 */          { "ls64",            SUPPORT_PARTIAL },
+    /* FEAT_WFXT */          { "wfxt",            SUPPORT_LIFTED },
+    // MOPS: the memory copy and set instructions (the prologue / main / epilogue
+    // split is implementation defined and no oracle runs them): not lifted
     /* FEAT_MOPS */          { "mops",            SUPPORT_FULL },
-    /* FEAT_HBC */           { "hbc",             SUPPORT_FULL },
-    /* FEAT_CSSC */          { "cssc",            SUPPORT_FULL },
-    /* FEAT_LRCPC3 */        { "rcpc3",           SUPPORT_FULL },
-    /* FEAT_LSE128 */        { "lse128",          SUPPORT_FULL },
+    /* FEAT_HBC */           { "hbc",             SUPPORT_LIFTED },
+    /* FEAT_CSSC */          { "cssc",            SUPPORT_LIFTED },
+    /* FEAT_LRCPC3 */        { "rcpc3",           SUPPORT_LIFTED },
+    /* FEAT_LSE128 */        { "lse128",          SUPPORT_LIFTED },
+    // D128: the 128 bit system registers: not lifted
     /* FEAT_SYSREG128 */     { "d128",            SUPPORT_FULL },
+    // GCS: the guarded control stack: not lifted
     /* FEAT_GCS */           { "gcs",             SUPPORT_FULL },
+    // CPA: the checked pointer arithmetic depends on the system configuration: not lifted
     /* FEAT_CPA */           { "cpa",             SUPPORT_FULL },
     /* FEAT_FP8 */           { "fp8",             SUPPORT_FULL },
     /* FEAT_FP8FMA */        { "fp8fma",          SUPPORT_FULL },
@@ -142,19 +177,25 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_SME_LUTV2 */     { "sme-lutv2",       SUPPORT_NONE },
 
     // --- Added with the base table
-    /* FEAT_XS */            { "xs",              SUPPORT_FULL },
+    /* FEAT_XS */            { "xs",              SUPPORT_LIFTED_VERIFIED },
+    // TME: the transactional memory: not lifted
     /* FEAT_TME */           { "tme",             SUPPORT_FULL },
-    /* FEAT_LSUI */          { "lsui",            SUPPORT_FULL },
-    /* FEAT_CMPBR */         { "cmpbr",           SUPPORT_FULL },
-    /* FEAT_LOR */           { "lor",             SUPPORT_FULL },
+    /* FEAT_LSUI */          { "lsui",            SUPPORT_LIFTED },
+    /* FEAT_CMPBR */         { "cmpbr",           SUPPORT_LIFTED },
+    /* FEAT_LOR */           { "lor",             SUPPORT_LIFTED_VERIFIED },
+    // THE: the read check write atomics (rcw*): not lifted
     /* FEAT_THE */           { "the",             SUPPORT_FULL },
+    // LSFE: the floating point atomics: not lifted
     /* FEAT_LSFE */          { "lsfe",            SUPPORT_FULL },
+    // PAuth_LR: see FEAT_PAUTH: not lifted
     /* FEAT_PAUTH_LR */      { "pauth-lr",        SUPPORT_FULL },
-    /* FEAT_SPE */           { "spe",             SUPPORT_FULL },
-    /* FEAT_TRF */           { "tracev8.4",       SUPPORT_FULL },
-    /* FEAT_RAS */           { "ras",             SUPPORT_FULL },
-    /* FEAT_PCDPHINT */      { "pcdphint",        SUPPORT_FULL },
+    /* FEAT_SPE */           { "spe",             SUPPORT_LIFTED },
+    /* FEAT_TRF */           { "tracev8.4",       SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_RAS */           { "ras",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_PCDPHINT */      { "pcdphint",        SUPPORT_LIFTED },
+    // POE2: the permission overlays: not lifted
     /* FEAT_POE2 */          { "poe2",            SUPPORT_FULL },
+    // TEV: the transactional exit: not lifted
     /* FEAT_TEV */           { "tev",             SUPPORT_FULL },
     /* FEAT_F8F32MM */       { "f8f32mm",         SUPPORT_FULL },
     /* FEAT_F8F16MM */       { "f8f16mm",         SUPPORT_FULL },

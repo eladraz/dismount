@@ -39,8 +39,14 @@
  *                                        "ERR <message>"
  *   dismount_cli asm --arch a64       each line: [@<hex address> ]<instruction>
  *                                     -> "OK <hex bytes>" | "ERR <message>"
- *   dismount_cli run --arch a64       "ERR unsupported" (the lifter is not
- *                                     there yet)
+ *   dismount_cli run --arch a64       each line: "<hex bytes of the code> ; x0=.. sp=..
+ *                                     pc=.. nzcv=.. v0=.. mem=.." (a32 / t32:
+ *                                     r0..r12 sp lr pc apsr fpscr q0..q15).
+ *                                     Executes the instructions as the IR of
+ *                                     the lifter, see "The run protocol" in
+ *                                     tests/arm/semantics/TEST_PLAN.md
+ *                                     -> "OK exit=<exit> x0=.. ... mem=.." |
+ *                                        "ERR <message>"
  *   dismount_cli features --arch a64  the support matrix, one line per feature:
  *                                     "<index> <name> <set> <support hex> <entries>"
  *   dismount_cli entries --arch a64   the encodings of the tables, one line per
@@ -87,6 +93,9 @@
 #include "dismount/proc/arm/ArmEncodingTable.h"
 #include "dismount/proc/arm/ArmStreamDisassembler.h"
 #include "dismount/assembler/proc/arm/ArmAssembler.h"
+#include "dismount/proc/arm/ArmArchitecture.h"
+#include "dismount/proc/arm/Arm64Architecture.h"
+#include "dismount/proc/arm/ArmSemantics.h"
 
 #include "cpufeatures.h"
 
@@ -1418,6 +1427,645 @@ static int runArmEntries(ArmInstructionSet::DisassemblerTypes type)
     return 0;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// ARM: run --arch a32|t32|a64 (tests/arm/semantics/TEST_PLAN.md, "The run
+// protocol")
+
+// The memory of the ARM run command. The window is [base, base + 0x10000), its
+// bytes are the pattern of tests/semantics unless the state sets them. The
+// code region (A64: 3 pages of 16 KB around the page of the pc, A32 / T32: 3
+// pages of 4 KB) reads as brk #0x1234 words (A64) or zeros, the bytes of the
+// code at the pc, and brk #0x1235 right after them (A64); an access outside
+// the window and the code region is a fault (the access returns false). The
+// written bytes are kept, the ones of the code region are not reported.
+class ArmRunMemory : public SemanticMemory {
+public:
+    ArmRunMemory(const cBuffer& code, uint64 pc, bool is64) :
+        m_code(code),
+        m_pc(pc),
+        m_is64(is64),
+        m_windowBase(is64 ? 0x10100000000ULL : 0x20000000ULL),
+        m_regionBase(is64 ? ((pc & ~(uint64)0x3FFF) - 0x4000) :
+                            ((pc & ~(uint64)0xFFF) - 0x1000)),
+        m_regionSize(is64 ? 0xC000 : 0x3000)
+    {
+    }
+
+    // Set a byte of the memory before the run (mem=)
+    void setInitial(uint64 address, uint8 value)
+    {
+        if (m_initial.hasKey(address))
+            m_initial[address] = value;
+        else
+            m_initial.append(address, value);
+    }
+
+    virtual bool read(uint64 address, uint8* buffer, uint size)
+    {
+        for (uint i = 0; i < size; i++)
+            if (!getByte(address + i, buffer[i]))
+                return false;
+        return true;
+    }
+
+    virtual bool write(uint64 address, const uint8* buffer, uint size)
+    {
+        for (uint i = 0; i < size; i++)
+            if (!isValid(address + i))
+                return false;
+        for (uint i = 0; i < size; i++)
+        {
+            if (m_written.hasKey(address + i))
+                m_written[address + i] = buffer[i];
+            else
+                m_written.append(address + i, buffer[i]);
+        }
+        return true;
+    }
+
+    // Return the written bytes of the window as "address:bytes" runs sorted
+    // by address, or "-" if nothing was written
+    cString getWrittenRuns() const
+    {
+        cList<uint64> keys = m_written.keys();
+        cArray<uint64> addresses(keys.length());
+        uint count = 0;
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
+        {
+            if (!isWindow(*i))
+                continue;
+            // Insertion sort
+            uint position = count++;
+            while ((position > 0) && (addresses[position - 1] > *i))
+            {
+                addresses[position] = addresses[position - 1];
+                position--;
+            }
+            addresses[position] = *i;
+        }
+        if (count == 0)
+            return cString("-");
+
+        cString result;
+        for (uint i = 0; i < count; i++)
+        {
+            if ((i == 0) || (addresses[i] != addresses[i - 1] + 1))
+            {
+                if (i != 0)
+                    result += cString(",");
+                result += PatternMemory::hexString(addresses[i], 1) +
+                          cString(":");
+            }
+            result += PatternMemory::hexString(m_written[addresses[i]], 2);
+        }
+        return result;
+    }
+
+private:
+    bool isWindow(uint64 address) const
+    {
+        return (address - m_windowBase) < 0x10000;
+    }
+
+    bool isRegion(uint64 address) const
+    {
+        return (address - m_regionBase) < m_regionSize;
+    }
+
+    bool isValid(uint64 address) const
+    {
+        return isWindow(address) || isRegion(address);
+    }
+
+    // Read a byte: false if it isn't memory
+    bool getByte(uint64 address, uint8& value) const
+    {
+        if (m_written.hasKey(address))
+        {
+            value = m_written[address];
+            return true;
+        }
+        if ((address - m_pc) < m_code.getSize())
+        {
+            value = m_code[(uint)(address - m_pc)];
+            return true;
+        }
+        if (isWindow(address))
+        {
+            value = m_initial.hasKey(address) ? m_initial[address] :
+                    (uint8)((uint32)(address * 2654435761u) >> 24);
+            return true;
+        }
+        if (!isRegion(address))
+            return false;
+        if (!m_is64)
+        {
+            value = 0;
+            return true;
+        }
+        // brk #0x1235 right after the code, brk #0x1234 elsewhere
+        const uint64 end = m_pc + m_code.getSize();
+        const uint32 word = ((address >= end) && (address < end + 4)) ?
+                            0xd42246a0u : 0xd4224680u;
+        value = (uint8)(word >> (8 * (address & 3)));
+        return true;
+    }
+
+    cBuffer m_code;
+    uint64 m_pc;
+    bool m_is64;
+    uint64 m_windowBase;
+    uint64 m_regionBase;
+    uint64 m_regionSize;
+    cHash<uint64, uint8> m_initial;
+    cHash<uint64, uint8> m_written;
+};
+
+// The state of an ARM input line (the tokens of the protocol)
+struct ArmRunState {
+    ArmRunState(bool is64) :
+        m_is64(is64),
+        m_sp(is64 ? 0x10100008000ULL : 0x20008000ULL),
+        m_pc(is64 ? 0x10000001000ULL : 0x10000ULL),
+        m_lr(0),
+        m_nzcv(0),
+        m_fpcr(0),
+        m_fpsr(0),
+        m_apsr(0),
+        m_fpscr(0),
+        m_isSve(false),
+        m_isStreaming(false),
+        m_isZa(false),
+        m_vl(128),
+        m_svl(512)
+    {
+        memset(m_x, 0, sizeof(m_x));
+        for (uint i = 0; i < 32; i++)
+            m_hasV[i] = false;
+    }
+
+    bool m_is64;
+    // x0..x30, or r0..r12
+    uint64 m_x[31];
+    uint64 m_sp;
+    uint64 m_pc;
+    uint64 m_lr;
+    uint32 m_nzcv;
+    uint32 m_fpcr;
+    uint32 m_fpsr;
+    uint32 m_apsr;
+    uint32 m_fpscr;
+    // v0..v31 (A64) and q0..q15 (A32), and the SVE state
+    SemanticValue m_v[32];
+    bool m_hasV[32];
+    SemanticValue m_z[32];
+    SemanticValue m_p[16];
+    SemanticValue m_ffr;
+    SemanticValue m_za[64];
+    SemanticValue m_zt0;
+    bool m_isSve;
+    bool m_isStreaming;
+    bool m_isZa;
+    uint m_vl;
+    uint m_svl;
+    cHash<uint64, uint8> m_memory;
+};
+
+// Return true if the token name text[0..end) is 'prefix' followed by a decimal
+// number below 'limit'
+static bool parseIndexedName(const char* text, const char* end,
+                             const char* prefix, uint limit, uint& index)
+{
+    const size_t length = strlen(prefix);
+    if (((size_t)(end - text) <= length) || (strncmp(text, prefix, length) != 0))
+        return false;
+    uint value = 0;
+    for (const char* p = text + length; p < end; p++)
+    {
+        if ((*p < '0') || (*p > '9'))
+            return false;
+        value = value * 10 + (uint)(*p - '0');
+        if (value >= limit)
+            return false;
+    }
+    index = value;
+    return true;
+}
+
+// Parses mem=: "ADDR:HEX,ADDR:HEX" (or "-")
+static bool parseArmMemory(const char* text, const char* end, ArmRunState& state)
+{
+    if ((end - text == 1) && (*text == '-'))
+        return true;
+    const char* p = text;
+    while (p < end)
+    {
+        uint64 address = 0;
+        uint digits = 0;
+        while ((p < end) && (hexValue(*p) >= 0))
+        {
+            address = address * 16 + (uint64)hexValue(*p);
+            p++;
+            digits++;
+        }
+        if ((digits == 0) || (digits > 16) || (p >= end) || (*p != ':'))
+            return false;
+        p++;
+        uint count = 0;
+        while ((p + 1 < end) && (hexValue(p[0]) >= 0) && (hexValue(p[1]) >= 0))
+        {
+            const uint8 byte = (uint8)((hexValue(p[0]) << 4) | hexValue(p[1]));
+            if (state.m_memory.hasKey(address + count))
+                state.m_memory[address + count] = byte;
+            else
+                state.m_memory.append(address + count, byte);
+            p += 2;
+            count++;
+        }
+        if (count == 0)
+            return false;
+        if (p < end)
+        {
+            if ((*p != ',') || (p + 1 >= end))
+                return false;
+            p++;
+        }
+    }
+    return true;
+}
+
+// Parses "x0=1 sp=.. pc=.. nzcv=4 v0=.. mem=.." (A64) or "r0=1 sp=.. lr=..
+// pc=.. apsr=.. q0=.. mem=.." (A32, T32). Returns false on a malformed token
+static bool parseArmState(const char* text, ArmRunState& state)
+{
+    const char* p = text;
+    while (*p != 0)
+    {
+        if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+        {
+            p++;
+            continue;
+        }
+        const char* tokenEnd = p;
+        while ((*tokenEnd != 0) && (*tokenEnd != ' ') && (*tokenEnd != '\t') &&
+               (*tokenEnd != '\n') && (*tokenEnd != '\r'))
+            tokenEnd++;
+        const char* equals = (const char*)memchr(p, '=', (size_t)(tokenEnd - p));
+        if (equals == NULL)
+            return false;
+        const char* value = equals + 1;
+        uint index = 0;
+        bool ok = true;
+        SemanticValue wide;
+        if (state.m_is64 && parseIndexedName(p, equals, "x", 31, index))
+            ok = parseNumber(value, tokenEnd, 64, state.m_x[index]);
+        else if (!state.m_is64 && parseIndexedName(p, equals, "r", 13, index))
+            ok = parseNumber(value, tokenEnd, 32, state.m_x[index]);
+        else if (state.m_is64 && parseIndexedName(p, equals, "v", 32, index))
+        {
+            ok = parseHexWide(value, tokenEnd, 128, state.m_v[index]);
+            state.m_hasV[index] = true;
+        }
+        else if (!state.m_is64 && parseIndexedName(p, equals, "q", 16, index))
+            ok = parseHexWide(value, tokenEnd, 128, state.m_v[index]);
+        else if (state.m_is64 && parseIndexedName(p, equals, "z", 32, index))
+        {
+            ok = parseHexWide(value, tokenEnd, 512, state.m_z[index]);
+            state.m_isSve = true;
+        }
+        else if (state.m_is64 && parseIndexedName(p, equals, "p", 16, index))
+            ok = parseHexWide(value, tokenEnd, 64, state.m_p[index]);
+        else if (state.m_is64 && parseIndexedName(p, equals, "za", 64, index))
+            ok = parseHexWide(value, tokenEnd, 512, state.m_za[index]);
+        else
+        {
+            const cString name(cString(p).left((uint)(equals - p)));
+            uint64 number = 0;
+            if (name == "sp")
+                ok = parseNumber(value, tokenEnd, 64, state.m_sp);
+            else if (name == "pc")
+                ok = parseNumber(value, tokenEnd, 64, state.m_pc);
+            else if (!state.m_is64 && (name == "lr"))
+                ok = parseNumber(value, tokenEnd, 32, state.m_lr);
+            else if (state.m_is64 && (name == "nzcv"))
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_nzcv = (uint32)number;
+            } else if (state.m_is64 && (name == "fpcr"))
+                ok = parseWord(value, tokenEnd, state.m_fpcr);
+            else if (state.m_is64 && (name == "fpsr"))
+                ok = parseWord(value, tokenEnd, state.m_fpsr);
+            else if (!state.m_is64 && (name == "apsr"))
+                ok = parseWord(value, tokenEnd, state.m_apsr);
+            else if (!state.m_is64 && (name == "fpscr"))
+                ok = parseWord(value, tokenEnd, state.m_fpscr);
+            else if (state.m_is64 && (name == "ffr"))
+            {
+                ok = parseHexWide(value, tokenEnd, 64, state.m_ffr);
+            } else if (state.m_is64 && (name == "zt0"))
+                ok = parseHexWide(value, tokenEnd, 512, state.m_zt0);
+            else if (state.m_is64 && (name == "sve"))
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_isSve = state.m_isSve || (number != 0);
+            } else if (state.m_is64 && (name == "sm"))
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_isStreaming = number != 0;
+                state.m_isSve = state.m_isSve || state.m_isStreaming;
+            } else if (state.m_is64 && (name == "za"))
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_isZa = number != 0;
+            } else if (state.m_is64 && (name == "vl"))
+            {
+                ok = parseNumber(value, tokenEnd, 16, number);
+                state.m_vl = (uint)number;
+            } else if (state.m_is64 && (name == "svl"))
+            {
+                ok = parseNumber(value, tokenEnd, 16, number);
+                state.m_svl = (uint)number;
+            } else if (name == "mem")
+                ok = parseArmMemory(value, tokenEnd, state);
+            else
+                ok = false;
+        }
+        if (!ok)
+            return false;
+        p = tokenEnd;
+    }
+    return true;
+}
+
+// The flag registers of the AArch32 apsr: bit, register
+static const struct {
+    uint m_register;
+    uint m_bit;
+} gArmApsrFlags[] = {
+    { armdis::ARM_REG_N, 31 }, { armdis::ARM_REG_Z, 30 },
+    { armdis::ARM_REG_C, 29 }, { armdis::ARM_REG_V, 28 },
+    { armdis::ARM_REG_Q, 27 },
+    { armdis::ARM_REG_GE0, 16 }, { armdis::ARM_REG_GE1, 17 },
+    { armdis::ARM_REG_GE2, 18 }, { armdis::ARM_REG_GE3, 19 }
+};
+
+// Executes the instructions of a line of the ARM run protocol ("<hex bytes>
+// ; <state>") as the IR of the lifter, and returns the result record
+static cString runArmLine(char* line, ArmInstructionSet::DisassemblerTypes type)
+{
+    char* separator = strchr(line, ';');
+    if (separator == NULL)
+        XSTL_THROW(cException, XSTL_STRING("missing ';' before the state"), 0);
+    *separator = 0;
+    cBuffer bytes;
+    if (!parseHex(line, bytes))
+        XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
+    const bool is64 = type == ArmInstructionSet::ARM_A64;
+    ArmRunState state(is64);
+    if (!parseArmState(separator + 1, state))
+        XSTL_THROW(cException, XSTL_STRING("bad state"), 0);
+    if (state.m_isSve && ((state.m_vl < 128) || (state.m_vl > 512) ||
+                          (state.m_svl < 128) || (state.m_svl > 512)))
+        XSTL_THROW(cException, XSTL_STRING("bad vector length"), 0);
+
+    const OpcodeSubsystems::DisassemblerType subsystem =
+        is64 ? OpcodeSubsystems::DISASSEMBLER_ARM_64_LE :
+        (type == ArmInstructionSet::ARM_T32) ?
+            OpcodeSubsystems::DISASSEMBLER_THUMB_LE :
+            OpcodeSubsystems::DISASSEMBLER_ARM_32_LE;
+    ArchitectureDescriptionPtr architecture;
+    if (is64)
+        architecture = ArchitectureDescriptionPtr(
+                            new Arm64Architecture(state.m_vl, state.m_svl));
+    else
+        architecture = ArchitectureDescriptionPtr(new ArmArchitecture());
+    ArmSemanticLifter lifter(subsystem, architecture);
+
+    // Decode and lift the sequence at the pc
+    const uint64 codeAddress = state.m_pc & ~(uint64)(is64 ? 3 : 1);
+    cMemoryStream stream(bytes);
+    ArmStreamDisassembler disassembler(type,
+        BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true,
+        ProcessorAddress(is64 ? ProcessorAddress::PROCESSOR_64 :
+                                ProcessorAddress::PROCESSOR_32, codeAddress),
+        false);
+    SemanticBlock block(subsystem);
+    while (!disassembler.isEndOfStream())
+    {
+        OpcodePtr opcode = disassembler.next();
+        lifter.lift(opcode, block);
+    }
+    block.setFallThroughAddress(ProcessorAddress(is64 ?
+        ProcessorAddress::PROCESSOR_64 : ProcessorAddress::PROCESSOR_32,
+        codeAddress + bytes.getSize()));
+
+    ArmRunMemory memory(bytes, codeAddress, is64);
+    {
+        cList<uint64> keys = state.m_memory.keys();
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
+            memory.setInitial(*i, state.m_memory[*i]);
+    }
+
+    // Execute it from the state
+    SemanticInterpreter interpreter(architecture, memory);
+    if (is64)
+    {
+        using namespace armdis;
+        for (uint i = 0; i < 31; i++)
+            interpreter.setRegister(ARM64_REG_X0 + i, SemanticValue(state.m_x[i]));
+        interpreter.setRegister(ARM64_REG_SP, SemanticValue(state.m_sp));
+        interpreter.setRegister(ARM64_REG_PC, SemanticValue(codeAddress));
+        interpreter.setRegister(ARM64_REG_N, SemanticValue((state.m_nzcv >> 3) & 1));
+        interpreter.setRegister(ARM64_REG_Z, SemanticValue((state.m_nzcv >> 2) & 1));
+        interpreter.setRegister(ARM64_REG_C, SemanticValue((state.m_nzcv >> 1) & 1));
+        interpreter.setRegister(ARM64_REG_V, SemanticValue(state.m_nzcv & 1));
+        interpreter.setRegister(ARM64_REG_FPCR, SemanticValue(state.m_fpcr));
+        interpreter.setRegister(ARM64_REG_FPSR, SemanticValue(state.m_fpsr));
+        interpreter.setRegister(ARM64_REG_SVCR, SemanticValue(
+            (state.m_isStreaming ? 1 : 0) | (state.m_isZa ? 2 : 0)));
+        for (uint i = 0; i < 32; i++)
+        {
+            // z is applied first, then v over its low 128 bits
+            SemanticValue vector = state.m_z[i];
+            if (state.m_hasV[i])
+            {
+                vector.setWord(0, state.m_v[i].getWord(0));
+                vector.setWord(1, state.m_v[i].getWord(1));
+            }
+            interpreter.setRegister(ARM64_REG_Z0 + i, vector);
+        }
+        for (uint i = 0; i < 16; i++)
+            interpreter.setRegister(ARM64_REG_P0 + i, state.m_p[i]);
+        interpreter.setRegister(ARM64_REG_FFR, state.m_ffr);
+        for (uint i = 0; i < 64; i++)
+            interpreter.setRegister(ARM64_REG_ZA_ROW0 + i, state.m_za[i]);
+        interpreter.setRegister(ARM64_REG_ZT0, state.m_zt0);
+    }
+    else
+    {
+        using namespace armdis;
+        for (uint i = 0; i < 13; i++)
+            interpreter.setRegister(ARM_REG_R0 + i, SemanticValue(state.m_x[i]));
+        interpreter.setRegister(ARM_REG_SP, SemanticValue(state.m_sp));
+        interpreter.setRegister(ARM_REG_LR, SemanticValue(state.m_lr));
+        interpreter.setRegister(ARM_REG_PC, SemanticValue(codeAddress));
+        for (uint i = 0; i < sizeof(gArmApsrFlags) / sizeof(gArmApsrFlags[0]); i++)
+            interpreter.setRegister(gArmApsrFlags[i].m_register,
+                SemanticValue((state.m_apsr >> gArmApsrFlags[i].m_bit) & 1));
+        interpreter.setRegister(ARM_REG_T, SemanticValue(
+                (type == ArmInstructionSet::ARM_T32) ? 1 : 0));
+        interpreter.setRegister(ARM_REG_FPSCR, SemanticValue(state.m_fpscr));
+        for (uint i = 0; i < 16; i++)
+            interpreter.setRegister(ARM_REG_Q0 + i, state.m_v[i]);
+    }
+    const SemanticInterpreter::ExitReason reason = interpreter.run(block);
+
+    cString exitText;
+    switch (reason)
+    {
+    case SemanticInterpreter::EXIT_BRANCH:
+        exitText = "branch";
+        break;
+    case SemanticInterpreter::EXIT_FALL_THROUGH:
+        exitText = "fall";
+        break;
+    case SemanticInterpreter::EXIT_TRAP:
+        switch (interpreter.getTrapKind())
+        {
+        case SemanticOperation::TRAP_SYSTEM_CALL:
+            exitText = "trap:svc";
+            break;
+        case SemanticOperation::TRAP_BREAKPOINT:
+            exitText = "trap:brk";
+            break;
+        case SemanticOperation::TRAP_UNDEFINED:
+            exitText = "trap:undef";
+            break;
+        default:
+            exitText = "trap:fault";
+            break;
+        }
+        break;
+    case SemanticInterpreter::EXIT_MEMORY_FAULT:
+        exitText = "trap:fault";
+        break;
+    case SemanticInterpreter::EXIT_HELPER:
+        exitText = cString("helper:") + cString((int32)interpreter.getHelperNumber());
+        break;
+    case SemanticInterpreter::EXIT_UNDEFINED:
+        exitText = "undefined";
+        break;
+    default:
+        XSTL_THROW(cException, XSTL_STRING("the block didn't finish"), 0);
+    }
+
+    cString result = cString("OK exit=") + exitText;
+    const bool isFall = reason == SemanticInterpreter::EXIT_FALL_THROUGH;
+    using namespace armdis;
+    if (is64)
+    {
+        if (state.m_isSve)
+            result += state.m_isStreaming ? cString(" sve=1 sm=1") : cString(" sve=1");
+        if (state.m_isZa)
+            result += " za=1";
+        if (state.m_isSve)
+            result += cString(" vl=") + PatternMemory::hexString(state.m_vl, 1) +
+                      cString(" svl=") + PatternMemory::hexString(state.m_svl, 1);
+        for (uint i = 0; i < 31; i++)
+            result += cString(" x") + cString((int32)i) + cString("=") +
+                      registerHex(interpreter, ARM64_REG_X0 + i, 16);
+        result += cString(" sp=") + registerHex(interpreter, ARM64_REG_SP, 16);
+        result += cString(" pc=") + registerHex(interpreter, ARM64_REG_PC, 16);
+        uint nzcv = 0;
+        if (interpreter.getRegister(ARM64_REG_N).getBits(0, 1) != 0) nzcv |= 8;
+        if (interpreter.getRegister(ARM64_REG_Z).getBits(0, 1) != 0) nzcv |= 4;
+        if (interpreter.getRegister(ARM64_REG_C).getBits(0, 1) != 0) nzcv |= 2;
+        if (interpreter.getRegister(ARM64_REG_V).getBits(0, 1) != 0) nzcv |= 1;
+        result += cString(" nzcv=") + PatternMemory::hexString(nzcv, 1);
+        result += cString(" fpcr=") + registerHex(interpreter, ARM64_REG_FPCR, 8);
+        result += cString(" fpsr=") + registerHex(interpreter, ARM64_REG_FPSR, 8);
+        for (uint i = 0; i < 32; i++)
+            result += cString(" v") + cString((int32)i) + cString("=") +
+                      wideHexString(interpreter.getRegister(ARM64_REG_V0 + i), 128);
+        if (state.m_isSve && isFall)
+        {
+            const uint vectorBits = state.m_isStreaming ? state.m_svl : state.m_vl;
+            for (uint i = 0; i < 32; i++)
+                result += cString(" z") + cString((int32)i) + cString("=") +
+                          wideHexString(interpreter.getRegister(ARM64_REG_Z0 + i),
+                                        vectorBits);
+            for (uint i = 0; i < 16; i++)
+                result += cString(" p") + cString((int32)i) + cString("=") +
+                          wideHexString(interpreter.getRegister(ARM64_REG_P0 + i),
+                                        (vectorBits / 32 == 0 ? 1 : vectorBits / 32) * 4);
+            if (!state.m_isStreaming)
+                result += cString(" ffr=") + wideHexString(
+                    interpreter.getRegister(ARM64_REG_FFR),
+                    (vectorBits / 32 == 0 ? 1 : vectorBits / 32) * 4);
+            if (state.m_isZa)
+            {
+                for (uint i = 0; i < state.m_svl / 8; i++)
+                    result += cString(" za") + cString((int32)i) + cString("=") +
+                              wideHexString(interpreter.getRegister(
+                                    ARM64_REG_ZA_ROW0 + i), state.m_svl);
+                result += cString(" zt0=") + wideHexString(
+                    interpreter.getRegister(ARM64_REG_ZT0), 512);
+            }
+        }
+    } else
+    {
+        for (uint i = 0; i < 13; i++)
+            result += cString(" r") + cString((int32)i) + cString("=") +
+                      registerHex(interpreter, ARM_REG_R0 + i, 8);
+        result += cString(" sp=") + registerHex(interpreter, ARM_REG_SP, 8);
+        result += cString(" lr=") + registerHex(interpreter, ARM_REG_LR, 8);
+        result += cString(" pc=") + registerHex(interpreter, ARM_REG_PC, 8);
+        uint32 apsr = 0;
+        for (uint i = 0; i < sizeof(gArmApsrFlags) / sizeof(gArmApsrFlags[0]); i++)
+            if (interpreter.getRegister(gArmApsrFlags[i].m_register).getBits(0, 1) != 0)
+                apsr |= (uint32)1 << gArmApsrFlags[i].m_bit;
+        result += cString(" apsr=") + PatternMemory::hexString(apsr, 8);
+        result += cString(" t=") + PatternMemory::hexString(
+                    interpreter.getRegister(ARM_REG_T).getBits(0, 1), 1);
+        result += cString(" fpscr=") + registerHex(interpreter, ARM_REG_FPSCR, 8);
+        for (uint i = 0; i < 16; i++)
+            result += cString(" q") + cString((int32)i) + cString("=") +
+                      wideHexString(interpreter.getRegister(ARM_REG_Q0 + i), 128);
+    }
+    result += cString(" mem=") + memory.getWrittenRuns();
+    return result;
+}
+
+static int runArmRun(ArmInstructionSet::DisassemblerTypes type)
+{
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        XSTL_TRY
+        {
+            writeLine(runArmLine(line, type));
+        }
+        XSTL_CATCH(DisassemblerEndOfStreamException&)
+        {
+            writeLine(cString("ERR truncated instruction (end of stream)"));
+        }
+        XSTL_CATCH(DisassemblerInvalidOpcodeException&)
+        {
+            // The bits are not an instruction of the tables: not lifted
+            writeLine(cString("OK exit=undefined"));
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitizeText(describeException(e)));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
 static void usage()
 {
     fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32|64] < input\n"
@@ -1505,13 +2153,7 @@ int main(int argc, char* argv[])
         if (strcmp(argv[1], "entries") == 0)
             return runArmEntries(armType);
         if (strcmp(argv[1], "run") == 0)
-        {
-            // TODO: the lifter of ARM
-            char line[MAX_LINE];
-            while (fgets(line, sizeof(line), stdin))
-                writeLine(cString("ERR unsupported: the ARM lifter is not there yet"));
-            return 0;
-        }
+            return runArmRun(armType);
         usage();
         return 2;
     }

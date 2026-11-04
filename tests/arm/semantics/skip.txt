@@ -4,12 +4,13 @@
 # the test cannot give every engine (the process, the keys, the kernel), not for failures.
 
 # --- the process / the platform
-[a64] \b(pac|aut|xpac|retaa|retab|braa|brab|blraa|blrab|ldraa|ldrab|eretaa|eretab)[a-z0-9]*\b  # pointer authentication: the keys are per process (and zero on Unicorn)
+[a64] \b(pac|aut|retaa|retab|braa|brab|blraa|blrab|ldraa|ldrab|eretaa|eretab)[a-z0-9]*\b  # pointer authentication: the keys are per process (and zero on Unicorn)
 [a64] \b(rndr|rndrrs)\b  # a random number
 [a64] \bmrs .*(cntvct|cntpct|midr|mpidr|revidr|id_aa64|ctr_el0|dczid|tpidr|cntfrq)  # the value belongs to the processor / the process
-[a64,a32,t32] \b(svc|hvc|smc|swi)\b  # the kernel: the host would call it
+[a64,a32,t32] \b(hvc|smc|swi)\b  # privileged: calls the hypervisor / the secure monitor
 [a64,a32,t32] ^(wfi|wfe|wfit|wfet|sev|sevl|hlt|eret|drps|dcps[123])$  # waits for an event / privileged
-[a64] \b(dc|ic|tlbi|at|sys|sysl) \b  # cache and system maintenance
+[a64] \b(tlbi|at|sys|sysl) \b  # system maintenance (privileged)
 [a32,t32] \b(mrc|mcr|mrrc|mcrr|cdp|ldc|stc|cps|cpsid|cpsie|srs|rfe|setend|smc|hvc|eret)\b  # coprocessors and privileged
 [a32,t32] \bmsr (cpsr|spsr)  # privileged state
 [a64,a32,t32] ^b \.$  # an endless loop
+[a64] ^wf[ei]t \w+$  # waits with a timeout (the host raises SIGILL for the EL0 wait, Unicorn halts)

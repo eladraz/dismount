@@ -111,6 +111,24 @@
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemantics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableStubs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLift.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftMemory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -396,6 +414,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\Arm64Architecture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\ArmSemantics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticInternal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\ia32\IA32OperandDecoder.h">

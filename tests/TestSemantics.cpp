@@ -630,9 +630,32 @@ public:
                 makeInstruction(Op::OP_FLOAT_RECIPROCAL_ESTIMATE,
                     SemanticType::floating(SemanticType::FLOAT_DOUBLE)),
                 sources, value));
-        TESTS_ASSERT(!SemanticInterpreter::evaluate(
-                makeInstruction(Op::OP_CRC32, SemanticType::integer(32)),
-                sources, value));
+
+        // The CRC-32 of a byte (the type is the CRC, the size of the data is
+        // the one of the first operand), the standard and the Castagnoli
+        // polynomials: crc32 of "a" continued from 0xffffffff is 0x174841bc
+        // (0xe8b7be43 without the final inversion)
+        sources[0] = SemanticValue(0x61);
+        sources[1] = SemanticValue(0xFFFFFFFF);
+        SemanticInstruction crc = makeInstruction(Op::OP_CRC32,
+                SemanticType::integer(32), SemanticType::integer(8));
+        crc.setBehavior(SemanticOperation::BEHAVIOR_CRC32_IEEE);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(crc, sources, value));
+        check("crc32 of a byte", value.getWord(0), 0x174841bc);
+        crc.setBehavior(SemanticOperation::BEHAVIOR_CRC32C);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(crc, sources, value));
+        check("crc32c of a byte", value.getWord(0), 0x3e2fbccf);
+        // 64 bits of data are consumed 32 bits at a time
+        sources[0] = SemanticValue(0x1122334455667788ULL);
+        sources[1] = SemanticValue(0x12345678);
+        crc = makeInstruction(Op::OP_CRC32, SemanticType::integer(32),
+                              SemanticType::integer(64));
+        crc.setBehavior(SemanticOperation::BEHAVIOR_CRC32_IEEE);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(crc, sources, value));
+        check("crc32 of a doubleword", value.getWord(0), 0xc26df9b6);
+        crc.setBehavior(SemanticOperation::BEHAVIOR_CRC32C);
+        TESTS_ASSERT(SemanticInterpreter::evaluate(crc, sources, value));
+        check("crc32c of a doubleword", value.getWord(0), 0x693b8e8b);
     }
 
     // The steps of AES on the 128 bit state (the test vectors of FIPS-197:

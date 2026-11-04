@@ -79,6 +79,12 @@ list(APPEND DISMOUNT_LIB_FILES
 	# ARM: the architecture descriptions of the semantic layer
 	Source/dismount/proc/arm/ArmArchitecture.cpp
 	Source/dismount/proc/arm/Arm64Architecture.cpp
+	Source/dismount/proc/arm/ArmSemantics.cpp
+	Source/dismount/proc/arm/ArmSemanticTable.cpp
+	Source/dismount/proc/arm/ArmSemanticTableStubs.cpp
+	Source/dismount/proc/arm/Arm64SemanticTable.cpp
+	Source/dismount/proc/arm/Arm64SemanticLift.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftMemory.cpp
 	Source/dismount/assembler/proc/arm/ArmAssembler.cpp
 	Source/dismount/assembler/proc/arm/ArmAssemblerA32.cpp
 	Source/dismount/proc/arm/ArmInstructionSet.cpp
@@ -159,6 +165,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp
 		tests/TestArmArchitecture.cpp
+		tests/TestArm64Semantics.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)
 	target_link_libraries(test_dismount ${DISMOUNT_TEST_LIBS})
 endif()

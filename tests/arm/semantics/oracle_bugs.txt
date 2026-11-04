@@ -39,3 +39,39 @@
 # fadda and compact are not legal in the streaming mode: the host (streaming) UNDEFs them while Unicorn
 # (non-streaming SVE) executes them
 ^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)
+
+# --- Instructions that neither oracle implements. Unicorn 2.1.4 (QEMU 5.0.1 "max") and the Apple M4
+# both raise UNDEFINED (trap:undef), so the lifter of these cannot be compared with a processor:
+# it is checked against the Arm ARM by tests/TestArm64Semantics.cpp instead. The M4 evidence is
+# hw.optional.arm.FEAT_<x> = 0 (sysctl hw.optional.arm) and the SIGILL of the host runner; the
+# Unicorn evidence is the missing ID_AA64 bits of QEMU 5.0 (run_semantics.py --oracle-only).
+^(abs|cnt|ctz|smax|smin|umax|umin) [wx](\d+|zr), [wx]  # neither oracle has FEAT_CSSC (M4: FEAT_CSSC = 0; QEMU 5.0 predates it)
+^bc\.[a-z]+ \.  # neither oracle has FEAT_HBC (M4: FEAT_HBC = 0)
+^(ld64b|st64b) x  # neither oracle has FEAT_LS64 (the M4 raises SIGILL)
+^(ldtadd|ldtclr|ldtset|ldtp|ldtnp|ldtxr|ldatxr|sttp|sttnp|sttxr|stltxr|swpt|cast|casat|casalt|caslt|caspt|caspat|caspalt|casplt)[a-z]* [wxqdsbh]  # neither oracle has FEAT_LSUI
+^(ldapr|stlr)[bh]? [wx](\d+|zr), \[[^]]*\](!|, #)  # neither oracle has FEAT_LRCPC3 (the writeback forms)
+^(ldapur|stlur) [bhsdq]\d+,  # neither oracle has FEAT_LRCPC3 (the SIMD&FP forms)
+
+# --- Unicorn: floating point control register bits
+# QEMU 5.0 keeps only the bits of FPCR it implements: the trap enables IOE..IXE (8-12), FIZ, AH
+# and NEP (0-2) read as 0 after `msr fpcr`; the M4 keeps all of 0x07ff9f07 (the line passes there)
+^msr fpcr, x1( ; mrs x2, fpcr)?$  # Unicorn: FPCR trap enable bits, FIZ, AH and NEP are RAZ/WI (QEMU 5.0); the M4 and dismount keep them
+^stshh  # neither oracle has FEAT_PCDPHINT (the M4 raises SIGILL: hw.optional.arm has no FEAT_PCDPHINT)
+
+# --- Unicorn (QEMU 5.0.1, EL1, MMU off) differences from the user mode of the M4 (the arbiter)
+# The cache maintenance by address faults on an unmapped address on the M4 (SIGSEGV); QEMU with the MMU
+# off has no fault to raise and treats dc / ic as a nop
+^(dc|ic) [a-z]+, x3  # Unicorn: dc / ic by address do not fault on an unmapped address (no MMU); the M4 faults (SIGSEGV)
+# FEAT_XS (dsb nXS): QEMU 5.0 predates it, the M4 runs it
+^dsb [a-z]+nxs  # Unicorn: no FEAT_XS (dsb nXS is UNDEFINED)
+# FPSR bits 31-28: RES0 in AArch64 (the M4 reads 0), QEMU keeps the AArch32 flags N Z C V of the FPSCR there
+^msr fpsr, x1( ; mrs x2, fpsr)?$  # Unicorn: FPSR keeps the bits 31-28 (the AArch32 NZCV copies); RES0 on the M4
+# XPAC: the stripped bits depend on the virtual address size (TCR_EL1.T0SZ / T1SZ and TBI). QEMU runs with TCR_EL1 = 0
+# (no MMU): the field is empty and xpac returns the pointer unchanged; the M4 (47 bit addresses) strips bits 63-47
+^xpac[a-z]*( x[0-9]+)?$  # Unicorn: xpac with TCR_EL1.T0SZ = 0 strips nothing; the M4 user mode has 47 bit addresses (dismount follows the M4)
+
+# --- more instructions neither oracle implements (trap:undef on both): FEAT_LSE128 and the FEAT_LRCPC3
+# pairs (the M4 raises SIGILL, QEMU 5.0 predates them); tests/TestArm64Semantics.cpp checks them. FEAT_CMPBR is
+# not in the corpus at all (clang can't assemble it)
+^(ldclrp|ldsetp|swpp)[a-z]* [wx]  # neither oracle has FEAT_LSE128
+^(ldiapp|stilp) [wx]  # neither oracle has FEAT_LRCPC3
