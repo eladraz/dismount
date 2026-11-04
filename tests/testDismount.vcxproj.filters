@@ -30,6 +30,9 @@
     <ClCompile Include="TestArm64Disassembler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestRiscvDisassembler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestArm64Simd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

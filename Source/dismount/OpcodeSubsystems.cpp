@@ -25,6 +25,10 @@ bool OpcodeSubsystems::isLittleEndian(DisassemblerType subSystem)
     case DISASSEMBLER_ARM_32_LE:
     case DISASSEMBLER_THUMB_LE:
     case DISASSEMBLER_ARM_64_LE:
+
+    // RISC-V
+    case DISASSEMBLER_RISCV_32:
+    case DISASSEMBLER_RISCV_64:
         return true;
 
     // ARM
@@ -55,6 +59,8 @@ bool OpcodeSubsystems::isOverwriteRelativeLocations(
     case DISASSEMBLER_THUMB_LE:
     case DISASSEMBLER_ARM_64_LE:
     case DISASSEMBLER_ARM_64_BE:
+    case DISASSEMBLER_RISCV_32:
+    case DISASSEMBLER_RISCV_64:
         return true;
     default:
         // Unknown type!!

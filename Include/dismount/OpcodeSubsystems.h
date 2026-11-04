@@ -47,7 +47,11 @@ public:
         // are after the old ones since SecondPassBinary serializes the type
         DISASSEMBLER_ARM_64_LE,
         // Big-endian AArch64 data (the instructions are always little endian)
-        DISASSEMBLER_ARM_64_BE
+        DISASSEMBLER_ARM_64_BE,
+        // RISC-V RV32 and RV64, little endian (the instructions are always
+        // little endian; the big endian data variants are not supported)
+        DISASSEMBLER_RISCV_32,
+        DISASSEMBLER_RISCV_64
     };
 
     /*

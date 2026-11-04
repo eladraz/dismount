@@ -28,8 +28,14 @@
     <Filter Include="proc\arm">
       <UniqueIdentifier>{9f049458-606c-41a4-99e9-ad442d4416f6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="proc\riscv">
+      <UniqueIdentifier>{34fc9511-89ba-4758-a103-ebfaaaed65fd}</UniqueIdentifier>
+    </Filter>
     <Filter Include="assembler\proc\arm">
       <UniqueIdentifier>{fd86d010-f0b1-4199-8ac6-60ecbb17c882}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="assembler\proc\riscv">
+      <UniqueIdentifier>{432c51fa-a199-4297-9ca6-0639cb22f1cf}</UniqueIdentifier>
     </Filter>
     <Filter Include="assembler\proc\ia32">
       <UniqueIdentifier>{75bc505f-198c-4c6f-81b3-2426bdd5afb5}</UniqueIdentifier>
@@ -321,6 +327,51 @@
     <ClCompile Include="Source\dismount\proc\arm\ArmEncodingTableT32.cpp">
       <Filter>proc\arm</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvInstructionSet.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvFeatures.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvCsrNames.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvOperandCodec.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvOperandCodecCompressed.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvOperandCodecVector.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTable.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableCompressed.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTablePrivileged.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvEncodingTableVector.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvOpcode.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvNotation.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvStreamDisassembler.cpp">
+      <Filter>proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\assembler\proc\riscv\RiscvAssembler.cpp">
+      <Filter>assembler\proc\riscv</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\assembler\proc\riscv\RiscvAssemblerPseudo.cpp">
+      <Filter>assembler\proc\riscv</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTableSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -374,6 +425,12 @@
     <ClInclude Include="Include\dismount\assembler\proc\arm\ArmAssembler.h">
       <Filter>assembler\proc\arm</Filter>
     </ClInclude>
+    <ClInclude Include="Include\dismount\assembler\proc\riscv\RiscvAssembler.h">
+      <Filter>assembler\proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\assembler\proc\riscv\RiscvAssemblerInternal.h">
+      <Filter>assembler\proc\riscv</Filter>
+    </ClInclude>
     <ClInclude Include="Include\dismount\assembler\proc\arm\ArmAssemblerA32.h">
       <Filter>assembler\proc\arm</Filter>
     </ClInclude>
@@ -382,6 +439,33 @@
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\ArmFeatures.h">
       <Filter>proc\arm</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvInstructionSet.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvFeatures.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvEncodingTable.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvEncodingTableInternal.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvOpcode.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvOperandCodec.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvOperandCodecInternal.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvNotation.h">
+      <Filter>proc\riscv</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvStreamDisassembler.h">
+      <Filter>proc\riscv</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\ArmEncodingTable.h">
       <Filter>proc\arm</Filter>

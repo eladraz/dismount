@@ -96,6 +96,12 @@
 #include "dismount/proc/arm/ArmArchitecture.h"
 #include "dismount/proc/arm/Arm64Architecture.h"
 #include "dismount/proc/arm/ArmSemantics.h"
+#include "dismount/proc/riscv/RiscvInstructionSet.h"
+#include "dismount/proc/riscv/RiscvFeatures.h"
+#include "dismount/proc/riscv/RiscvEncodingTable.h"
+#include "dismount/proc/riscv/RiscvNotation.h"
+#include "dismount/proc/riscv/RiscvStreamDisassembler.h"
+#include "dismount/assembler/proc/riscv/RiscvAssembler.h"
 
 #include "cpufeatures.h"
 
@@ -2080,11 +2086,330 @@ static int runArmRun(ArmInstructionSet::DisassemblerTypes type)
     return 0;
 }
 
+
+/////////////////////////////////////////////////////////////////////////////
+// RISC-V: --arch rv32|rv64 [--mattr <list>] [--format no-aliases,numeric] [--no-rvc]
+//
+//   dis    each line: [@<hex address> ]<groups of 4 / 8 hex digits, the values
+//          of the instructions as objdump prints them>
+//          -> "OK <size> <text> [; <text>...]" | "INVALID <size>" | "ERR <message>"
+//   sweep  each line: [@<hex address> ]<raw bytes in memory order>, decoded as a
+//          linear sweep with the fault tolerance on
+//          -> "OK <size>:<text> ; ..." ("1:<unknown>" for an invalid byte)
+//   asm    each line: [@<hex address> ]<statement> -> "OK <hex bytes>" | "ERR <message>"
+//   features / entries / set: the support matrix, the encodings, the features
+//          of --mattr
+
+// Parses the hex of an instruction: groups of 4 (a compressed instruction) or
+// 8 (a 32 bit one) hex digits, each the value of the instruction as objdump
+// prints it. Appends the little endian bytes to 'out'
+static bool parseRiscvHex(const char* text, cBuffer& out)
+{
+    uint8 bytes[64];
+    uint count = 0;
+    while (*text != 0)
+    {
+        while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r')
+            text++;
+        if (*text == 0)
+            break;
+        uint digits = 0;
+        uint32 value = 0;
+        while (hexValue(*text) >= 0)
+        {
+            value = (value << 4) | (uint32)hexValue(*text);
+            digits++;
+            text++;
+        }
+        if (((digits != 4) && (digits != 8)) ||
+            ((*text != 0) && (*text != ' ') && (*text != '\t') && (*text != '\n') && (*text != '\r')))
+            return false;
+        if (count + digits / 2 > sizeof(bytes))
+            return false;
+        for (uint i = 0; i < digits / 2; i++)
+            bytes[count++] = (uint8)(value >> (8 * i));
+    }
+    if (count == 0)
+        return false;
+    out.changeSize(count);
+    for (uint i = 0; i < count; i++)
+        out[i] = bytes[i];
+    return true;
+}
+
+// Parses contiguous hex bytes in memory order ("154537250900")
+static bool parseRiscvBytes(const char* text, cBuffer& out)
+{
+    static uint8 bytes[1 << 16];
+    uint count = 0;
+    while (*text == ' ' || *text == '\t')
+        text++;
+    while (hexValue(text[0]) >= 0 && hexValue(text[1]) >= 0)
+    {
+        if (count >= sizeof(bytes))
+            return false;
+        bytes[count++] = (uint8)((hexValue(text[0]) << 4) | hexValue(text[1]));
+        text += 2;
+    }
+    while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r')
+        text++;
+    if (*text != 0 || count == 0)
+        return false;
+    out.changeSize(count);
+    for (uint i = 0; i < count; i++)
+        out[i] = bytes[i];
+    return true;
+}
+
+static ProcessorAddress riscvAddress(RiscvInstructionSet::DisassemblerTypes type, uint64 address)
+{
+    return ProcessorAddress((type == RiscvInstructionSet::RISCV_RV64) ?
+                                ProcessorAddress::PROCESSOR_64 : ProcessorAddress::PROCESSOR_32,
+                            address);
+}
+
+static int runRiscvDis(RiscvInstructionSet::DisassemblerTypes type, const RiscvFeatureSet& features,
+                       int formatType)
+{
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        XSTL_TRY
+        {
+            const char* text = line;
+            uint64 address = parseAddressPrefix(text);
+            cBuffer bytes;
+            if (!parseRiscvHex(text, bytes))
+                XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
+
+            cMemoryStream stream(bytes);
+            RiscvStreamDisassembler disassembler(type,
+                BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true,
+                riscvAddress(type, address), false, features);
+            XSTL_TRY
+            {
+                // The texts of a sequence are joined with " ; "
+                cString texts;
+                uint total = 0;
+                bool isFirst = true;
+                while (!disassembler.isEndOfStream())
+                {
+                    OpcodePtr opcode = disassembler.next();
+                    DefaultOpcodeDataFormatter formatter(1);
+                    OpcodeFormatterPtr fr = disassembler.getOpcodeFormat(opcode, formatter, formatType);
+                    if (!isFirst)
+                        texts += " ; ";
+                    texts += fr->string();
+                    total += opcode->getOpcodeSize();
+                    isFirst = false;
+                }
+                writeLine(cString("OK ") + cString((int32)total) + " " + texts);
+            }
+            XSTL_CATCH(DisassemblerInvalidOpcodeException&)
+            {
+                writeLine(cString("INVALID ") + cString((int32)bytes.getSize()));
+            }
+        }
+        XSTL_CATCH(DisassemblerEndOfStreamException&)
+        {
+            writeLine(cString("ERR truncated instruction (end of stream)"));
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitize(e.getMessage()));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
+static int runRiscvSweep(RiscvInstructionSet::DisassemblerTypes type, const RiscvFeatureSet& features,
+                         int formatType)
+{
+    static char line[(1 << 17) + 64];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        XSTL_TRY
+        {
+            const char* text = line;
+            uint64 address = parseAddressPrefix(text);
+            cBuffer bytes;
+            if (!parseRiscvBytes(text, bytes))
+                XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
+
+            cMemoryStream stream(bytes);
+            RiscvStreamDisassembler disassembler(type,
+                BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true,
+                riscvAddress(type, address), true, features);
+            cString texts;
+            bool isFirst = true;
+            XSTL_TRY
+            {
+                while (!disassembler.isEndOfStream())
+                {
+                    OpcodePtr opcode = disassembler.next();
+                    DefaultOpcodeDataFormatter formatter(1);
+                    OpcodeFormatterPtr fr = disassembler.getOpcodeFormat(opcode, formatter, formatType);
+                    if (!isFirst)
+                        texts += " ; ";
+                    if (opcode->getType() == OpcodeSubsystems::DISASSEMBLER_INVALID_OPCODE)
+                        texts += cString("1:<unknown>");
+                    else
+                        texts += cString((int32)opcode->getOpcodeSize()) + ":" + fr->string();
+                    isFirst = false;
+                }
+            }
+            XSTL_CATCH(DisassemblerEndOfStreamException&)
+            {
+                // (a truncated last instruction)
+                if (!isFirst)
+                    texts += " ; ";
+                texts += cString("?:<truncated>");
+            }
+            writeLine(cString("OK ") + texts);
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitize(e.getMessage()));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
+static int runRiscvAsm(RiscvInstructionSet::DisassemblerTypes type, const RiscvFeatureSet& features,
+                       bool isCompressing)
+{
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        const char* text = line;
+        parseAddressPrefix(text);
+        char copy[MAX_LINE];
+        strncpy(copy, text, sizeof(copy) - 1);
+        copy[sizeof(copy) - 1] = 0;
+        normalizeAsmLine(copy);
+        if (copy[0] == 0)
+        {
+            writeLine(cString("ERR empty instruction"));
+            continue;
+        }
+        XSTL_TRY
+        {
+            FirstPassBinaryPtr binary(new FirstPassBinary(RiscvInstructionSet::toSubsystem(type), false));
+            binary->createNewBlockWithoutChange(0, StackInterfacePtr(new CliStackInterface(binary)));
+            binary->changeBasicBlock(0);
+            {
+                // (the stream is used directly so that errors are raised here)
+                RiscvAssemblerStream stream(*binary, type, features);
+                stream.setCompression(isCompressing);
+                stream << copy << endl;
+                stream.assemble();
+            }
+            const cBuffer& data = binary->getCurrentBlockData();
+            cString hex;
+            static const char digits[] = "0123456789abcdef";
+            for (uint i = 0; i < data.getSize(); i++)
+            {
+                uint8 b = data[i];
+                hex += cString(digits[b >> 4]);
+                hex += cString(digits[b & 0xf]);
+            }
+            writeLine(cString("OK ") + hex);
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitizeText(describeException(e)));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
+// Calls 'callback' for each entry of the tables
+static void forEachRiscvEntry(void (*callback)(const riscvdis::RiscvEncodingEntry&, uint, void*),
+                              void* context)
+{
+    for (uint size = 2; size <= 4; size += 2)
+    {
+        const riscvdis::RiscvEncodingEntry* const* tables = RiscvStreamDisassembler::getTables(size);
+        for (; *tables != NULL; tables++)
+            for (const riscvdis::RiscvEncodingEntry* entry = *tables; entry->m_mnemonic != NULL; entry++)
+                callback(*entry, size, context);
+    }
+}
+
+static void countRiscvEntry(const riscvdis::RiscvEncodingEntry& entry, uint, void* context)
+{
+    ((uint*)context)[entry.m_feature]++;
+}
+
+static void printRiscvEntry(const riscvdis::RiscvEncodingEntry& entry, uint size, void*)
+{
+    char text[256];
+    snprintf(text, sizeof(text), "%x %x %u %x %u %s", (unsigned int)entry.m_mask,
+             (unsigned int)entry.m_value, (unsigned int)entry.m_feature,
+             (unsigned int)entry.m_flags, (unsigned int)size, entry.m_mnemonic);
+    writeLine(cString(text));
+}
+
+// "<index> <name> <profile status> <support hex> <entries>"
+static int runRiscvFeatures()
+{
+    uint counts[RiscvFeatures::FEATURES_COUNT];
+    for (uint i = 0; i < RiscvFeatures::FEATURES_COUNT; i++)
+        counts[i] = 0;
+    forEachRiscvEntry(countRiscvEntry, counts);
+    for (uint i = 0; i < RiscvFeatures::FEATURES_COUNT; i++)
+    {
+        RiscvFeatures::Feature feature = (RiscvFeatures::Feature)i;
+        char text[256];
+        snprintf(text, sizeof(text), "%u %s %u %x %u", (unsigned int)i,
+                 (RiscvFeatures::getName(feature)[0] == 0) ? "-" : RiscvFeatures::getName(feature),
+                 (unsigned int)RiscvFeatures::getProfileStatus(feature),
+                 (unsigned int)RiscvFeatures::getSupport(feature), (unsigned int)counts[i]);
+        writeLine(cString(text));
+    }
+    return 0;
+}
+
+static int runRiscvEntries()
+{
+    forEachRiscvEntry(printRiscvEntry, NULL);
+    return 0;
+}
+
+// The names of the features of the --mattr list
+static int runRiscvSet(const RiscvFeatureSet& features)
+{
+    cString text;
+    for (uint i = 0; i < RiscvFeatures::FEATURES_COUNT; i++)
+        if (features.has((RiscvFeatures::Feature)i))
+        {
+            const char* name = RiscvFeatures::getName((RiscvFeatures::Feature)i);
+            if (name[0] != 0)
+                text += cString(name) + " ";
+        }
+    writeLine(text);
+    return 0;
+}
+
 static void usage()
 {
     fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32|64] < input\n"
                     "       dismount_cli asm|dis|run|features|entries --arch a32|t32|a64"
                     " [--mattr +feature,-feature] < input\n"
+                    "       dismount_cli asm|dis|sweep|features|entries|set --arch rv32|rv64"
+                    " [--mattr list] [--format no-aliases,numeric] [--no-rvc] < input\n"
                     "       dismount_cli cpuinfo\n");
 }
 
@@ -2101,9 +2426,34 @@ int main(int argc, char* argv[])
     bool isArm = false;
     ArmInstructionSet::DisassemblerTypes armType = ArmInstructionSet::ARM_A64;
     ArmFeatureSet armFeatures = ArmFeatureSet::all();
+    bool isRiscv = false;
+    RiscvInstructionSet::DisassemblerTypes riscvType = RiscvInstructionSet::RISCV_RV64;
+    RiscvFeatureSet riscvFeatures = RiscvFeatureSet::all();
+    int riscvFormat = 0;
+    bool riscvCompress = true;
     for (int i = 2; i < argc; i++)
     {
-        if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc)
+        if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc &&
+            (strcmp(argv[i + 1], "rv32") == 0 || strcmp(argv[i + 1], "rv64") == 0))
+        {
+            i++;
+            isRiscv = true;
+            riscvType = (strcmp(argv[i], "rv32") == 0) ? RiscvInstructionSet::RISCV_RV32 :
+                                                         RiscvInstructionSet::RISCV_RV64;
+        }
+        else if (strcmp(argv[i], "--format") == 0 && i + 1 < argc)
+        {
+            i++;
+            if (strstr(argv[i], "no-aliases") != NULL)
+                riscvFormat |= RiscvNotation::RISCV_FORMAT_NO_ALIASES;
+            if (strstr(argv[i], "numeric") != NULL)
+                riscvFormat |= RiscvNotation::RISCV_FORMAT_NUMERIC;
+        }
+        else if (strcmp(argv[i], "--no-rvc") == 0)
+        {
+            riscvCompress = false;
+        }
+        else if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc)
         {
             i++;
             isArm = true;
@@ -2122,7 +2472,12 @@ int main(int argc, char* argv[])
         else if (strcmp(argv[i], "--mattr") == 0 && i + 1 < argc)
         {
             i++;
-            if (!armFeatures.parse(argv[i]))
+            if (isRiscv)
+            {
+                if (!riscvFeatures.parse(argv[i]))
+                    fprintf(stderr, "warning: unknown feature in --mattr %s\n", argv[i]);
+            }
+            else if (!armFeatures.parse(argv[i]))
                 fprintf(stderr, "warning: unknown feature in --mattr %s\n", argv[i]);
         }
         else if (strcmp(argv[i], "--bits") == 0 && i + 1 < argc)
@@ -2154,6 +2509,24 @@ int main(int argc, char* argv[])
             usage();
             return 2;
         }
+    }
+
+    if (isRiscv)
+    {
+        if (strcmp(argv[1], "asm") == 0)
+            return runRiscvAsm(riscvType, riscvFeatures, riscvCompress);
+        if (strcmp(argv[1], "dis") == 0)
+            return runRiscvDis(riscvType, riscvFeatures, riscvFormat);
+        if (strcmp(argv[1], "sweep") == 0)
+            return runRiscvSweep(riscvType, riscvFeatures, riscvFormat);
+        if (strcmp(argv[1], "features") == 0)
+            return runRiscvFeatures();
+        if (strcmp(argv[1], "entries") == 0)
+            return runRiscvEntries();
+        if (strcmp(argv[1], "set") == 0)
+            return runRiscvSet(riscvFeatures);
+        usage();
+        return 2;
     }
 
     if (isArm)

@@ -117,7 +117,22 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/arm/ArmEncodingTableA32.cpp \
                          Source/dismount/proc/arm/ArmEncodingTableA32Simd.cpp \
                          Source/dismount/proc/arm/ArmEncodingTableT16.cpp \
-                         Source/dismount/proc/arm/ArmEncodingTableT32.cpp
+                         Source/dismount/proc/arm/ArmEncodingTableT32.cpp \
+                         Source/dismount/proc/riscv/RiscvInstructionSet.cpp \
+                         Source/dismount/proc/riscv/RiscvFeatures.cpp \
+                         Source/dismount/proc/riscv/RiscvCsrNames.cpp \
+                         Source/dismount/proc/riscv/RiscvOperandCodec.cpp \
+                         Source/dismount/proc/riscv/RiscvOperandCodecCompressed.cpp \
+                         Source/dismount/proc/riscv/RiscvOperandCodecVector.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTable.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTableCompressed.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTablePrivileged.cpp \
+                         Source/dismount/proc/riscv/RiscvEncodingTableVector.cpp \
+                         Source/dismount/proc/riscv/RiscvOpcode.cpp \
+                         Source/dismount/proc/riscv/RiscvNotation.cpp \
+                         Source/dismount/proc/riscv/RiscvStreamDisassembler.cpp \
+                         Source/dismount/assembler/proc/riscv/RiscvAssembler.cpp \
+                         Source/dismount/assembler/proc/riscv/RiscvAssemblerPseudo.cpp
 
 
 

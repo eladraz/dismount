@@ -15,6 +15,8 @@
 #include "dismount/proc/ia32/IA32StreamDisassembler.h"
 #include "dismount/proc/arm/ArmInstructionSet.h"
 #include "dismount/proc/arm/ArmStreamDisassembler.h"
+#include "dismount/proc/riscv/RiscvInstructionSet.h"
+#include "dismount/proc/riscv/RiscvStreamDisassembler.h"
 
 StreamDisassemblerPtr StreamDisassemblerFactory::disassemble(
                 OpcodeSubsystems::DisassemblerType type,
@@ -59,6 +61,16 @@ StreamDisassemblerPtr StreamDisassemblerFactory::disassemble(
         // are for big endian data. The disassembler decodes all the features
         return StreamDisassemblerPtr(new ArmStreamDisassembler(
                     ArmInstructionSet::fromSubsystem(type),
+                    data,
+                    shouldUseAddress,
+                    streamAddress,
+                    shouldOpcodeFaultTolerantEnabled));
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_32:
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_64:
+        // The RISC-V instructions are always little endian. The disassembler
+        // decodes all the features
+        return StreamDisassemblerPtr(new RiscvStreamDisassembler(
+                    RiscvInstructionSet::fromSubsystem(type),
                     data,
                     shouldUseAddress,
                     streamAddress,

@@ -143,6 +143,21 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/arm/ArmEncodingTableA32Simd.cpp
 	Source/dismount/proc/arm/ArmEncodingTableT16.cpp
 	Source/dismount/proc/arm/ArmEncodingTableT32.cpp
+	Source/dismount/proc/riscv/RiscvInstructionSet.cpp
+	Source/dismount/proc/riscv/RiscvFeatures.cpp
+	Source/dismount/proc/riscv/RiscvCsrNames.cpp
+	Source/dismount/proc/riscv/RiscvOperandCodec.cpp
+	Source/dismount/proc/riscv/RiscvOperandCodecCompressed.cpp
+	Source/dismount/proc/riscv/RiscvOperandCodecVector.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTable.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTableCompressed.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTablePrivileged.cpp
+	Source/dismount/proc/riscv/RiscvEncodingTableVector.cpp
+	Source/dismount/proc/riscv/RiscvOpcode.cpp
+	Source/dismount/proc/riscv/RiscvNotation.cpp
+	Source/dismount/proc/riscv/RiscvStreamDisassembler.cpp
+	Source/dismount/assembler/proc/riscv/RiscvAssembler.cpp
+	Source/dismount/assembler/proc/riscv/RiscvAssemblerPseudo.cpp
 )
 
 add_library(dismount_static STATIC ${DISMOUNT_LIB_FILES})
@@ -191,6 +206,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Disassembler.cpp
 		tests/TestAMD64Assembler.cpp
 		tests/TestArm64Disassembler.cpp
+		tests/TestRiscvDisassembler.cpp
 		tests/TestArm64Sve.cpp
 		tests/TestArm64Sme.cpp
 		tests/TestArm64Simd.cpp

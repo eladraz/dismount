@@ -12,6 +12,8 @@
 #include "dismount/assembler/proc/ia32/IA32Assembler.h"
 #include "dismount/proc/arm/ArmInstructionSet.h"
 #include "dismount/assembler/proc/arm/ArmAssembler.h"
+#include "dismount/proc/riscv/RiscvInstructionSet.h"
+#include "dismount/assembler/proc/riscv/RiscvAssembler.h"
 
 AssemblerInterfacePtr AssemblingFactory::generateAssembler(
                                         FirstPassBinaryPtr binary,
@@ -33,6 +35,11 @@ AssemblerInterfacePtr AssemblingFactory::generateAssembler(
         return AssemblerInterfacePtr(new ArmAssembler(
                                     binary,
                                     ArmInstructionSet::fromSubsystem(type)));
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_32:
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_64:
+        return AssemblerInterfacePtr(new RiscvAssembler(
+                                    binary,
+                                    RiscvInstructionSet::fromSubsystem(type)));
     default:
         // Not ready yet...
         CHECK_FAIL();
