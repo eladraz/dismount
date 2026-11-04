@@ -22,8 +22,6 @@
 ^mul z[0-9]+\.[bhsd], z[0-9]+\.[bhsd], z[0-9]+\.[bhsd]$  # Unicorn: no SVE2 (unpredicated MUL is SVE2)
 # FEAT_BF16 and FEAT_I8MM (ID_AA64ISAR1_EL1.BF16 / I8MM = 0 on QEMU 5.0): UNDEF
 [a64,unicorn] ^(bfcvt|bfcvtn2?|bfdot|bfmmla|bfmlal[bt]|smmla|ummla|usmmla|usdot|sudot)\b  # Unicorn: no FEAT_BF16 / FEAT_I8MM (the M4 has both and is the oracle)
-# SME (QEMU 5.0 predates it): smstart, smstop and every streaming / ZA instruction is an UNDEF
-^(smstart|smstop|zero \{za|fmopa|smopa|addha|mova z|mova za|ld1w \{za|st1b \{za|ldr za|str za|fmla za)  # Unicorn: no SME
 
 # --- Unicorn: alignment of the acquire / release and unaligned atomic accesses.
 # Unicorn faults on every unaligned exclusive, atomic (LSE) and load-acquire access (no
@@ -36,6 +34,18 @@
 # --- host (Apple M4) features
 # FEAT_SM3 / FEAT_SM4: SIGILL on the M4 (hw.optional.arm has no FEAT_SM3 / FEAT_SM4); Unicorn implements them
 [a64,host] ^(sm3|sm4)[a-z0-9]*\b  # host: no FEAT_SM3 / FEAT_SM4 (the M4 raises SIGILL)
+# MOVT (scalar to / from zt0, FEAT_SME2): SIGILL on the M4 in every mode (not streaming, streaming,
+# with and without za; the other SME2 instructions of zt0, ldr / str / zero { zt0 }, run). Evidence:
+# `movt x7, zt0[0]` (word c04c03e7) and `movt zt0[8], x16` (c04e03f0) executed by tests/arm/semantics/
+# host_arm64.c with sm=1 za=1 give exit=trap:undef. The semantics (bytes 8 * offset of zt0) are pinned
+# by the unit rows of tests/TestArm64SemanticsSme.cpp
+[a64,host] ^movt (x[0-9]+, zt0\[|zt0\[[0-9]+\], x)  # host: the M4 raises SIGILL for the scalar MOVT of zt0
+# MSR SVCR, <Xt> (the register form, FEAT_SME): the host doesn't run it. `msr svcr, x0` (word d51b4240,
+# S3_3_C4_C2_2) run by host_arm64.c ends with exit=branch: the pc is 0x28 bytes past the instruction, x0 holds
+# a kernel value (0x0000000a73801000) and the run is outside of the test region, as if the system
+# register write was emulated by the kernel. The immediate forms (smstart / smstop, msr svcrsm, #imm) and mrs
+# svcr run and agree with dismount. The semantics are pinned by the unit rows of tests/TestArm64SemanticsSme.cpp
+[a64,host] ^msr svcr, x[0-9]+  # host: the M4 / macOS doesn't execute the register form of MSR SVCR (kernel trap, x0 clobbered)
 # fadda and compact are not legal in the streaming mode: the host (streaming) UNDEFs them while Unicorn
 # (non-streaming SVE) executes them
 [a64,host] ^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)

@@ -192,12 +192,28 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_SVE_B16B16 */    { "sve-b16b16",      SUPPORT_LIFTED },
 
     // --- SME
-    /* FEAT_SME */           { "sme",             SUPPORT_FULL },
-    /* FEAT_SME_F64F64 */    { "sme-f64f64",      SUPPORT_FULL },
-    /* FEAT_SME_I16I64 */    { "sme-i16i64",      SUPPORT_FULL },
-    /* FEAT_SME_F16F16 */    { "sme-f16f16",      SUPPORT_FULL },
-    /* FEAT_SME2 */          { "sme2",            SUPPORT_FULL },
-    /* FEAT_SME2P1 */        { "sme2p1",          SUPPORT_FULL },
+    // The SME and SME2 tables (Arm64SemanticTableSme.cpp, Arm64SemanticLiftSme*.cpp): the moves between
+    // za and the vectors, the loads and stores of the slices, ldr / str of za and zt0, zero, the outer
+    // products, the instructions which accumulate into the za array vectors, the multi vector
+    // arithmetic, conversions and lookups of SME2, smstart / smstop / msr svcr (the base table), and
+    // rdsvl / addsvl / addspl (encoded in the SVE table). VERIFIED is the comparison with the M4
+    // (tests/arm/semantics, corpus a64_sme*.s: random states, the instructions outside of their mode,
+    // the mode changes, directed edge states) over every form of the feature the M4 runs. The lines it
+    // can't run are in tests/arm/semantics/oracle_bugs.txt and are checked by the unit rows of
+    // tests/TestArm64SemanticsSme.cpp (an independent Python model, tests/arm/tools/sme_model.py): the
+    // scalar movt of zt0 (SIGILL on the M4), msr svcr, xN (the kernel clobbers x0), and the features
+    // below, which the M4 lacks. The model is checked against the M4 on everything the M4 runs.
+    /* FEAT_SME */          { "sme",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SME_F64F64 */    { "sme-f64f64",      SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SME_I16I64 */    { "sme-i16i64",      SUPPORT_LIFTED_VERIFIED },
+    // F16F16: the half precision outer products, the fadd, fsub, fmla and fmls of the array and the
+    // conversions fcvt / fcvtl from half to single are lifted (unit rows only)
+    /* FEAT_SME_F16F16 */    { "sme-f16f16",      SUPPORT_LIFTED },
+    /* FEAT_SME2 */          { "sme2",            SUPPORT_LIFTED_VERIFIED },
+    // SME2.1: movaz and the strided lookups are lifted (unit rows only); zero of the za array vectors
+    // (zero za.d[...]) is not
+    /* FEAT_SME2P1 */        { "sme2p1",          SUPPORT_PARTIAL },
+    // LUTv2: the lookups with a 2 register index and the vector movt are not lifted
     /* FEAT_SME_LUTV2 */     { "sme-lutv2",       SUPPORT_FULL },
 
     // --- Added with the base table
@@ -254,12 +270,15 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // --- More SME. sme-fa64, ssve-aes, ssve-bitperm and ssve-fexpa have no encodings of their
     // own (they allow the full SVE / Advanced SIMD and some SVE extensions in the streaming
     // mode); ssve-fp8fma / dot2 / dot4 are the alternative of the SVE FP8 instructions
-    /* FEAT_SME_B16B16 */    { "sme-b16b16",      SUPPORT_FULL },
-    /* FEAT_SME_F8F16 */     { "sme-f8f16",       SUPPORT_FULL },
+    // B16B16 (the BFloat16 arithmetic of za), SME2.2 (fmul of the vector groups): lifted, unit rows only.
+    // F8F16: only the half precision fadd / fsub of the array (the FP8 forms are not lifted). F8F32, MOP4
+    // (the quarter tile outer products), TMOP (the structured sparse ones) and SME2.3 (luti6): not lifted
+    /* FEAT_SME_B16B16 */    { "sme-b16b16",      SUPPORT_LIFTED },
+    /* FEAT_SME_F8F16 */     { "sme-f8f16",       SUPPORT_PARTIAL },
     /* FEAT_SME_F8F32 */     { "sme-f8f32",       SUPPORT_FULL },
     /* FEAT_SME_MOP4 */      { "sme-mop4",        SUPPORT_FULL },
     /* FEAT_SME_TMOP */      { "sme-tmop",        SUPPORT_FULL },
-    /* FEAT_SME2P2 */        { "sme2p2",          SUPPORT_FULL },
+    /* FEAT_SME2P2 */        { "sme2p2",          SUPPORT_LIFTED },
     /* FEAT_SME2P3 */        { "sme2p3",          SUPPORT_FULL },
     /* FEAT_SME_FA64 */      { "sme-fa64",        SUPPORT_NONE },
     /* FEAT_SSVE_FP8FMA */   { "ssve-fp8fma",     SUPPORT_FULL },

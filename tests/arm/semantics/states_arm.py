@@ -128,6 +128,9 @@ def lane_width(arch, text):
     none (integer data)."""
     t = text.lower()
     if arch == 'a64':
+        # SME: bfmopa / bfmla / bfdot... are bfloat16 (the lanes are drawn as 16 bit floating point)
+        if re.search(r'^\s*bf[a-z0-9]+ ', t) and re.search(r'\.h\b', t):
+            return 16
         if re.search(r'\bf(?:add|sub|mul|div|max|min|sqrt|abs|neg|cmp|cmpe|ccmp|madd|msub|nmadd|nmsub|'
                      r'cvt|mov|rint|recp|rsqrt|mla|mls|abd|scale|nm|addp|maxp|minp|trn|exp|mad|nmad|'
                      r'nmla|nmls|nmsb|ad)', t) or re.search(r'\b[sufb]cvtf|\bfcvt|\bf[a-z]+\b', t):
@@ -222,14 +225,20 @@ def make_state(arch, rng, text, overrides, mode):
         st['fpsr'] = rng.choice([0, 0, 0, rng.getrandbits(5), (1 << 27) | rng.getrandbits(5), 0x80])
         st['v'] = [draw_vector(rng, 128, lane) for _ in range(32)]
         st['mem'] = {}
-        if mode in ('sve', 'sm'):
+        if mode in ('sve', 'sm', 'noza'):
             st['sve'] = True
-            st['sm'] = mode == 'sm'
+            st['sm'] = mode in ('sm', 'noza')
             vbits = S.vector_bits(st)
             st['z'] = [draw_vector(rng, vbits, lane) for _ in range(32)]
             st['p'] = [draw_predicate(rng, vbits // 8, lane) for _ in range(16)]
             st['ffr'] = draw_predicate(rng, vbits // 8, lane) if mode == 'sve' else 0
             sve_vector_addressing(st, text, rng, vbits)
+        if mode == 'nosm':
+            # ZA is enabled, the processor is not in the streaming mode (the SME instructions which
+            # need the streaming mode are undefined, ldr / str / zero of za run)
+            st['za'] = True
+            st['zarows'] = [draw_vector(rng, st['svl'], lane) for _ in range(st['svl'] // 8)]
+            st['zt0'] = rng.getrandbits(512)
         if mode == 'sm' and 'za' in text.lower() or mode == 'za':
             st['sm'] = True
             st['sve'] = True

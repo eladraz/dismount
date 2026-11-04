@@ -19,7 +19,7 @@
  *   - FEAT_MOPS: the memory copy and set instructions
  *   - FEAT_THE, FEAT_LSFE, st64bv: not lifted
  *   - FEAT_D128, FEAT_GCS, FEAT_TME, FEAT_POE2, the privileged system instructions (at,
- *     tlbi, sys, eret, hvc, smc...), smstart / smstop, FEAT_CPA
+ *     tlbi, sys, eret, hvc, smc...), FEAT_CPA
  *
  * Author: Elad Raz <e@eladraz.com>
  */
@@ -225,6 +225,8 @@ const ArmSemanticEntry gArm64SemanticTable[] =
     A64("cfinv", BIT_MANIPULATION, U_(INTEGER_ALU), 0, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW),
     A64("xaflag", BIT_MANIPULATION, U_(INTEGER_ALU), 0, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW),
     A64("axflag", BIT_MANIPULATION, U_(INTEGER_ALU), 0, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW),
+    A64("smstart", SYSTEM, U_(SYSTEM), P_(CHANGES_MODE), 0, 0),
+    A64("smstop", SYSTEM, U_(SYSTEM), P_(CHANGES_MODE), 0, 0),
     A64("msr", SYSTEM, U_(SYSTEM), 0, 0, SemanticFlags::FLAG_SIGN | SemanticFlags::FLAG_ZERO | SemanticFlags::FLAG_CARRY | SemanticFlags::FLAG_OVERFLOW),
     A64("wfet", NOP, U_(SYSTEM), 0, 0, 0),
     A64("wfit", NOP, U_(SYSTEM), 0, 0, 0),

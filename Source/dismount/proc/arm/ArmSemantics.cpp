@@ -1114,7 +1114,15 @@ const armdis::ArmSemanticEntry* ArmSemanticLifter::findEntry(
         findArea(a64Areas, sizeof(a64Areas) / sizeof(a64Areas[0]), encoding) :
         findArea(a32Areas, sizeof(a32Areas) / sizeof(a32Areas[0]), encoding);
     if (area != NULL)
-        return searchTable(area, name, operandsCount);
+    {
+        const armdis::ArmSemanticEntry* found = searchTable(area, name, operandsCount);
+        // The SME vector length instructions (rdsvl, addsvl, addspl) are in the SVE encoding
+        // table: when the SVE table has no entry for them, the SME one does
+        if ((found == NULL) && (area == armdis::gArm64SveSemanticTable) &&
+            (encoding->m_feature == ArmFeatures::FEAT_SME))
+            found = searchTable(armdis::gArm64SmeSemanticTable, name, operandsCount);
+        return found;
+    }
 
     const armdis::ArmSemanticEntry* const* tables = isA64 ? a64Tables : a32Tables;
     const uint tablesCount = isA64 ?

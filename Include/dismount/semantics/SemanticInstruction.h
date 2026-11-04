@@ -73,7 +73,11 @@ public:
         // The half precision conversions of the operation are the IEEE ones
         // whatever the alternative half precision control of the guest says
         // (ARM FEAT_FHM: the widening multiply adds)
-        ATTRIBUTE_FLOAT_IEEE_HALF   = 0x0400
+        ATTRIBUTE_FLOAT_IEEE_HALF   = 0x0400,
+        // The NaN result is the default NaN, whatever the control register of
+        // the guest says (the rounding mode and the flush to zero stay)
+        // (ARM SME: the instructions which accumulate into za)
+        ATTRIBUTE_FLOAT_DEFAULT_NAN = 0x0800
     };
 
     /*

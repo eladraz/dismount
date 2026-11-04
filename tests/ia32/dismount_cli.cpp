@@ -2051,7 +2051,8 @@ static cString runArmLine(char* line, ArmInstructionSet::DisassemblerTypes type)
 
 static int runArmRun(ArmInstructionSet::DisassemblerTypes type)
 {
-    char line[MAX_LINE];
+    // (the state of SME has za: 64 rows of 128 digits, more than MAX_LINE)
+    static char line[1 << 17];
     while (fgets(line, sizeof(line), stdin))
     {
         XSTL_TRY

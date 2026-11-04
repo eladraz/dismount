@@ -42,8 +42,6 @@ UNLIFTED = [
      r'plbi|cfp|cpp|dvp|apas|at|tlbi|sys|sysl', 'system-extensions'),
     # Privileged: exception return, debug state, calls to the other exception levels
     (r'eret|drps|dcps[123]|hvc|smc', 'privileged'),
-    # FEAT_SME mode switches
-    (r'smstart|smstop', 'sme'),
     # FEAT_CPA checked pointer arithmetic
     (r'addpt|subpt|maddpt|msubpt', 'cpa'),
 ]
@@ -81,6 +79,7 @@ RULES = [
     (r'bti', 'SECURITY', ['SYSTEM'], ['LANDING_PAD']),
     (r'xpaci|xpacd|xpaclri|paci[a-z0-9]*|autia[a-z0-9]*|autib[a-z0-9]*', 'SECURITY', ['INTEGER_ALU'], []),
     (r'dmb|dsb|isb|sb|ssbb|pssbb|clrex', 'SYSTEM', ['SYSTEM'], ['SERIALIZING']),
+    (r'smstart|smstop', 'SYSTEM', ['SYSTEM'], ['CHANGES_MODE']),
     (r'mrs|msr', 'SYSTEM', ['SYSTEM'], []),
     (r'dc|ic', 'CACHE', ['SYSTEM'], []),
     (r'cfp|dvp|cpp|cosp', 'NOP', ['SYSTEM'], []),
@@ -170,7 +169,7 @@ def generate():
  *   - FEAT_MOPS: the memory copy and set instructions
  *   - FEAT_THE, FEAT_LSFE, st64bv: not lifted
  *   - FEAT_D128, FEAT_GCS, FEAT_TME, FEAT_POE2, the privileged system instructions (at,
- *     tlbi, sys, eret, hvc, smc...), smstart / smstop, FEAT_CPA
+ *     tlbi, sys, eret, hvc, smc...), FEAT_CPA
  *
  * Author: Elad Raz <e@eladraz.com>
  */

@@ -68,7 +68,25 @@ class HostOracle(object):
         return out.rstrip('\n')
 
     def run(self, code, state, arch='a64'):
-        out = self.run_line(S.format_state(arch, code, state))
+        line = S.format_state(arch, code, state)
+        out = self.run_line(line)
+        if state.get('sm'):
+            # Observed on the M4 under load (several host processes): now and then (about one
+            # line in a thousand) the result of a streaming run has FPSR = state | 0x9f, for any
+            # instruction (uzp and umlall included), and the same state run again gives the right
+            # result. 0x0800009F is the FPSR a change of the streaming mode sets, so the cause is
+            # probably the kernel re-entering the streaming mode of the process when it is
+            # rescheduled in the middle of a run (not verified). The result of a state is
+            # therefore taken from two identical runs (more runs decide a disagreement)
+            seen = {out: 1}
+            for _ in range(5):
+                again = self.run_line(line)
+                seen[again] = seen.get(again, 0) + 1
+                best = max(seen.values())
+                if best >= 2 and len([v for v in seen.values() if v == best]) == 1:
+                    out = [k for k, v in seen.items() if v == best][0]
+                    break
+        out = out
         res = S.parse_result(arch, out)
         if 'err' in res:
             raise OracleError(res['err'])

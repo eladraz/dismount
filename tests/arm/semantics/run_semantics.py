@@ -154,6 +154,10 @@ def collect(args, skips):
             elif oracles and args.oracle not in oracles and not args.lift_only:
                 rec['status'] = 'SKIP'
                 rec['message'] = 'not run by %s (@oracle: %s, see oracle_bugs.txt)' % (args.oracle, ' '.join(oracles))
+            elif (args.arch == 'a64' and args.oracle == 'unicorn' and not args.compare_oracles and
+                  rec['mode'] in ('sm', 'za', 'nosm', 'noza')):
+                # (QEMU 5.0 predates SME: the streaming mode and za exist on the host only)
+                rec['status'], rec['message'] = 'SKIP', 'Unicorn has no SME (streaming mode, za)'
             else:
                 for rx, reason, arches in skips:
                     if rule_applies(arches, args.arch, args.oracle) and rx.search(r['text']):

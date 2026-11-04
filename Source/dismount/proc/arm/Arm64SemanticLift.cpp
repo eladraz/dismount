@@ -25,6 +25,7 @@
 #include "dismount/proc/arm/Arm64Architecture.h"
 #include "dismount/proc/arm/ArmSemantics.h"
 #include "dismount/proc/arm/Arm64SemanticInternal.h"
+#include "dismount/proc/arm/Arm64SemanticSme.h"
 
 using namespace armdis;
 using namespace armdis::a64;
@@ -996,6 +997,7 @@ namespace {
 enum {
     SYSREG_NZCV         = 0xDA10,
     SYSREG_FPCR         = 0xDA20,
+    SYSREG_SVCR         = 0xDA12,
     SYSREG_FPSR         = 0xDA21,
     SYSREG_TPIDR_EL0    = 0xDE82,
     SYSREG_TPIDRRO_EL0  = 0xDE83,
@@ -1276,6 +1278,9 @@ void liftReadSystemRegister(ArmLiftContext& c)
         value = c.emit(Op::OP_ZERO_EXTEND, word,
                        c.getRegister(ARM64_REG_FPSR));
         break;
+    case SYSREG_SVCR:
+        value = c.emit(Op::OP_ZERO_EXTEND, word, c.getRegister(ARM64_REG_SVCR));
+        break;
     case SYSREG_TPIDR_EL0:
         value = c.emit(Op::OP_MOVE, word, c.getRegister(ARM64_REG_TPIDR_EL0));
         break;
@@ -1316,6 +1321,10 @@ void liftWriteSystemRegister(ArmLiftContext& c)
         c.move(c.getRegister(ARM64_REG_FPSR),
                emitImmediate(c, Op::OP_AND, half,
                              c.emit(Op::OP_TRUNCATE, half, value), FPSR_MASK));
+        break;
+    case SYSREG_SVCR:
+        // the SM and ZA bits, as smstart / smstop change them
+        liftSmeWriteSvcr(c, value);
         break;
     case SYSREG_TPIDR_EL0:
         c.move(c.getRegister(ARM64_REG_TPIDR_EL0), value);
@@ -1467,6 +1476,9 @@ void liftSystemClass(ArmLiftContext& c)
             liftFlagManipulation(c, 1);
         else if (field == 2)
             liftFlagManipulation(c, 2);
+        else if (field == 27)
+            // smstart, smstop (op1 = 3, op2 = 3): CRm
+            liftSmeModeChange(c, crm);
         else
             undefined(c);
     } else

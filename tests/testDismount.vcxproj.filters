@@ -57,6 +57,9 @@
     <ClCompile Include="TestArm64SemanticsSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestArm64SemanticsSme.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemanticFloatArm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

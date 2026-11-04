@@ -559,6 +559,10 @@ static const char* runLine(char* line)
         }
         for (int i = 0; i < 16; i++)
             memcpy(blk->bytes + OFF_P + 8 * i, ex->pbytes[i], 8);
+    }
+    if (ex->za)
+    {
+        /* (za and zt0 are loaded outside of the streaming mode too: ldr za, ldr zt0, zero run) */
         for (int i = 0; i < ZA_ROWS; i++)
             memcpy(blk->bytes + OFF_ZA + SVL_BYTES * i, ex->zarows[i], SVL_BYTES);
         memcpy(blk->bytes + OFF_ZT0, ex->zt0, 64);

@@ -88,7 +88,6 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/arm/ArmSemanticLiftNeonMemory.cpp
 	Source/dismount/proc/arm/ArmSemanticLiftCrypto.cpp
 	Source/dismount/proc/arm/ArmSemanticTableSimd.cpp
-	Source/dismount/proc/arm/ArmSemanticTableStubs.cpp
 	Source/dismount/proc/arm/Arm64SemanticTable.cpp
 	Source/dismount/proc/arm/Arm64SemanticLift.cpp
 	Source/dismount/proc/arm/Arm64SemanticLiftMemory.cpp
@@ -110,6 +109,12 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/arm/Arm64SemanticLiftSimdMemory.cpp
 	Source/dismount/proc/arm/Arm64SemanticLiftCrypto.cpp
 	Source/dismount/proc/arm/Arm64SemanticTableSimd.cpp
+	Source/dismount/proc/arm/Arm64SemanticTableSme.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftSme.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftSmeOuter.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftSmeArray.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftSmeVector.cpp
+	Source/dismount/proc/arm/Arm64SemanticLiftSmeConvert.cpp
 	Source/dismount/assembler/proc/arm/ArmAssembler.cpp
 	Source/dismount/assembler/proc/arm/ArmAssemblerA32.cpp
 	Source/dismount/proc/arm/ArmInstructionSet.cpp
@@ -197,6 +202,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp
 		tests/TestArm64SemanticsSimd.cpp
+		tests/TestArm64SemanticsSme.cpp
 		tests/TestSemanticFloatArm.cpp
 		tests/TestArmAArch32Semantics.cpp
 		$ENV{XSTL_PATH}/tests/tests.cpp)

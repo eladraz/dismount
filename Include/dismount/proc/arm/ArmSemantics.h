@@ -42,10 +42,10 @@ enum {
     // rndr / rndrrs: d = a random number, the flags NZCV = 0000 (0100 on a
     // failure)
     ARM_HELPER_RANDOM,
-    // The SME2 lookup table and the other instructions which the IR has no
-    // operation for (luti2 / luti4, the histogram of histcnt / histseg, the
-    // bit permutes bdep / bext / bgrp): the whole instruction on the guest
-    // state, s1 is the encoding
+    // The instructions which the IR has no operation for (the histogram of
+    // histcnt / histseg, the bit permutes bdep / bext / bgrp): the whole
+    // instruction on the guest state, s1 is the encoding (the SME2 lookup
+    // tables luti2 / luti4 are lifted inline)
     ARM_HELPER_INSTRUCTION,
     // The number of helpers. Must be last
     ARM_HELPERS_COUNT
@@ -340,7 +340,10 @@ extern const ArmSemanticEntry gArm64SmeSemanticTable[];
  *     Arm64Architecture (VL / SVL in the streaming mode, by SVCR.SM which
  *     the block's state gives; the lifter keeps a block in one mode, so
  *     smstart / smstop end the block).
- *   - SME: za is read and written by rows, see Arm64Architecture.h.
+ *   - SME: za is read and written by rows, see Arm64Architecture.h. The SME
+ *     instructions use the streaming vector length (SVL) of the description and
+ *     trap (TRAP_UNDEFINED) when SVCR.SM (streaming instructions) or SVCR.ZA
+ *     (za and zt0 instructions) is clear, see Arm64SemanticSme.h.
  */
 class ArmSemanticLifter : public SemanticLifter {
 public:

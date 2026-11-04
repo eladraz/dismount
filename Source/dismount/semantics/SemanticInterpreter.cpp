@@ -2367,6 +2367,9 @@ void SemanticInterpreter::buildFloatEnvironment(
          SemanticInstruction::ATTRIBUTE_FLOAT_IEEE_HALF) != 0)
         environment.m_isAlternativeHalf = false;
     if ((instruction.getAttributes() &
+         SemanticInstruction::ATTRIBUTE_FLOAT_DEFAULT_NAN) != 0)
+        environment.m_nanRule = FloatEnvironment::NAN_DEFAULT;
+    if ((instruction.getAttributes() &
          SemanticInstruction::ATTRIBUTE_FLOAT_STANDARD) != 0)
     {
         // The standard environment, whatever the control register says (an

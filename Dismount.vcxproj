@@ -55,7 +55,6 @@
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftNeonMemory.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLiftCrypto.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableSimd.cpp" />
-    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableStubs.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLift.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftMemory.cpp" />
@@ -77,6 +76,12 @@
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSimdMemory.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftCrypto.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSimd.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSme.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSme.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeOuter.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeArray.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeVector.cpp" />
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeConvert.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Semantics.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32SemanticTable.cpp" />
@@ -181,6 +186,7 @@
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticInternal.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSve.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSimd.h" />
+    <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSme.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32eInstructionSet.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32IntelNotation.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32OperandDecoder.h" />

@@ -138,9 +138,6 @@
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTableStubs.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -200,6 +197,24 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSimd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSme.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSme.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeOuter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeArray.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeVector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSmeConvert.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\IA32OperandDecoder.cpp">
@@ -512,6 +527,9 @@
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSve.h">
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSimd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSme.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\ia32\IA32OperandDecoder.h">

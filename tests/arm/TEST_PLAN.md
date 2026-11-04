@@ -156,7 +156,10 @@ cryptographic lifter (`a64_fp*.s`, `a64_neon*.s`, `a64_crypto*.s`,
 `a64_simdmem*.s`), the unit rows of `tests/TestArm64SemanticsSimd.cpp` and the
 Python model of the floating point pseudocode (`tools/armfp.py`, checked
 against the M4 by `tools/check_armfp.py`) are in
-`tests/arm/semantics/TEST_PLAN.md`.
+`tests/arm/semantics/TEST_PLAN.md`. So are the SME and SME2 corpora
+(`a64_sme*.s`, host only), the unit rows of `tests/TestArm64SemanticsSme.cpp`
+and the Python model of the SME pseudocode (`tools/sme_model.py`, checked
+against the M4 by `tools/check_sme_model.py`).
 
 ## The support matrix
 
