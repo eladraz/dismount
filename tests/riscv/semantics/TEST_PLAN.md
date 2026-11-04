@@ -28,10 +28,12 @@ a disagreement between the three is resolved with the specification (`oracle_bug
 | `states_rv.py` | Random and directed states |
 | `gen_corpus.py` | Generates the scalar corpus `corpus/{rv,rv64,rv32}_gen_*.s` from the decoder corpus (`tests/riscv/corpus`) |
 | `gen_directed.py` | Generates the directed corpus `corpus/{rv,rv64,rv32}_dir_*.s` (special values, memory edges, atomics, CSRs, CFI) |
+| `gen_vector.py` | Generates the vector corpus `corpus/{rv,rv64}_vgen_*.s` (configuration, integer, fixed point, mask, permutation, memory) |
+| `gen_unit_rows_vector.py` | Generates the rows of `tests/TestRiscvSemanticsVector.cpp` (`tests/riscv/RiscvSemanticVectorRows{64,32}.inc`) from QEMU and Spike at VLEN 128, 256 and 512 |
 | `gen_unit_rows.py` | Generates the rows of `tests/TestRiscvSemantics.cpp` (`tests/riscv/RiscvSemanticRows{64,32}.inc`) from QEMU and Spike |
 | `build_guest.py`, `guest/runner.c`, `guest/rt.S`, `guest/link.ld` | The bare metal guest of QEMU and Spike (rv32 and rv64, built to `out/riscv_guest/`) |
 | `oracle_qemu.py`, `oracle_spike.py`, `oracle_unicorn.py` | The oracles |
-| `corpus/*.s` | `rv_*` (RV32 and RV64), `rv64_*`, `rv32_*` (one XLEN): `i m a a_pair f d d_gpr fd c b zfa zfh misc cfi v v2 oracle_diffs` |
+| `corpus/*.s` | `rv_*` (RV32 and RV64), `rv64_*`, `rv32_*` (one XLEN): `i m a a_pair f d d_gpr fd c b zfa zfh misc cfi v v2 oracle_diffs`, and the vector corpus `vgen_config int fixed mask perm mem` |
 | `skip.txt`, `oracle_bugs.txt` | Lines that are not compared / oracle mistakes, with the evidence |
 
 ## Setup
@@ -185,14 +187,31 @@ single precision instructions only.
   a page and the end of the window; `lr` / `sc` sequences (other address, other size, in between stores, x0);
   Zacas pairs; the cache block operations at the edges; the CSR instructions with read back; the CFI states.
 
+* The vector corpus (`gen_vector.py`: `corpus/rv_vgen_*.s` and `rv64_vgen_*.s` for the `ei64` forms, about 9 600 lines):
+  every integer vector instruction the lifter lifts (526 mnemonics and the aliases `vneg.v`, `vnot.v`, `vwcvt*.x.x.v`,
+  `vncvt.x.x.w`, `vmmv.m`, `vmclr.m`, `vmset.m`, `vmnot.m`, `vl<n>r.v`) in every operand form (`.vv .vx .vi .wv .wx
+  .vvm .vxm .vim .vs .mm .m`), with and without `v0.t`, over register patterns: the aligned groups of LMUL 8, the
+  overlaps the architecture allows and the ones it reserves (the destination with a source, the top of a wide
+  destination, v0 as a source, as an unmasked destination and as a masked one), odd register numbers, the unaligned
+  groups (a forced LMUL: `@state: lmul=m2`); the immediates at their edges; the slide offsets (0, 1, VL, VLMAX, beyond,
+  -1), the gather indexes, the four `vxrm` modes; every `vsetvli` / `vsetivli` configuration (28 legal, the reserved
+  ones as raw immediates), every `rd` / `rs1` combination and `vsetvl` over drawn AVL and vtype values; loads and
+  stores of the four element widths in every kind (unit stride, fault only first, strided, ordered and unordered
+  indexed, segments 2 to 8, whole register, mask) at the edges of the window.
+  The encodings llvm-mc refuses to assemble (a reserved overlap) carry the word in a `@word:` tag, built by the script
+  from the encoding table, and are run as such: the illegal instruction paths are tested too.
+
 The states: random integers (boundary values and random widths), floating point (zeros, infinities, quiet and
 signaling NaNs, denormals, the integer conversion boundaries, random normals) boxed 80% of the time (else the upper
 bits are zero, partly set or random), `fcsr` with the rounding modes 0-4 (and, rarely, the reserved 5-7) and the
-flags, vtype over every SEW and LMUL (those the named registers allow; 6% any raw value, 2% vill, 2% a reserved bit)
-and policy, vl at 0, 1, VLMAX, VLMAX - 1, random; vstart nonzero in 20% (less than vl, rarely beyond VLMAX),
+flags, vtype over every SEW and LMUL (the states of a line cycle through the combinations the named registers allow,
+from an offset drawn per line: 16 states cover each SEW and 4 LMULs; 6% any raw value, which the processor makes
+vill, as a vtype value with a reserved bit or the vill bit: those states carry the vill vtype and vl = 0 as the
+processor ends up with) and policy, vl at 0, 1, VLMAX, VLMAX - 1, odd, random; vstart nonzero in 20% (below VLEN,
+the CSR is log2(VLEN) bits wide), a `@state: sew=32 lmul=m2 vlsel=max` tag forces the configuration;
 vxrm / vxsat, masks in v0 (all ones, all zeros, 0x55.., random), elements typed by SEW (floating point values for
 the vf*, small offsets for the index vectors); base registers point into the window (8% misaligned, 4% outside to
-fault, atomics always aligned), strides small; random bytes and floating point constants around the pointers.
+fault, 17% of the vector memory ones at the edges of the window, atomics always aligned), strides small; random bytes and floating point constants around the pointers.
 
 ## Oracle disagreements found (details and evidence in `oracle_bugs.txt`)
 
@@ -209,9 +228,53 @@ fault, atomics always aligned), strides small; random bytes and floating point c
 | 9 | QEMU | `vl<n>re<w>.v` / `vs<n>r.v` with vstart >= the number of elements: `vext_page_ldst_us: assertion failed: (env->vstart < UINT16_MAX && UINT16_MAX - env->vstart >= elems)` aborts the process | QEMU bug; isolated per state (that state is ORACLE_ERR) |
 | 10 | QEMU/Spike | `vsetvl{i} x0, x0` with a changed SEW/LMUL ratio: QEMU keeps vl if it fits, Spike sets vill | reserved by the specification |
 | 11 | Spike | illegal instruction for vector arithmetic with vstart != 0 | permitted by the specification |
+| 12 | QEMU | a masked instruction with v0 as a source, or vmerge / vadc / vsbc with a v0 source, is illegal | QEMU wrong (only the destination may not overlap v0) |
+| 13 | QEMU | stricter overlap rules: a source in the top of a wide destination of a widening multiply-add, the narrow vs1 inside a wide group (`.wv`), vs1 inside the vs2 group of a narrowing instruction or of a widening reduction, the data and the index group of an indexed store, the index group and vs2 of `vrgatherei16` | QEMU stricter than the specification (rule 5.2); Spike executes them |
+| 14 | QEMU | a whole register load or store that faults reports a vstart rounded down to a chunk of 8 bytes and transfers fewer elements | QEMU imprecise; Spike and dismount are exact |
+| 15 | QEMU | `vtype` bit 8 (altfmt of Zvfbfa) is valid for e8 / e16 | an extension dismount doesn't model yet; Spike without it: vill |
+| 16 | Spike | a vector store that faults on the upper bytes of an element writes the lower ones; a fault only first segment load writes the fields before the one that faults | implementation defined (dismount follows QEMU: the element is not written) |
 
 Other than these, QEMU and Spike agree on every scalar line (RV32 and RV64, 800 states per FP line, 128 per other
 line) and on the vector sample (VLEN 128, 256 and 512, 400 states per line): see "Throughput" for the runs.
+
+## The vector lifter
+
+`RiscvSemanticLiftVector*.cpp` and `RiscvSemanticVector.cpp` lift the configuration (`vsetvli`, `vsetivli`, `vsetvl`),
+the loads and stores, the integer arithmetic, the fixed point instructions, the mask instructions, the permutations
+and the integer reductions (Zve32x and Zve64x: 526 mnemonics; the floating point, BFloat16, vector bit manipulation
+and vector cryptography instructions are the next lifter's). The infrastructure is documented in
+`Include/dismount/proc/riscv/RiscvSemanticVector.h`; the model, in short:
+
+* vtype, vl and vstart are registers read at runtime. Every instruction snapshots vl and vstart, traps if `vtype.vill`
+  is set and dispatches on (vsew, vlmul): the 28 legal combinations each get their own body in which SEW, LMUL,
+  EEW, EMUL, the number of registers of a group and the legality of the register numbers are lift-time constants
+  (a reserved group is an `OP_TRAP` in that body), then vstart = 0.
+* The element-wise instructions (`RvvLift::elementwise`) cut the elements into chunks of VLEN / (the widest EEW)
+  lanes so that a chunk of any operand lives in one register, compute the whole chunk with vector IR operations
+  (`RvvElementOp`), merge it with the old destination by the active lanes (vstart <= i < vl, v0), and write the
+  destination after all the chunks (the overlaps the architecture allows read the old values). Fixed point
+  rounding (vxrm) is computed per lane and selected by the runtime mode; vxsat accumulates the active lanes that
+  saturated.
+* The instructions with a data dependent order or address (loads, stores, vrgather, the slides, vcompress, viota)
+  are element loops whose counter is the vstart register itself, so a fault leaves the architectural vstart (the
+  elements before it are written / stored). A register group is accessed by `OP_READ_REGISTER_INDEXED` /
+  `OP_WRITE_REGISTER_INDEXED` over v0..v31. The fault only first loads probe each field of the element with
+  `OP_PROBE_ACCESS` and set vl to the element index.
+* The tail, the prestart and the masked off elements are left undisturbed (the agnostic policies allow it, and the
+  reference processors are configured to it).
+
+| Topic | dismount | Why |
+|---|---|---|
+| `vsetvl{i} x0, x0` with a vtype whose VLMAX differs from the current one (also from an illegal current vtype) | vill (vtype = the vill bit, vl = 0) | Spike; reserved by the specification. QEMU keeps vl when it fits the new VLMAX (`oracle_bugs.txt`) |
+| `vl` | min(AVL, VLMAX) | both processors; the specification allows ceil(AVL / 2) <= vl <= VLMAX for AVL < 2 * VLMAX |
+| vtype bit 8 (altfmt of Zvfbfa) and bits 9 and up | reserved: vill | Spike; QEMU 11 accepts bit 8 for e8 / e16 (`oracle_bugs.txt`). The next lifter adds altfmt (`RvvLift::vtypeIsValid`) |
+| vstart != 0 | the arithmetic honors it (the elements from vstart); the reductions, `vcpop.m`, `vfirst.m`, `vmsbf/sif/sof.m`, `viota.m`, `vcompress.vm` raise illegal instruction | specification; Spike raises it for all of them (those states are dropped), QEMU runs the arithmetic from vstart |
+| vstart written with a value above what the CSR holds | the states keep vstart below VLEN (the CSR is log2(VLEN) bits wide) | both processors truncate |
+| a masked instruction with v0 as a source, widening overlaps in the top of the destination, the narrow vs1 inside a wide group, indexed stores whose data and index groups overlap, `vrgatherei16` with the index overlapping vs2 | executed | specification; QEMU rejects them, Spike executes them (`oracle_bugs.txt`) |
+| `vmv<n>r.v` | copies the elements from vstart (SEW sized) of n registers; vill traps | Spike |
+| a vector store that faults in an element | the element is not written at all, the elements before it are | QEMU. Spike writes the lower bytes of a misaligned element (`oracle_bugs.txt`) |
+| the memory accesses | element by element, byte accurate, misaligned elements allowed | Zicclsm / QEMU / Spike |
+| `ta` / `ma` | ignored: the tail and the masked off elements stay undisturbed | allowed; both processors are configured so |
 
 ## Throughput (Apple M4, 10 cores, `--jobs 8`)
 
@@ -275,8 +338,65 @@ What the reference runs do not cover, and why (the lines are in `skip.txt` or no
 | rv32 | qemu | 87156 | 86839 | 0 | 3 | 268 | 32 | 14 |
 | rv32 | spike | 87156 | 86836 | 0 | 3 | 278 | 39 | 0 |
 
-* The 3 UNLIFTED lines are the vector lines of `rv_oracle_diffs.s` (the vector lifter is another task). The 14
+* The 3 UNLIFTED lines are the floating point / BFloat16 vector lines of `rv_oracle_diffs.s` (the vector lifter of those is the next task; the integer vector instructions are in the vector gates below). The 14
   ORACLE_ERR are QEMU's RV32 `mstatush.MPELP` bug (table above, 8).
 * Unicorn, the RV64GC / RV32GC base files of the generated corpus and the starter files: rv64 19652 PASS, 455
   ORACLE_BUG, 0 FAIL; rv32 15728 PASS, 382 ORACLE_BUG, 0 FAIL.
 * `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release pass.
+
+## Results of the vector gate (the vector corpus `rv_vgen_*`, `rv64_vgen_*`)
+
+16 states per line, every arch / oracle / VLEN:
+
+| Arch | Oracle | VLEN | Lines | States | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rv64 | qemu | 128 | 9648 | 16 | 9208 | 0 | 0 | 0 | 440 | 0 |
+| rv64 | qemu | 256 | 9648 | 16 | 9201 | 0 | 0 | 0 | 447 | 0 |
+| rv64 | qemu | 512 | 9648 | 16 | 9183 | 0 | 0 | 0 | 465 | 0 |
+| rv64 | spike | 128 | 9648 | 16 | 9573 | 0 | 0 | 0 | 75 | 0 |
+| rv64 | spike | 256 | 9648 | 16 | 9545 | 0 | 0 | 0 | 103 | 0 |
+| rv64 | spike | 512 | 9648 | 16 | 9454 | 0 | 0 | 0 | 194 | 0 |
+| rv32 | qemu | 128 | 9208 | 16 | 8798 | 0 | 0 | 0 | 410 | 0 |
+| rv32 | qemu | 256 | 9208 | 16 | 8780 | 0 | 0 | 0 | 428 | 0 |
+| rv32 | qemu | 512 | 9208 | 16 | 8759 | 0 | 0 | 0 | 449 | 0 |
+| rv32 | spike | 128 | 9208 | 16 | 9135 | 0 | 0 | 0 | 73 | 0 |
+| rv32 | spike | 256 | 9208 | 16 | 9087 | 0 | 0 | 0 | 121 | 0 |
+| rv32 | spike | 512 | 9208 | 16 | 9025 | 0 | 0 | 0 | 183 | 0 |
+
+48 states per line (the stress run: three times the states, so the rare configurations, the faults at the edges of the window and
+the masks show up), VLEN 128 and 512:
+
+| Arch | Oracle | VLEN | Lines | States | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rv64 | qemu | 128 | 9648 | 48 | 9186 | 0 | 0 | 0 | 462 | 0 |
+| rv64 | qemu | 512 | 9648 | 48 | 9135 | 0 | 0 | 0 | 513 | 0 |
+| rv64 | spike | 128 | 9648 | 48 | 9427 | 0 | 0 | 0 | 221 | 0 |
+| rv64 | spike | 512 | 9648 | 48 | 9187 | 0 | 0 | 0 | 461 | 0 |
+| rv32 | qemu | 128 | 9208 | 48 | 8764 | 0 | 0 | 0 | 444 | 0 |
+| rv32 | qemu | 512 | 9208 | 48 | 8717 | 0 | 0 | 0 | 491 | 0 |
+| rv32 | spike | 128 | 9208 | 48 | 9017 | 0 | 0 | 0 | 191 | 0 |
+| rv32 | spike | 512 | 9208 | 48 | 8773 | 0 | 0 | 0 | 435 | 0 |
+
+* The ORACLE_BUG lines are the rules of `oracle_bugs.txt` (table of the disagreements above): the strictness of QEMU
+  (a v0 source of a masked instruction, the overlaps, 60 lines of `vsetvl{i} x0, x0`), the 8 byte chunks of the whole register
+  accesses of QEMU, the partial writes of a faulting store and of a fault only first segment of Spike. Every line is verified by
+  the other oracle at least for the states that do not hit its own quirk (`neither.py`-style check over the 48 state run: the
+  states where QEMU rejects an overlap that Spike executes and Spike writes the lower bytes of a faulting store are the same
+  states in a handful of indexed store lines; dismount does what the specification says there).
+* UNLIFTED is 0: the corpus has no floating point, bit manipulation or cryptography instruction.
+
+## Results of the whole gate (scalar and vector corpus, 16 states per line, VLEN 128)
+
+| Arch | Oracle | Lines | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
+|---|---|---|---|---|---|---|---|---|
+| rv64 | qemu | 127625 | 126836 | 0 | 119 | 157 | 513 | 0 |
+| rv64 | spike | 127625 | 127214 | 0 | 119 | 167 | 125 | 0 |
+| rv32 | qemu | 96763 | 95917 | 0 | 119 | 268 | 445 | 14 |
+| rv32 | spike | 96763 | 96252 | 0 | 119 | 278 | 114 | 0 |
+
+* The UNLIFTED lines are the vector starter lines (`rv_v.s`, `rv_v2.s`: 116) and the 3 of `rv_oracle_diffs.s` that use the floating
+  point, BFloat16, vector bit manipulation (Zvbb) and vector cryptography instructions, which the next lifter writes.
+* The scalar part is unchanged: for the scalar files the totals are the ones of the table above (rv64: 117 578 lines, PASS 117 348 /
+  117 358, ORACLE_BUG 70 / 50, SKIP 157 / 167; rv32: 87 156 lines, PASS 86 839 / 86 836, ORACLE_BUG 32 / 39, ORACLE_ERR 14 for QEMU),
+  four lines more for RV64, which pass (corpus lines added after the table above was made).
+* `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release pass (2 777 vector rows and 4 814 scalar rows).

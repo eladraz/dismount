@@ -126,7 +126,28 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableStubs.cpp">
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableVector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticVector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorMemory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorInteger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorFixed.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorMask.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorPermute.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTablePrivileged.cpp">
@@ -642,6 +663,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemanticInternal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvSemanticVector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\riscv\RiscvHelpers.h">

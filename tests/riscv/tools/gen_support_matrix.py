@@ -109,7 +109,10 @@ def semantics(directories, by_mnemonic):
 def marks(support, name=''):
     if support & 0x40:
         if name in IMPLIED_ONLY:
-            return 'no encodings of its own (the instructions of the features it implies), verified'
+            text = 'no encodings of its own (the instructions of the features it implies), verified'
+            if support & 0x08:
+                text += '; partial lift (the integer instructions of Zve32x / Zve64x are lifted, the floating point ones of Zve32f / Zve64d are not)'
+            return text
         return 'no instructions' + (' (CSR names)' if support & 0x2 else '')
     return ', '.join(n for n, b in SUPPORT.items() if support & b)
 

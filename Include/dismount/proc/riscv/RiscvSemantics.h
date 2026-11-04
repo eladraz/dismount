@@ -296,7 +296,8 @@ struct RiscvSemanticEntry {
  */
 // The scalar unprivileged instructions (RiscvSemanticTable.cpp)
 extern const RiscvSemanticEntry gRiscvSemanticTable[];
-// The vector instructions (RiscvSemanticTableVector.cpp)
+// The vector instructions (RiscvSemanticTableVector.cpp): the table of the
+// vector, the vector memory and the vector extension encoding tables
 extern const RiscvSemanticEntry gRiscvVectorSemanticTable[];
 // The privileged instructions (RiscvSemanticTablePrivileged.cpp)
 extern const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[];
@@ -360,7 +361,15 @@ extern const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[];
  *     instead). The SEW / LMUL dispatch and the loop over the elements or
  *     the registers of a group are the lifter's choice (see
  *     RiscvSemanticVector.h); an optimizer can specialize them when vtype
- *     is known.
+ *     is known. vsetvl{i} sets vl = min(AVL, VLMAX); a reserved vtype
+ *     (vlmul 4, vsew above 3, SEW > ELEN * min(LMUL, 1), any bit above bit 7,
+ *     altfmt included) is vill with vl = 0, and so is the keep-vl form
+ *     (rd = rs1 = x0) whose new VLMAX differs from the current one (as
+ *     Spike; QEMU keeps vl when it fits). The reductions, vcpop.m, vfirst.m,
+ *     vmsbf.m, vmsif.m, vmsof.m, viota.m and vcompress.vm raise illegal
+ *     instruction when vstart != 0, the other instructions work from vstart.
+ *     A fault only first segment load is atomic (every field is loaded
+ *     before one is written).
  *   - The privileged instructions are helpers (RISCV_HELPER_PRIVILEGED),
  *     the CSRs outside of the description too (RISCV_HELPER_READ_CSR).
  */

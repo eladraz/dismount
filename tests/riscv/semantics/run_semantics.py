@@ -29,6 +29,7 @@ import glob
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -138,6 +139,11 @@ def collect(args, skips, oracles):
         if not lines:
             continue
         ref = rvasm.assemble(xlen, [r['text'] for r in lines])
+        for k, r in enumerate(lines):
+            if r['tags'].get('word'):
+                # (the encoding is given: a reserved one llvm-mc refuses to assemble)
+                word = int(r['tags']['word'][0].split()[0], 16)
+                ref[k] = (struct.pack('<I', word).hex(), None)
         for r, (hexb, err) in zip(lines, ref):
             modes = r['tags'].get('mode', [''])
             rec = {'file': os.path.basename(path)[:-2], 'line': r['no'], 'source': r['text'],

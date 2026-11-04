@@ -63,6 +63,9 @@
     <ClCompile Include="TestRiscvSemantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestRiscvSemanticsVector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemanticFloatRiscv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

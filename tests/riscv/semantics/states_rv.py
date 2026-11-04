@@ -184,7 +184,7 @@ def analyze(text):
                 info['f'].add(f)
             elif v is not None:
                 info['v'].add(v)
-        if re.match(r'v(ls|ss)e\d+\.v$', mn) and len(ops) >= 3:
+        if re.match(r'v[ls]s(seg\d+)?e\d+\.v$', mn) and len(ops) >= 3:
             x = reg_x(ops[2])
             if x is not None:
                 info['strides'].add(x)
@@ -286,12 +286,26 @@ def lmul_value(vlmul):
     return {0: 1.0, 1: 2.0, 2: 4.0, 3: 8.0, 5: 0.125, 6: 0.25, 7: 0.5}.get(vlmul)
 
 
-def draw_vector_state(rng, st, info, xlen, is_float, mn_first):
+def vtype_is_valid(vtype, xlen):
+    """A vtype value vsetvl accepts: no bit above bit 7 (bit 8 is the altfmt of Zvfbfa, which is not modeled), lmul
+    not reserved (4), vsew <= 3 and SEW <= 64 * min(LMUL, 1)"""
+    if vtype >> 8:
+        return False
+    vlmul, vsew = vtype & 7, (vtype >> 3) & 7
+    if vlmul == 4 or vsew > 3:
+        return False
+    lmul_log = vlmul if vlmul < 4 else vlmul - 8
+    return vsew <= 3 + min(lmul_log, 0)
+
+
+def draw_vector_state(rng, st, info, xlen, is_float, mn_first, n=0, offset=0, force=None):
     vlen = st['vlen']
     r = rng.random()
     # the SEWs a floating point instruction can have: 16, 32, 64
     sews = [16, 32, 64] if is_float else [8, 16, 32, 64]
-    sew = rng.choice(sews)
+    force = force or {}
+    # (the states of a line cycle through the SEWs and the LMULs; the offset is drawn once for the line)
+    sew = force['sew'] if 'sew' in force else sews[(n + offset) % len(sews)]
     # the LMULs the named registers allow
     named = info['v']
     ok = []
@@ -302,8 +316,10 @@ def draw_vector_state(rng, st, info, xlen, is_float, mn_first):
         if lm < 1 and sew > 64 * lm:
             continue
         ok.append(vlmul)
-    vlmul = rng.choice(ok if ok else [0])
-    if rng.random() < 0.06:
+    vlmul = (ok if ok else [0])[((n + offset) // len(sews)) % len(ok if ok else [0])]
+    if 'lmul' in force:
+        vlmul = force['lmul']
+    elif rng.random() < 0.06:
         # any raw field: includes the reserved lmul 4 and the reserved sew / lmul pairs
         vlmul = rng.randrange(8)
     ta, ma = rng.getrandbits(1), rng.getrandbits(1)
@@ -321,9 +337,31 @@ def draw_vector_state(rng, st, info, xlen, is_float, mn_first):
     else:
         st['vl'] = rng.choice([0, 1, vlmax, vlmax, max(0, vlmax - 1), rng.randint(0, max(0, vlmax)),
                                rng.randint(0, max(0, vlmax)), max(0, vlmax // 2)]) if vlmax else 0
+    if 'vl' in force and vlmax:
+        sel = force['vl']
+        if sel == 'max':
+            st['vl'] = vlmax
+        elif sel == 'zero':
+            st['vl'] = 0
+        elif sel == 'one':
+            st['vl'] = 1
+        elif sel == 'half':
+            st['vl'] = vlmax // 2
+        elif sel == 'odd':
+            st['vl'] = (rng.randint(0, vlmax) | 1) if vlmax > 1 else 1
+            st['vl'] = min(st['vl'], vlmax)
+        elif sel == 'rand':
+            st['vl'] = rng.randint(0, vlmax)
+        else:
+            st['vl'] = min(int(sel), vlmax)
+    if not vtype_is_valid(vtype, xlen):
+        # The processor can't be in this configuration: vsetvl makes it illegal (vtype is the vill bit alone, vl is 0)
+        st['vtype'] = 1 << (xlen - 1)
+        st['vl'] = 0
     st['vstart'] = 0
     if st['vl'] and rng.random() < 0.2:
-        st['vstart'] = rng.randrange(0, st['vl'] + 1) if rng.random() < 0.9 else rng.randrange(0, vlmax * 2 + 2)
+        st['vstart'] = rng.randrange(0, min(st['vl'], vlen - 1) + 1) if rng.random() < 0.9 else rng.randrange(0, min(vlmax * 2 + 2, vlen))
+        # (the vstart CSR holds log2(VLEN) bits: a write of a larger value is truncated, so the states stay below VLEN)
     st['vxrm'] = rng.randrange(4)
     st['vxsat'] = rng.randrange(2)
     st['vector'] = True
@@ -387,6 +425,26 @@ def make_states(xlen, vlen, text, count, overrides=None, mode=None, fixed=(), se
     mask = S.mask(xlen)
     states = []
     base, size = S.WIN_BASE, S.WIN_SIZE
+    # sew=N lmul=m1|m2|m4|m8|mf2|mf4|mf8 vl=max|zero|one|half|odd|rand|N in a @state: force the vector configuration
+    # of every state (vl is then chosen for the configuration); the other tokens set the registers
+    force = {}
+    rest = []
+    lmul_codes = {'m1': 0, 'm2': 1, 'm4': 2, 'm8': 3, 'mf8': 5, 'mf4': 6, 'mf2': 7}
+    for line in fixed:
+        kept = []
+        for tok in line.split():
+            k, _, v = tok.partition('=')
+            if k == 'sew':
+                force['sew'] = int(v)
+            elif k == 'lmul':
+                force['lmul'] = lmul_codes[v]
+            elif k == 'vlsel':
+                force['vl'] = v
+            else:
+                kept.append(tok)
+        rest.append(' '.join(kept))
+    fixed = rest
+    line_offset = random.Random(stable_seed('rv%d%s' % (xlen, seed_extra), text + '#offset')).randrange(1 << 16)
     for n in range(count):
         st = S.default_state(xlen, vlen)
         st['win'] = (base, size)
@@ -410,6 +468,14 @@ def make_states(xlen, vlen, text, count, overrides=None, mode=None, fixed=(), se
                 st['x'][b] = base + 0x1000 + (rng.randrange(0, 0x1800) & ~(align - 1))
             if rng.random() < 0.04:
                 st['x'][b] = (base + size + rng.choice([0, 8, 0x100, 0x10000])) & mask   # outside: fault
+            if is_vec and not is_amo and first[1:2] in ('l', 's') and not is_setvl:
+                # the vector loads and stores: now and then the window edge (an access that crosses it faults in the
+                # middle: vstart, the fault only first trimming of vl), or its start (the negative strides and indexes)
+                r = rng.random()
+                if r < 0.12:
+                    st['x'][b] = base + size - rng.randrange(1, 300)
+                elif r < 0.17:
+                    st['x'][b] = base + rng.randrange(0, 40)
         for s in info['strides']:
             st['x'][s] = rng.choice([0, 1, 2, 4, 8, 16, 32, M64 - 7, M64 - 31, rng.randrange(0, 64)]) & mask
         # floating point registers
@@ -433,7 +499,7 @@ def make_states(xlen, vlen, text, count, overrides=None, mode=None, fixed=(), se
         st['fcsr'] = (frm << 5) | flags
         # the vector state
         if is_vec or is_setvl or mode == 'vector':
-            sew, vlmax = draw_vector_state(rng, st, info, xlen, is_float_vec, first)
+            sew, vlmax = draw_vector_state(rng, st, info, xlen, is_float_vec, first, n, line_offset, force)
             for i in range(32):
                 st['v'][i] = draw_v_register(rng, vlen, sew, is_float_vec, False, False)
             if mode != 'noindex' and is_indexed:

@@ -592,6 +592,8 @@ const riscvdis::RiscvSemanticEntry* lookupEntry(const RiscvOpcode& resolved)
     const AreaTable areas[] = {
         { gRiscvBaseEncodingTable, gRiscvSemanticTable },
         { gRiscvVectorEncodingTable, gRiscvVectorSemanticTable },
+        { gRiscvVectorMemoryEncodingTable, gRiscvVectorSemanticTable },
+        { gRiscvVectorExtensionEncodingTable, gRiscvVectorSemanticTable },
         { gRiscvPrivilegedEncodingTable, gRiscvPrivilegedSemanticTable }
     };
     const RiscvSemanticEntry* table = NULL;

@@ -93,6 +93,14 @@ enum {
     P_S64_OPT = F::PROFILE_RVA23S64_OPTIONAL
 };
 
+// The vector features: Zve32x and Zve64x (every integer vector instruction: the
+// configuration, the loads and stores, the integer arithmetic, the fixed
+// point, the masks, the permutations and the integer reductions) are lifted
+// and compared with QEMU and Spike (tests/riscv/semantics, the rv_vgen_*
+// corpus). V (Zve64d) has no encodings of its own: it is marked partial
+// because the floating point instructions of Zve32f / Zve64d, BFloat16,
+// Zvbb / Zvkb / Zvbc and the vector cryptography are not lifted yet (their
+// features carry no lift mark).
 // The vector implications
 #define V32X F::FEAT_ZVE32X, F::FEAT_ZICSR
 
@@ -147,12 +155,12 @@ const FeatureInfo gFeatures[F::FEATURES_COUNT] = {
     // gates the integer, mask and permutation instructions by Zve32x, the
     // floating point ones by Zve32f, the 64 bit element loads and Zvbc by
     // Zve64x
-    /* FEAT_ZVE32X */     { "zve32x",            P_U64,     SUPPORT_FULL, { F::FEAT_ZICSR, END } },
+    /* FEAT_ZVE32X */     { "zve32x",            P_U64,     SUPPORT_LIFTED_VERIFIED, { F::FEAT_ZICSR, END } },
     /* FEAT_ZVE32F */     { "zve32f",            P_U64,     SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVE64X */     { "zve64x",            P_U64,     SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVE64X */     { "zve64x",            P_U64,     SUPPORT_LIFTED_VERIFIED, { V32X, END } },
     /* FEAT_ZVE64F */     { "zve64f",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
     /* FEAT_ZVE64D */     { "zve64d",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64F, F::FEAT_ZVE64X, END } },
-    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
+    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_IMPLIED_ONLY | F::SUPPORT_PARTIAL_LIFT, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
     /* FEAT_ZVFH */       { "zvfh",              P_U64_OPT, SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZFHMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFHMIN, END } },
     /* FEAT_ZVFHMIN */    { "zvfhmin",           P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
     /* FEAT_ZVFBFMIN */   { "zvfbfmin",          P_U64_OPT, SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },

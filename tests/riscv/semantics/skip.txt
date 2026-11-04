@@ -23,6 +23,7 @@
 [unicorn,rv32_zfa] .*  # Unicorn: no Zfa
 [unicorn,rv_cfi] .*  # Unicorn: no Zicfilp / Zicfiss
 [unicorn,rv_v2] .*  # Unicorn: no V
+[unicorn,rv_vgen_config,rv_vgen_int,rv_vgen_fixed,rv_vgen_mask,rv_vgen_perm,rv_vgen_mem,rv64_vgen_mem] .*  # Unicorn: no V
 [unicorn,rv64_v] .*  # Unicorn: no V
 [unicorn,rv_misc] .*  # Unicorn: no Zicbo*, Zimop, Zcmop, Zabha, Zacas, Zfbfmin, the scalar cryptography
 [unicorn,rv64_misc] .*  # Unicorn: no Zabha, Zacas, the scalar cryptography

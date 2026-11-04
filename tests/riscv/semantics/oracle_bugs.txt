@@ -73,6 +73,54 @@
 # (vsetvli zero, zero, e32, m1 from e64, m4 with vl = 4: QEMU vl = 4 vtype = d0, Spike vl = 0 vtype = vill).
 [qemu,spike] ^vsetvli? zero, zero # reserved behavior: QEMU keeps vl when it fits the new VLMAX, Spike sets vill when the ratio changes
 
+# vtype bit 8 is the altfmt of Zvfbfa (and Zvfofp8min...): QEMU 11's max cpu implements it and accepts the bit
+# for e8 / e16 (vtype 0x100, 0x1c0), Spike without those extensions sets vill (reserved bits of vtype). dismount
+# doesn't model altfmt (the bit is reserved here, as in the base V): the floating point lifter that adds the
+# BFloat16 arithmetic adds it (RvvLift::vtypeIsValid()). Evidence: run_semantics.py --cross qemu,spike --file
+# rv_vgen_config: vsetvli a0, a1, 256 (vl = min(avl, 16), vtype = 0x100 on QEMU; vl = 0, vtype = vill on Spike).
+[qemu] ^vseti?vli \w+, \w+, (256|448)$ # QEMU: vtype.altfmt (bit 8) of Zvfbfa is valid for e8 / e16; Spike and dismount: reserved, vill
+
+# QEMU 11.1.3 rejects (illegal instruction) vector encodings that the specification (section 5.2 and 5.3) and Spike
+# accept; dismount follows the specification. Spike executes all of them. Evidence for each class:
+#     run_semantics.py --cross qemu,spike --file rv_vgen_int,rv_vgen_fixed,rv_vgen_perm,rv_vgen_mem
+# 1. A masked instruction with v0 as a source (vs2, vs1, the scalar-vector multiply-add sources...): the
+#    specification only forbids the DESTINATION group to overlap v0 ("The destination vector register group for a
+#    masked vector instruction cannot overlap the source mask register (v0)"). vsub.vv v8, v0, v24, v0.t: QEMU
+#    trap:illegal in every state, Spike falls through.
+[qemu] ^\S+ v\d+, (?:\S+, )*v0, (?:\S+, )*v0\.t$ # QEMU: a masked instruction whose source is v0 is illegal (only the destination may not overlap v0)
+# 2. The same for the instructions that read v0 as data: vmerge.vvm v8, v0, v16, v0 (vs2 = v0): QEMU illegal.
+[qemu] ^(vmerge|vadc|vsbc|vmadc|vmsbc)\.\w+ v\d+, (v0, |[^,]+, v0, ) # QEMU: vmerge / vadc / vsbc / vmadc / vmsbc with a v0 source operand are illegal
+# 3. The widening instructions with the wide source (.wv) or the narrow vs1 overlapping a register group in a way
+#    the specification allows (rule 3 of 5.2: the narrow source in the highest numbered part of the wide
+#    destination; two sources may overlap each other freely): vwaddu.wv v16, v16, v18 (LMUL 2: vs1 = v18 is the top
+#    half of vd = v16), vwaddu.wv v2, v4, v5 (LMUL 1: vs1 inside the wide vs2): QEMU illegal, Spike executes.
+[qemu] ^vw(add|sub)u?\.w[vx] # QEMU: a narrow vs1 overlapping the wide destination (top half) or the wide vs2 is illegal
+# 4. The widening multiply-add: vwmaccu.vv v16, v20, v18 (LMUL 2: vs2 = v18 in the top half of vd = v16): QEMU
+#    illegal (it allows the overlap only for the other widening instructions), Spike executes.
+[qemu] ^vwmacc\w*\.v[vx] # QEMU: the widening multiply-add with a source in the top of the destination is illegal
+# 5. The narrowing shifts and clips with vs1 inside the wide vs2 group, or vd = vs2 with a unit group:
+#    vnsrl.wv v1, v2, v3 (LMUL 1: vs1 = v3 inside vs2 = v2/v3), vnsra.wv v8, v16, v16: QEMU illegal, Spike executes.
+[qemu] ^vn(srl|sra|clipu?)\.wv # QEMU: vs1 inside the wide vs2 group is illegal
+# 6a. The widening reductions with the scalar vs1 inside the vs2 group (vwredsum.vs v1, v2, v3 with LMUL 2: vs1 = v3
+#    is the second register of vs2): QEMU illegal in that state, Spike executes. The specification only restricts the
+#    overlap of the destination (rule 3 of 5.2).
+[qemu] ^vwredsumu?\.vs # QEMU: vs1 inside the vs2 group of a widening reduction is illegal
+# 6. The indexed stores (unordered and ordered, segments too) whose data group overlaps the index group
+#    (vsuxei8.v v8, (a1), v8): the specification restricts the overlap of the loads only (a store has no vector
+#    destination); QEMU applies the load rules to the stores.
+[qemu] ^vs[uo]x(seg\d)?ei\d+\.v # QEMU: an indexed store whose data and index groups overlap is illegal (the restriction is for loads)
+# 7. vrgatherei16.vv with the index group overlapping the source group vs2 (vrgatherei16.vv v8, v16, v16): the
+#    specification only forbids the overlap with vd. QEMU illegal, Spike executes.
+[qemu] ^vrgatherei16\.vv # QEMU: the index group overlapping vs2 is illegal (only vd may not overlap it)
+
+# The whole register loads and stores that fault in the middle: the specification sets vstart to the element that
+# faulted (EEW 8 for the stores, the EEW of the load) and the elements before it are done. QEMU copies whole
+# register accesses in chunks (8 bytes), so it reports an earlier vstart (vs8r.v v8, (a1) with the access crossing
+# the end of the window at byte 10: vstart = 8 and 8 bytes stored; dismount and Spike: vstart = 10 and 10 bytes) and
+# the elements between are not loaded. Evidence: run_semantics.py --oracle qemu --file rv_vgen_mem --grep
+# '^vs8r.v v8, \(a1\)$' --states 64 (the states near the end of the window).
+[qemu] ^(vl[1248]re(8|16|32|64)|vl[1248]r|vs[1248]r)\.v # QEMU: a whole register access that faults reports a vstart rounded down to a chunk (the elements between are not transferred)
+
 # --- Spike
 
 # Spike raises the illegal instruction exception for a vector arithmetic instruction with vstart != 0 (the
@@ -106,6 +154,19 @@
 # may be implemented as a sequence of byte accesses"). Evidence: run_semantics.py --oracle spike --file
 # rv_gen_base --grep '^sw a2, -3\(a1\)': sw at window + 0x3ffd: Spike writes the byte at 0x3ffd, QEMU doesn't.
 [spike] ^(sb|sh|sw|sd|fsh|fsw|fsd)\b # Spike: a store that faults on its upper bytes writes the lower ones (implementation defined)
+# The same for the vector stores (an element, or a segment field, that crosses the end of the window or a page
+# boundary): Spike writes the bytes below the faulting one, QEMU and dismount write nothing of that element.
+# Evidence: run_semantics.py --oracle spike --file rv64_vgen_mem --grep '^vsuxei64.v v8, \(a1\), v10$' (an index
+# of -1 from the end of the window: Spike stores the byte at window + 0x3fff).
+# A fault only first segment load whose later field faults (or is beyond the end of the readable memory): the
+# destination fields of the segment before the one that faults are written by Spike (progressive loads, vl is
+# then trimmed to the element, so they are tail elements); QEMU probes the whole segment, writes nothing of it, and
+# dismount does the same (the segment is atomic). Both are allowed: the elements at and after vstart / the new vl
+# are undefined after the trap. Evidence: run_semantics.py --cross qemu,spike --file rv_vgen_mem --grep
+# '^vlseg2e8ff.v v1, \(a1\)$' --states 64: x11 = window + 0x3fe9, vl = 16 (the element 11 has the second field
+# beyond the window): Spike v1 changes in the byte 11, QEMU not.
+[spike] ^vlseg\d+e\d+ff\.v # Spike: the fields of a fault only first segment before the one that faults are written
+[spike] ^vs\w+\.v\b # Spike: a vector store that faults on the upper bytes of an element writes the lower ones (implementation defined)
 
 # The ssp CSR of Zicfiss has no WARL field in the specification (it is URW: any value is read back, the
 # shadow stack accesses are what must be aligned), and QEMU keeps all the bits. Spike clears the bits below

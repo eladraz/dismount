@@ -8,7 +8,9 @@ Corpus line syntax (tests/riscv/semantics/corpus/*.s):
     <instruction>             # @feature: zba   # @state: x10=80100100 f1=7ff8000000000000
   * Blank lines and lines that start with `#` or `//` are comments. Comments after an instruction
     start with `#` or `//`; the tags are `@feature:` (informative), `@state:` (directed values for
-    the random states, see states_rv.py), `@mode:` (vector, cfi), `@oracle:` (the oracles which run it).
+    the random states, see states_rv.py), `@mode:` (vector, cfi), `@oracle:` (the oracles which run it),
+    `@word:` (the 32 bit encoding in hex, for the reserved encodings llvm-mc refuses to assemble, such as
+    a vector destination that overlaps a source: the text is for the state generator and the report).
   * `;` separates several instructions of one line (`lui a0, 1 ; addi a0, a0, 2`): the bytes of the
     line are the bytes of all of them, run as one unit.
   * The instructions are not compressed by the assembler (`.option norvc`); a `c.` instruction is
@@ -54,7 +56,7 @@ def parse_corpus(path):
             if not text:
                 continue
             tags = {}
-            for m in re.finditer(r'@(feature|state|mode|oracle):\s*([^@]*)', comment):
+            for m in re.finditer(r'@(feature|state|mode|oracle|word):\s*([^@]*)', comment):
                 tags.setdefault(m.group(1), []).append(m.group(2).strip())
             lines.append({'no': no, 'text': text, 'comment': comment, 'tags': tags})
     return lines

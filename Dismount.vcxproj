@@ -49,7 +49,14 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvArchitecture.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemantics.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTable.cpp" />
-    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableStubs.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableVector.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticVector.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorConfig.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorMemory.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorInteger.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorFixed.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorMask.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorPermute.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTablePrivileged.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftCommon.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftInteger.cpp" />
@@ -221,6 +228,7 @@
     <ClInclude Include="Include\dismount\proc\riscv\RiscvArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemantics.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemanticInternal.h" />
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvSemanticVector.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvHelpers.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemantics.h" />
