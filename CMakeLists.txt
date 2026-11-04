@@ -118,6 +118,11 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/assembler/proc/arm/ArmAssembler.cpp
 	Source/dismount/assembler/proc/arm/ArmAssemblerA32.cpp
 	Source/dismount/proc/arm/ArmInstructionSet.cpp
+	# RISC-V: the architecture description and the semantic layer
+	Source/dismount/proc/riscv/RiscvArchitecture.cpp
+	Source/dismount/proc/riscv/RiscvSemantics.cpp
+	Source/dismount/proc/riscv/RiscvSemanticTable.cpp
+	Source/dismount/proc/riscv/RiscvSemanticTableStubs.cpp
 	Source/dismount/proc/arm/ArmFeatures.cpp
 	Source/dismount/proc/arm/ArmOpcode.cpp
 	Source/dismount/proc/arm/ArmOperandCodec.cpp
@@ -215,6 +220,8 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp
 		tests/TestArmArchitecture.cpp
+		tests/TestRiscvArchitecture.cpp
+		tests/TestSemanticFloatRiscv.cpp
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp
 		tests/TestArm64SemanticsSimd.cpp

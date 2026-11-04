@@ -173,6 +173,8 @@
     <ClCompile Include="TestSemantics.cpp" />
     <ClCompile Include="TestAMD64Semantics.cpp" />
     <ClCompile Include="TestArmArchitecture.cpp" />
+    <ClCompile Include="TestRiscvArchitecture.cpp" />
+    <ClCompile Include="TestSemanticFloatRiscv.cpp" />
     <ClCompile Include="TestArm64Semantics.cpp" />
     <ClCompile Include="TestArm64SemanticsSve.cpp" />
     <ClCompile Include="TestArm64SemanticsSimd.cpp" />

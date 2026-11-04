@@ -54,6 +54,10 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/IA32SemanticTableSimd.cpp \
                          Source/dismount/proc/arm/ArmArchitecture.cpp           \
                          Source/dismount/proc/arm/Arm64Architecture.cpp \
+                         Source/dismount/proc/riscv/RiscvArchitecture.cpp \
+                         Source/dismount/proc/riscv/RiscvSemantics.cpp \
+                         Source/dismount/proc/riscv/RiscvSemanticTable.cpp \
+                         Source/dismount/proc/riscv/RiscvSemanticTableStubs.cpp \
                          Source/dismount/proc/arm/ArmSemantics.cpp \
                          Source/dismount/proc/arm/ArmSemanticTable.cpp \
                          Source/dismount/proc/arm/ArmSemanticLift32.cpp \

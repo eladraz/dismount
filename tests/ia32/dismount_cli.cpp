@@ -53,6 +53,15 @@
  *                                     entry: "<mask hex> <value hex> <feature
  *                                     index> <flags hex> <size> <mnemonic>"
  *
+ * RISC-V run: dismount_cli run --arch rv32|rv64 [--vlen <bits>]
+ *                                     each line: "<hex bytes of the code> ; x1=.. x2=..
+ *                                     pc=.. f0=.. fcsr=.. v0=.. vl=.. vtype=.. mem=.."
+ *                                     Executes the instructions as the IR of the
+ *                                     lifter, see "The run protocol" in
+ *                                     tests/riscv/semantics/TEST_PLAN.md
+ *                                     -> "OK exit=<exit> x1=.. ... pc=.. f0=.. ...
+ *                                        fcsr=.. [vector state] mem=.." | "ERR <message>"
+ *
  * A bad line never stops the process: every line is wrapped in try/catch.
  *
  * Author: Elad Raz <e@eladraz.com>
@@ -102,6 +111,9 @@
 #include "dismount/proc/riscv/RiscvNotation.h"
 #include "dismount/proc/riscv/RiscvStreamDisassembler.h"
 #include "dismount/assembler/proc/riscv/RiscvAssembler.h"
+#include "dismount/proc/riscv/RiscvOpcode.h"
+#include "dismount/proc/riscv/RiscvArchitecture.h"
+#include "dismount/proc/riscv/RiscvSemantics.h"
 
 #include "cpufeatures.h"
 
@@ -2403,6 +2415,552 @@ static int runRiscvSet(const RiscvFeatureSet& features)
     return 0;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// RISC-V: run --arch rv32|rv64 (tests/riscv/semantics/TEST_PLAN.md, "The run
+// protocol")
+
+// The memory of the RISC-V run command. The data window is [win, win + size)
+// (the default is 0x80100000 and 0x10000), its bytes are the pattern of
+// tests/semantics unless the state sets them. The code region (3 pages of
+// 4 KB around the page of the pc) reads as the bytes of the code at the pc
+// and zeros elsewhere; an access outside the window and the code region is a
+// fault (the access returns false). The written bytes are kept, the ones of
+// the code region are not reported.
+class RiscvRunMemory : public SemanticMemory {
+public:
+    RiscvRunMemory(const cBuffer& code, uint64 pc, uint64 windowBase,
+                   uint64 windowSize) :
+        m_code(code),
+        m_pc(pc),
+        m_windowBase(windowBase),
+        m_windowSize(windowSize),
+        m_regionBase((pc & ~(uint64)0xFFF) - 0x1000),
+        m_regionSize(0x3000)
+    {
+    }
+
+    // Set a byte of the memory before the run (mem=)
+    void setInitial(uint64 address, uint8 value)
+    {
+        if (m_initial.hasKey(address))
+            m_initial[address] = value;
+        else
+            m_initial.append(address, value);
+    }
+
+    virtual bool read(uint64 address, uint8* buffer, uint size)
+    {
+        for (uint i = 0; i < size; i++)
+            if (!getByte(address + i, buffer[i]))
+                return false;
+        return true;
+    }
+
+    virtual bool write(uint64 address, const uint8* buffer, uint size)
+    {
+        for (uint i = 0; i < size; i++)
+            if (!isWindow(address + i) && !isRegion(address + i))
+                return false;
+        for (uint i = 0; i < size; i++)
+        {
+            if (m_written.hasKey(address + i))
+                m_written[address + i] = buffer[i];
+            else
+                m_written.append(address + i, buffer[i]);
+        }
+        return true;
+    }
+
+    // Return the written bytes of the window as "address:bytes" runs sorted
+    // by address, or "-" if nothing was written
+    cString getWrittenRuns(uint digits) const
+    {
+        cList<uint64> keys = m_written.keys();
+        cArray<uint64> addresses(keys.length());
+        uint count = 0;
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
+        {
+            if (!isWindow(*i))
+                continue;
+            // Insertion sort
+            uint position = count++;
+            while ((position > 0) && (addresses[position - 1] > *i))
+            {
+                addresses[position] = addresses[position - 1];
+                position--;
+            }
+            addresses[position] = *i;
+        }
+        if (count == 0)
+            return cString("-");
+
+        cString result;
+        for (uint i = 0; i < count; i++)
+        {
+            if ((i == 0) || (addresses[i] != addresses[i - 1] + 1))
+            {
+                if (i != 0)
+                    result += cString(",");
+                result += PatternMemory::hexString(addresses[i], digits) +
+                          cString(":");
+            }
+            result += PatternMemory::hexString(m_written[addresses[i]], 2);
+        }
+        return result;
+    }
+
+private:
+    bool isWindow(uint64 address) const
+    {
+        return (address - m_windowBase) < m_windowSize;
+    }
+
+    bool isRegion(uint64 address) const
+    {
+        return (address - m_regionBase) < m_regionSize;
+    }
+
+    // Read a byte: false if it isn't memory
+    bool getByte(uint64 address, uint8& value) const
+    {
+        if (m_written.hasKey(address))
+        {
+            value = m_written[address];
+            return true;
+        }
+        if ((address - m_pc) < m_code.getSize())
+        {
+            value = m_code[(uint)(address - m_pc)];
+            return true;
+        }
+        if (isWindow(address))
+        {
+            value = m_initial.hasKey(address) ? m_initial[address] :
+                    (uint8)((uint32)(address * 2654435761u) >> 24);
+            return true;
+        }
+        if (!isRegion(address))
+            return false;
+        value = 0;
+        return true;
+    }
+
+    cBuffer m_code;
+    uint64 m_pc;
+    uint64 m_windowBase;
+    uint64 m_windowSize;
+    uint64 m_regionBase;
+    uint64 m_regionSize;
+    cHash<uint64, uint8> m_initial;
+    cHash<uint64, uint8> m_written;
+};
+
+// The state of a RISC-V input line (the tokens of the protocol)
+struct RiscvRunState {
+    RiscvRunState(bool is64) :
+        m_is64(is64),
+        m_pc(is64 ? 0x80001000ULL : 0x80001000ULL),
+        m_fcsr(0),
+        m_isVector(false),
+        m_vlen(128),
+        m_vl(0),
+        m_vtype(0),
+        m_vstart(0),
+        m_vxrm(0),
+        m_vxsat(0),
+        m_ssp(0),
+        m_elp(0),
+        m_reservedAddress(0),
+        m_reservedSize(0),
+        m_windowBase(0x80100000ULL),
+        m_windowSize(0x10000)
+    {
+        memset(m_x, 0, sizeof(m_x));
+        memset(m_f, 0, sizeof(m_f));
+    }
+
+    bool m_is64;
+    // x0..x31 (x0 is not set)
+    uint64 m_x[32];
+    uint64 m_pc;
+    uint64 m_f[32];
+    uint32 m_fcsr;
+    // The vector state: v0..v31 and the CSRs. Any of the tokens sets
+    // m_isVector, which adds the vector state to the result
+    bool m_isVector;
+    uint m_vlen;
+    SemanticValue m_v[32];
+    uint64 m_vl;
+    uint64 m_vtype;
+    uint64 m_vstart;
+    uint32 m_vxrm;
+    uint32 m_vxsat;
+    uint64 m_ssp;
+    uint32 m_elp;
+    uint64 m_reservedAddress;
+    uint64 m_reservedSize;
+    uint64 m_windowBase;
+    uint64 m_windowSize;
+    cHash<uint64, uint8> m_memory;
+};
+
+// Parses mem=: "ADDR:HEX,ADDR:HEX" (or "-")
+static bool parseRiscvMemory(const char* text, const char* end,
+                             RiscvRunState& state)
+{
+    if ((end - text == 1) && (*text == '-'))
+        return true;
+    const char* p = text;
+    while (p < end)
+    {
+        uint64 address = 0;
+        uint digits = 0;
+        while ((p < end) && (hexValue(*p) >= 0))
+        {
+            address = address * 16 + (uint64)hexValue(*p);
+            p++;
+            digits++;
+        }
+        if ((digits == 0) || (digits > 16) || (p >= end) || (*p != ':'))
+            return false;
+        p++;
+        uint count = 0;
+        while ((p + 1 < end) && (hexValue(p[0]) >= 0) && (hexValue(p[1]) >= 0))
+        {
+            const uint8 byte = (uint8)((hexValue(p[0]) << 4) | hexValue(p[1]));
+            if (state.m_memory.hasKey(address + count))
+                state.m_memory[address + count] = byte;
+            else
+                state.m_memory.append(address + count, byte);
+            p += 2;
+            count++;
+        }
+        if (count == 0)
+            return false;
+        if (p < end)
+        {
+            if ((*p != ',') || (p + 1 >= end))
+                return false;
+            p++;
+        }
+    }
+    return true;
+}
+
+// Parses "ADDR:SIZE" (hexadecimal)
+static bool parseRiscvPair(const char* text, const char* end, uint64& first,
+                           uint64& second)
+{
+    const char* colon = (const char*)memchr(text, ':', (size_t)(end - text));
+    if (colon == NULL)
+        return false;
+    return parseNumber(text, colon, 64, first) &&
+           parseNumber(colon + 1, end, 64, second);
+}
+
+// Parses "x1=1 pc=.. f0=.. fcsr=.. v0=.. vl=.. vtype=.. mem=..". Returns
+// false on a malformed token
+static bool parseRiscvState(const char* text, RiscvRunState& state)
+{
+    const uint xlen = state.m_is64 ? 64 : 32;
+    const char* p = text;
+    while (*p != 0)
+    {
+        if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+        {
+            p++;
+            continue;
+        }
+        const char* tokenEnd = p;
+        while ((*tokenEnd != 0) && (*tokenEnd != ' ') && (*tokenEnd != '\t') &&
+               (*tokenEnd != '\n') && (*tokenEnd != '\r'))
+            tokenEnd++;
+        const char* equals = (const char*)memchr(p, '=', (size_t)(tokenEnd - p));
+        if (equals == NULL)
+            return false;
+        const char* value = equals + 1;
+        uint index = 0;
+        bool ok = true;
+        uint64 number = 0;
+        if (parseIndexedName(p, equals, "x", 32, index) && (index != 0))
+            ok = parseNumber(value, tokenEnd, xlen, state.m_x[index]);
+        else if (parseIndexedName(p, equals, "f", 32, index))
+            ok = parseNumber(value, tokenEnd, 64, state.m_f[index]);
+        else if (parseIndexedName(p, equals, "v", 32, index))
+        {
+            ok = parseHexWide(value, tokenEnd, 512, state.m_v[index]);
+            state.m_isVector = true;
+        }
+        else
+        {
+            const cString name(cString(p).left((uint)(equals - p)));
+            if (name == "pc")
+                ok = parseNumber(value, tokenEnd, xlen, state.m_pc);
+            else if (name == "fcsr")
+                ok = parseWord(value, tokenEnd, state.m_fcsr);
+            else if (name == "vlen")
+            {
+                ok = parseNumber(value, tokenEnd, 16, number);
+                state.m_vlen = (uint)number;
+                state.m_isVector = true;
+            } else if (name == "vl")
+            {
+                ok = parseNumber(value, tokenEnd, xlen, state.m_vl);
+                state.m_isVector = true;
+            } else if (name == "vtype")
+            {
+                ok = parseNumber(value, tokenEnd, xlen, state.m_vtype);
+                state.m_isVector = true;
+            } else if (name == "vstart")
+            {
+                ok = parseNumber(value, tokenEnd, xlen, state.m_vstart);
+                state.m_isVector = true;
+            } else if (name == "vxrm")
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_vxrm = (uint32)number & 3;
+                state.m_isVector = true;
+            } else if (name == "vxsat")
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_vxsat = (uint32)number & 1;
+                state.m_isVector = true;
+            } else if (name == "ssp")
+                ok = parseNumber(value, tokenEnd, xlen, state.m_ssp);
+            else if (name == "elp")
+            {
+                ok = parseNumber(value, tokenEnd, 4, number);
+                state.m_elp = (uint32)number & 1;
+            } else if (name == "reserved")
+                ok = parseRiscvPair(value, tokenEnd, state.m_reservedAddress,
+                                    state.m_reservedSize);
+            else if (name == "win")
+                ok = parseRiscvPair(value, tokenEnd, state.m_windowBase,
+                                    state.m_windowSize);
+            else if (name == "mem")
+                ok = parseRiscvMemory(value, tokenEnd, state);
+            else
+                ok = false;
+        }
+        if (!ok)
+            return false;
+        p = tokenEnd;
+    }
+    return true;
+}
+
+// Executes the instructions of a line of the RISC-V run protocol ("<hex
+// bytes> ; <state>") as the IR of the lifter, and returns the result record
+static cString runRiscvLine(char* line,
+                            RiscvInstructionSet::DisassemblerTypes type,
+                            uint defaultVlen)
+{
+    char* separator = strchr(line, ';');
+    if (separator == NULL)
+        XSTL_THROW(cException, XSTL_STRING("missing ';' before the state"), 0);
+    *separator = 0;
+    cBuffer bytes;
+    if (!parseHex(line, bytes))
+        XSTL_THROW(cException, XSTL_STRING("bad hex input"), 0);
+    const bool is64 = type == RiscvInstructionSet::RISCV_RV64;
+    const uint xlen = is64 ? 64 : 32;
+    const uint digits = xlen / 4;
+    RiscvRunState state(is64);
+    state.m_vlen = defaultVlen;
+    if (!parseRiscvState(separator + 1, state))
+        XSTL_THROW(cException, XSTL_STRING("bad state"), 0);
+    if ((state.m_vlen < 128) || (state.m_vlen > 512) ||
+        ((state.m_vlen & (state.m_vlen - 1)) != 0))
+        XSTL_THROW(cException, XSTL_STRING("bad vector length"), 0);
+
+    const OpcodeSubsystems::DisassemblerType subsystem =
+                        RiscvInstructionSet::toSubsystem(type);
+    // The description is the same for most of the lines: kept (building the
+    // registers of a description costs more than running a block)
+    static ArchitectureDescriptionPtr cachedArchitecture;
+    static RiscvInstructionSet::DisassemblerTypes cachedType = type;
+    static uint cachedVlen = 0;
+    if ((cachedArchitecture.getPointer() == NULL) || (cachedType != type) ||
+        (cachedVlen != state.m_vlen))
+    {
+        cachedArchitecture = ArchitectureDescriptionPtr(
+                            new RiscvArchitecture(type, state.m_vlen));
+        cachedType = type;
+        cachedVlen = state.m_vlen;
+    }
+    ArchitectureDescriptionPtr architecture = cachedArchitecture;
+    RiscvSemanticLifter lifter(subsystem, architecture);
+
+    // Decode and lift the sequence at the pc
+    const uint64 addressMask = is64 ? ~(uint64)0 : 0xFFFFFFFFULL;
+    const uint64 codeAddress = state.m_pc & ~(uint64)1 & addressMask;
+    SemanticBlock block(subsystem);
+    uint offset = 0;
+    while (offset < bytes.getSize())
+    {
+        if (offset + 2 > bytes.getSize())
+            XSTL_THROW(cException, XSTL_STRING("truncated instruction"), 0);
+        const uint16 parcel = (uint16)(bytes[offset] | (bytes[offset + 1] << 8));
+        const uint size = RiscvInstructionSet::getInstructionSize(parcel);
+        if ((size == 0) || (offset + size > bytes.getSize()))
+            XSTL_THROW(cException, XSTL_STRING("truncated instruction"), 0);
+        uint32 encoding = parcel;
+        if (size == 4)
+            encoding |= (uint32)bytes[offset + 2] << 16 |
+                        (uint32)bytes[offset + 3] << 24;
+        RiscvOpcodePtr decoded = RiscvStreamDisassembler::decode(type,
+                encoding, size, (codeAddress + offset) & addressMask,
+                RiscvFeatureSet::all());
+        // The bits are not an instruction of the tables: not lifted
+        if (decoded.getPointer() == NULL)
+            return cString("OK exit=undefined");
+        lifter.lift(OpcodePtr(decoded.getPointer(), SMARTPTR_DESTRUCT_NONE),
+                    block);
+        offset += size;
+    }
+    block.setFallThroughAddress(ProcessorAddress(is64 ?
+        ProcessorAddress::PROCESSOR_64 : ProcessorAddress::PROCESSOR_32,
+        (codeAddress + bytes.getSize()) & addressMask));
+
+    RiscvRunMemory memory(bytes, codeAddress, state.m_windowBase,
+                          state.m_windowSize);
+    {
+        cList<uint64> keys = state.m_memory.keys();
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
+            memory.setInitial(*i, state.m_memory[*i]);
+    }
+
+    // Execute it from the state
+    using namespace riscvdis;
+    SemanticInterpreter interpreter(architecture, memory);
+    for (uint i = 1; i < 32; i++)
+        interpreter.setRegister(RISCV_REG_X0 + i, SemanticValue(state.m_x[i]));
+    interpreter.setRegister(RISCV_REG_PC, SemanticValue(codeAddress));
+    for (uint i = 0; i < 32; i++)
+        interpreter.setRegister(RISCV_REG_F0 + i, SemanticValue(state.m_f[i]));
+    interpreter.setRegister(RISCV_REG_FCSR, SemanticValue(state.m_fcsr & 0xFF));
+    interpreter.setRegister(RISCV_REG_SSP, SemanticValue(state.m_ssp));
+    interpreter.setRegister(RISCV_REG_ELP, SemanticValue(state.m_elp));
+    interpreter.setRegister(RISCV_REG_RESERVATION_ADDRESS,
+                            SemanticValue(state.m_reservedAddress));
+    interpreter.setRegister(RISCV_REG_RESERVATION_SIZE,
+                            SemanticValue(state.m_reservedSize));
+    for (uint i = 0; i < 32; i++)
+        interpreter.setRegister(RISCV_REG_V0 + i, state.m_v[i]);
+    interpreter.setRegister(RISCV_REG_VL, SemanticValue(state.m_vl));
+    interpreter.setRegister(RISCV_REG_VTYPE, SemanticValue(state.m_vtype));
+    interpreter.setRegister(RISCV_REG_VSTART, SemanticValue(state.m_vstart));
+    interpreter.setRegister(RISCV_REG_VCSR, SemanticValue(
+                                state.m_vxsat | (state.m_vxrm << 1)));
+    const SemanticInterpreter::ExitReason reason = interpreter.run(block);
+
+    cString exitText;
+    switch (reason)
+    {
+    case SemanticInterpreter::EXIT_BRANCH:
+        exitText = "branch";
+        break;
+    case SemanticInterpreter::EXIT_FALL_THROUGH:
+        exitText = "fall";
+        break;
+    case SemanticInterpreter::EXIT_TRAP:
+        switch (interpreter.getTrapKind())
+        {
+        case SemanticOperation::TRAP_SYSTEM_CALL:
+            exitText = "trap:ecall";
+            break;
+        case SemanticOperation::TRAP_BREAKPOINT:
+            exitText = "trap:ebreak";
+            break;
+        case SemanticOperation::TRAP_UNDEFINED:
+            exitText = "trap:illegal";
+            break;
+        default:
+            exitText = (interpreter.getTrapNumber() == RISCV_TRAP_SOFTWARE_CHECK) ?
+                       "trap:swcheck" : "trap:fault";
+            break;
+        }
+        break;
+    case SemanticInterpreter::EXIT_MEMORY_FAULT:
+        exitText = "trap:fault";
+        break;
+    case SemanticInterpreter::EXIT_HELPER:
+        exitText = cString("helper:") + cString((int32)interpreter.getHelperNumber());
+        break;
+    case SemanticInterpreter::EXIT_UNDEFINED:
+        exitText = "undefined";
+        break;
+    default:
+        XSTL_THROW(cException, XSTL_STRING("the block didn't finish"), 0);
+    }
+
+    cString result = cString("OK exit=") + exitText;
+    for (uint i = 1; i < 32; i++)
+        result += cString(" x") + cString((int32)i) + cString("=") +
+                  registerHex(interpreter, RISCV_REG_X0 + i, digits);
+    result += cString(" pc=") + registerHex(interpreter, RISCV_REG_PC, digits);
+    for (uint i = 0; i < 32; i++)
+        result += cString(" f") + cString((int32)i) + cString("=") +
+                  registerHex(interpreter, RISCV_REG_F0 + i, 16);
+    result += cString(" fcsr=") + registerHex(interpreter, RISCV_REG_FCSR, 8);
+    result += cString(" ssp=") + registerHex(interpreter, RISCV_REG_SSP, digits);
+    result += cString(" elp=") + registerHex(interpreter, RISCV_REG_ELP, 1);
+    result += cString(" reserved=") +
+              registerHex(interpreter, RISCV_REG_RESERVATION_ADDRESS, digits) +
+              cString(":") + PatternMemory::hexString(interpreter.getRegister(
+                    RISCV_REG_RESERVATION_SIZE).getWord(0), 1);
+    if (state.m_isVector)
+    {
+        result += cString(" vlen=") + PatternMemory::hexString(state.m_vlen, 1);
+        result += cString(" vl=") + registerHex(interpreter, RISCV_REG_VL, digits);
+        result += cString(" vtype=") + registerHex(interpreter, RISCV_REG_VTYPE,
+                                                   digits);
+        result += cString(" vstart=") + registerHex(interpreter,
+                                                    RISCV_REG_VSTART, digits);
+        const uint64 vcsr = interpreter.getRegister(RISCV_REG_VCSR).getWord(0);
+        result += cString(" vxrm=") + PatternMemory::hexString((vcsr >> 1) & 3, 1);
+        result += cString(" vxsat=") + PatternMemory::hexString(vcsr & 1, 1);
+        for (uint i = 0; i < 32; i++)
+            result += cString(" v") + cString((int32)i) + cString("=") +
+                      wideHexString(interpreter.getRegister(RISCV_REG_V0 + i),
+                                    state.m_vlen);
+    }
+    result += cString(" mem=") + memory.getWrittenRuns(digits);
+    return result;
+}
+
+static int runRiscvRun(RiscvInstructionSet::DisassemblerTypes type,
+                       uint vlen)
+{
+    // (the vector registers are 32 * 128 digits at most)
+    static char line[1 << 17];
+    while (fgets(line, sizeof(line), stdin))
+    {
+        XSTL_TRY
+        {
+            writeLine(runRiscvLine(line, type, vlen));
+        }
+        XSTL_CATCH(DisassemblerEndOfStreamException&)
+        {
+            writeLine(cString("ERR truncated instruction (end of stream)"));
+        }
+        XSTL_CATCH(DisassemblerInvalidOpcodeException&)
+        {
+            // The bits are not an instruction of the tables: not lifted
+            writeLine(cString("OK exit=undefined"));
+        }
+        XSTL_CATCH(cException& e)
+        {
+            writeLine(cString("ERR ") + sanitizeText(describeException(e)));
+        }
+        XSTL_CATCH_ALL
+        {
+            writeLine(cString("ERR unknown exception"));
+        }
+    }
+    return 0;
+}
+
 static void usage()
 {
     fprintf(stderr, "usage: dismount_cli asm|dis|run [--bits 16|32|64] < input\n"
@@ -2410,6 +2968,7 @@ static void usage()
                     " [--mattr +feature,-feature] < input\n"
                     "       dismount_cli asm|dis|sweep|features|entries|set --arch rv32|rv64"
                     " [--mattr list] [--format no-aliases,numeric] [--no-rvc] < input\n"
+                    "       dismount_cli run --arch rv32|rv64 [--vlen 128|256|512] < input\n"
                     "       dismount_cli cpuinfo\n");
 }
 
@@ -2431,6 +2990,7 @@ int main(int argc, char* argv[])
     RiscvFeatureSet riscvFeatures = RiscvFeatureSet::all();
     int riscvFormat = 0;
     bool riscvCompress = true;
+    uint riscvVlen = 128;
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc &&
@@ -2448,6 +3008,11 @@ int main(int argc, char* argv[])
                 riscvFormat |= RiscvNotation::RISCV_FORMAT_NO_ALIASES;
             if (strstr(argv[i], "numeric") != NULL)
                 riscvFormat |= RiscvNotation::RISCV_FORMAT_NUMERIC;
+        }
+        else if (strcmp(argv[i], "--vlen") == 0 && i + 1 < argc)
+        {
+            i++;
+            riscvVlen = (uint)atoi(argv[i]);
         }
         else if (strcmp(argv[i], "--no-rvc") == 0)
         {
@@ -2525,6 +3090,8 @@ int main(int argc, char* argv[])
             return runRiscvEntries();
         if (strcmp(argv[1], "set") == 0)
             return runRiscvSet(riscvFeatures);
+        if (strcmp(argv[1], "run") == 0)
+            return runRiscvRun(riscvType, riscvVlen);
         usage();
         return 2;
     }

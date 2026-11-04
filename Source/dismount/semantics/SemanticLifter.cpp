@@ -13,6 +13,7 @@
 #include "dismount/semantics/SemanticLifter.h"
 #include "dismount/proc/ia32/IA32Semantics.h"
 #include "dismount/proc/arm/ArmSemantics.h"
+#include "dismount/proc/riscv/RiscvSemantics.h"
 
 SemanticLifterPtr SemanticLifterFactory::getLifter(
                                     OpcodeSubsystems::DisassemblerType type)
@@ -27,6 +28,9 @@ SemanticLifterPtr SemanticLifterFactory::getLifter(
     case OpcodeSubsystems::DISASSEMBLER_THUMB_LE:
     case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
         return SemanticLifterPtr(new ArmSemanticLifter(type));
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_32:
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_64:
+        return SemanticLifterPtr(new RiscvSemanticLifter(type));
     default:
         // No semantic description for this processor
         CHECK_FAIL();

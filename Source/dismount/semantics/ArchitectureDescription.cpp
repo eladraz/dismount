@@ -14,6 +14,7 @@
 #include "dismount/proc/ia32/AMD64Architecture.h"
 #include "dismount/proc/arm/ArmArchitecture.h"
 #include "dismount/proc/arm/Arm64Architecture.h"
+#include "dismount/proc/riscv/RiscvArchitecture.h"
 
 ArchitectureDescriptionPtr ArchitectureDescriptionFactory::getArchitecture(
                                     OpcodeSubsystems::DisassemblerType type)
@@ -31,6 +32,12 @@ ArchitectureDescriptionPtr ArchitectureDescriptionFactory::getArchitecture(
         return ArchitectureDescriptionPtr(new ArmArchitecture());
     case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
         return ArchitectureDescriptionPtr(new Arm64Architecture());
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_32:
+        return ArchitectureDescriptionPtr(new RiscvArchitecture(
+                                RiscvInstructionSet::RISCV_RV32));
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_64:
+        return ArchitectureDescriptionPtr(new RiscvArchitecture(
+                                RiscvInstructionSet::RISCV_RV64));
     default:
         // No description for this processor
         CHECK_FAIL();

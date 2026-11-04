@@ -54,6 +54,12 @@
     <ClCompile Include="TestArmArchitecture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestRiscvArchitecture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSemanticFloatRiscv.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestArm64Semantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

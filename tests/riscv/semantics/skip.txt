@@ -1,0 +1,30 @@
+# Corpus lines that run_semantics.py does not run, as `[arch,oracle,file,...] <regex>  # <reason>`. The regex
+# is searched (re.search) in the instruction text, lowercase, as it is written in the corpus. The names in
+# the brackets limit the rule: rv64 / rv32, the oracles (qemu, unicorn, spike) and corpus file names (rv_b,
+# ...); a rule with none of one sort applies to all of them. A reason is required. Keep this list explicit:
+# it is for instructions that depend on state the test cannot give every engine (the process, the kernel, the
+# counters), or that an oracle doesn't implement, not for failures.
+
+# --- the process / the platform
+\b(csrr|csrrs|csrrc|csrrw|csrrsi|csrrci|csrrwi)\b.*\b(cycle|time|instret|hpmcounter\w*|seed)\b  # the counters belong to the processor and the run
+^c\.j 0$  # an endless loop
+^jal (zero|x0), 0$  # an endless loop
+^wrs\.(nto|sto)$  # waits for a reservation to be invalidated
+
+# --- Unicorn is QEMU 5.0.1 (RV64GC / RV32GC): the extensions it doesn't implement are illegal instructions
+[unicorn,rv_b] .*  # Unicorn: no Zba / Zbb / Zbs / Zbc / Zbkb / Zbkx / Zicond (QEMU 5.0 has the draft B 0.93 at best)
+[unicorn,rv64_b] .*  # Unicorn: no Zba / Zbb / Zbs / Zbkb
+[unicorn,rv32_b] .*  # Unicorn: no Zbkb
+[unicorn,rv_zfa] .*  # Unicorn: no Zfa
+[unicorn,rv_zfh] .*  # Unicorn: no Zfh / Zfbfmin
+[unicorn,rv_v] .*  # Unicorn: no V
+[unicorn] ^c\.(lbu|lhu|lh|sb|sh|zext\.[bhw]|sext\.[bh]|mul|not)\b  # Unicorn: no Zcb
+[unicorn,rv32_zfa] .*  # Unicorn: no Zfa
+[unicorn,rv_cfi] .*  # Unicorn: no Zicfilp / Zicfiss
+[unicorn,rv_v2] .*  # Unicorn: no V
+[unicorn,rv64_v] .*  # Unicorn: no V
+[unicorn,rv_misc] .*  # Unicorn: no Zicbo*, Zimop, Zcmop, Zabha, Zacas, Zfbfmin, the scalar cryptography
+[unicorn,rv64_misc] .*  # Unicorn: no Zabha, Zacas, the scalar cryptography
+[unicorn,rv32_misc] .*  # Unicorn: no Zacas, the scalar cryptography
+[unicorn,rv64_cfi] .*  # Unicorn: no Zicfiss
+[unicorn,rv_oracle_diffs] ^v  # Unicorn: no V

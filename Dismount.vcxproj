@@ -46,6 +46,10 @@
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmArchitecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvArchitecture.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemantics.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTable.cpp" />
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticTableStubs.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemantics.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticTable.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmSemanticLift32.cpp" />
@@ -204,6 +208,8 @@
     <ClInclude Include="Include\dismount\proc\ia32\IA32Architecture.h" />
     <ClInclude Include="Include\dismount\proc\ia32\AMD64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h" />
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvArchitecture.h" />
+    <ClInclude Include="Include\dismount\proc\riscv\RiscvSemantics.h" />
     <ClInclude Include="Include\dismount\proc\arm\Arm64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemantics.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmSemanticInternal.h" />

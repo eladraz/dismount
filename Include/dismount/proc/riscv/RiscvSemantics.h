@@ -80,7 +80,13 @@ public:
      *
      * instruction  - The decoded instruction (a compressed instruction is
      *                lifted by its expansion, with the size and the address
-     *                of the compressed one)
+     *                of the compressed one; an alias by the general encoding
+     *                it is an alias of, RiscvOpcode::getNoAliasForm()).
+     *                The context resolves both: getInstruction(),
+     *                getOperand() and getOperandsCount() are those of the
+     *                resolved 32 bit instruction (the one whose entry has a
+     *                semantic entry), getSize() is the size of the
+     *                instruction given here
      * block        - The block to add the IR into
      * architecture - The RiscvArchitecture (XLEN, VLEN)
      */
@@ -88,8 +94,12 @@ public:
                      SemanticBlock& block,
                      const ArchitectureDescriptionPtr& architecture);
 
-    // Return the decoded instruction / the block / the description
+    // Return the decoded instruction (resolved, see the constructor) / the
+    // block / the description
     const RiscvOpcode& getInstruction() const;
+    // Return the size of the instruction in bytes (2 for a compressed one,
+    // whose expansion is getInstruction())
+    uint getSize() const;
     SemanticBlock& getBlock();
     const ArchitectureDescriptionPtr& getArchitecture() const;
     // Return XLEN and VLEN
@@ -188,10 +198,17 @@ public:
     void returnTo(const SemanticOperand& target);
 
 private:
-    // The instruction, the block and the description
+    // The instruction given to the constructor, and the one it is lifted as
+    // (the expansion, the general encoding of an alias, or the instruction
+    // itself) kept by m_resolvedStorage when it isn't the given one
     const RiscvOpcode& m_instruction;
+    RiscvOpcodePtr m_resolvedStorage;
+    const RiscvOpcode* m_resolved;
     SemanticBlock& m_block;
     ArchitectureDescriptionPtr m_architecture;
+    // The addresses of the memory operands, computed once
+    SemanticOperand m_addresses[RiscvOpcode::MAX_OPERANDS];
+    bool m_isAddressComputed[RiscvOpcode::MAX_OPERANDS];
 };
 
 /*
@@ -288,7 +305,7 @@ extern const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[];
  *     the CFI (the senvcfg bits, a supervisor's choice) they are Zimop /
  *     Zcmop instructions which write 0: the lifter lifts the enabled
  *     behavior, which is the one of the profile's user mode with CFI on;
- *     see tests/riscv/TEST_PLAN.md for how the oracles are configured.
+ *     see tests/riscv/semantics/TEST_PLAN.md for how the oracles are configured.
  *   - The vector instructions: vtype and vl are registers read at runtime,
  *     not values the lifter knows (the same instruction runs with any
  *     vtype). Each vector instruction checks vtype.vill and the reserved
@@ -297,7 +314,7 @@ extern const RiscvSemanticEntry gRiscvPrivilegedSemanticTable[];
  *     the active ones (by v0 when masked) get the result, the inactive and
  *     the tail ones are left undisturbed (the agnostic policies allow it,
  *     and the reference processors are configured so; see
- *     tests/riscv/TEST_PLAN.md), and vstart is set to 0 at the end. The
+ *     tests/riscv/semantics/TEST_PLAN.md), and vstart is set to 0 at the end. The
  *     loads and stores are element by element in order, so a fault on an
  *     element sets vstart to its index (the fault only first loads set vl
  *     instead). The SEW / LMUL dispatch and the loop over the elements or
@@ -333,6 +350,16 @@ public:
      * encoding table of the entry
      */
     static const riscvdis::RiscvSemanticEntry* findEntry(const RiscvOpcode& instruction);
+
+    /*
+     * Return the instruction which is lifted for 'instruction': the
+     * expansion of a compressed one, its getNoAliasForm() for an alias, or
+     * 'instruction' itself. A pointer to the
+     * result is kept in 'storage' when it is not 'instruction'. Return a
+     * NULL pointer if the instruction can't be resolved
+     */
+    static const RiscvOpcode* resolve(const RiscvOpcode& instruction,
+                                      RiscvOpcodePtr& storage);
 
 private:
     /*
