@@ -14,8 +14,9 @@
  *     use the "standard FPSCR value" (round to nearest, FZ, DN set, FZ16
  *     clear): ATTRIBUTE_FLOAT_STANDARD, and accumulate the flags too.
  *   - The reciprocal steps (vrecps, vrsqrts) are OP_FLOAT_MULTIPLY_ADD with
- *     the kind 1 / 2, and the estimates are the OP_FLOAT_RECIPROCAL_*_ESTIMATE
- *     operations with BEHAVIOR_ESTIMATE_ARM (see SemanticInterpreter.cpp).
+ *     BEHAVIOR_STEP_RECIPROCAL_UNFUSED / _SQRT_UNFUSED, and the estimates
+ *     are the OP_FLOAT_RECIPROCAL_*_ESTIMATE operations with
+ *     BEHAVIOR_ESTIMATE_ARM (see SemanticInterpreter.cpp).
  *   - The fixed point conversions give the number of fraction bits as the
  *     immediate source 1 of the conversion operations.
  *
@@ -347,8 +348,9 @@ void liftFpArithmetic(ArmLiftContext& c)
                     Op::BEHAVIOR_MINMAX_NUMBER);
     else if (equals(name, "vrecps") || equals(name, "vrsqrts"))
         result = fp(c, Op::OP_FLOAT_MULTIPLY_ADD, t, isStd, a, b,
-                    c.getImmediate(0, t), Op::ROUND_DYNAMIC,
-                    equals(name, "vrecps") ? 1 : 2);
+                    c.getImmediate(0, t), Op::ROUND_DYNAMIC, 0, true,
+                    equals(name, "vrecps") ? Op::BEHAVIOR_STEP_RECIPROCAL_UNFUSED :
+                                             Op::BEHAVIOR_STEP_RECIPROCAL_SQRT_UNFUSED);
     else
     {
         // The accumulating forms: the destination is the addend

@@ -171,6 +171,8 @@
     <ClCompile Include="TestAMD64Semantics.cpp" />
     <ClCompile Include="TestArmArchitecture.cpp" />
     <ClCompile Include="TestArm64Semantics.cpp" />
+    <ClCompile Include="TestArm64SemanticsSimd.cpp" />
+    <ClCompile Include="TestSemanticFloatArm.cpp" />
     <ClCompile Include="TestArmAArch32Semantics.cpp" />
     <ClCompile Include="TestSemanticFloat.cpp" />
     <ClCompile Include="$(XSTL_PATH)\tests\tests.cpp" />

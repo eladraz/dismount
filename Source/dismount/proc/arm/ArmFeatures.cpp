@@ -95,26 +95,28 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // The A64 base table (data processing, branches, loads and stores, system):
     // every instruction is lifted but the ones that need state the IR doesn't
     // have (the privileged and exception level instructions eret, drps, dcps,
-    // hvc, smc, at, tlbi, sys, sysl, the debug and trace hints brb, trcit...) and
-    // the SIMD&FP data processing, which is the table of another area: this
-    // feature is PARTIAL until the Advanced SIMD and floating point table is
-    // there (the scalar SIMD&FP loads and stores of the base table are lifted)
+    // hvc, smc, at, tlbi, sys, sysl, the debug and trace hints brb, trcit...). The
+    // scalar floating point and Advanced SIMD data processing of this feature is
+    // lifted by the table of its area (Arm64SemanticTableSimd.cpp)
     /* FEAT_A64_BASE */      { "",                SUPPORT_PARTIAL_VERIFIED },
-    /* FEAT_AES */           { "aes",             SUPPORT_FULL },
-    /* FEAT_SHA1 */          { "sha2",            SUPPORT_FULL },
-    /* FEAT_SHA256 */        { "sha2",            SUPPORT_FULL },
-    /* FEAT_SHA512 */        { "sha3",            SUPPORT_FULL },
-    /* FEAT_SHA3 */          { "sha3",            SUPPORT_FULL },
-    /* FEAT_SM3 */           { "sm4",             SUPPORT_FULL },
-    /* FEAT_SM4 */           { "sm4",             SUPPORT_FULL },
+    // The cryptographic extensions (Arm64SemanticLiftCrypto.cpp) and the Advanced SIMD
+    // and floating point extensions below are lifted and pass the differential tests
+    // against Unicorn and the Apple M4 (the M4 has no SM3 / SM4: Unicorn runs them)
+    /* FEAT_AES */           { "aes",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SHA1 */          { "sha2",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SHA256 */        { "sha2",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SHA512 */        { "sha3",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SHA3 */          { "sha3",            SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SM3 */           { "sm4",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_SM4 */           { "sm4",             SUPPORT_LIFTED_VERIFIED },
     /* FEAT_CRC32 */         { "crc",             SUPPORT_LIFTED_VERIFIED },
     // LSE: cas, casp, swp, ld<op>, st<op>. Unicorn swaps ldsmax / ldsmin (the host,
     // which is the arbiter, agrees with dismount, see oracle_bugs.txt)
     /* FEAT_LSE */           { "lse",             SUPPORT_LIFTED_VERIFIED },
-    /* FEAT_RDM */           { "rdm",             SUPPORT_FULL },
-    /* FEAT_FP16 */          { "fullfp16",        SUPPORT_FULL },
-    /* FEAT_FHM */           { "fp16fml",         SUPPORT_FULL },
-    /* FEAT_DOTPROD */       { "dotprod",         SUPPORT_FULL },
+    /* FEAT_RDM */           { "rdm",             SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FP16 */          { "fullfp16",        SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_FHM */           { "fp16fml",         SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_DOTPROD */       { "dotprod",         SUPPORT_LIFTED_VERIFIED },
     /* FEAT_DPB */           { "ccpp",            SUPPORT_NONE },
     // PAuth: xpaci, xpacd and xpaclri strip the code exactly (47 bit addresses of
     // the user mode, checked against the M4); the hint space forms (paciasp,
@@ -122,13 +124,13 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // QARMA algorithm are not modeled, so pac*, aut*, the branches and returns with
     // authentication and ldraa / ldrab are not lifted
     /* FEAT_PAUTH */         { "pauth",           SUPPORT_PARTIAL_VERIFIED },
-    /* FEAT_FCMA */          { "complxnum",       SUPPORT_FULL },
-    /* FEAT_JSCVT */         { "jsconv",          SUPPORT_FULL },
+    /* FEAT_FCMA */          { "complxnum",       SUPPORT_LIFTED_VERIFIED },
+    /* FEAT_JSCVT */         { "jsconv",          SUPPORT_LIFTED_VERIFIED },
     /* FEAT_LRCPC */         { "rcpc",            SUPPORT_LIFTED_VERIFIED },
     /* FEAT_LRCPC2 */        { "rcpc-immo",       SUPPORT_LIFTED_VERIFIED },
     /* FEAT_FLAGM */         { "flagm",           SUPPORT_LIFTED_VERIFIED },
     /* FEAT_FLAGM2 */        { "altnzcv",         SUPPORT_LIFTED_VERIFIED },
-    /* FEAT_FRINTTS */       { "fptoint",         SUPPORT_FULL },
+    /* FEAT_FRINTTS */       { "fptoint",         SUPPORT_LIFTED_VERIFIED },
     /* FEAT_SB */            { "sb",              SUPPORT_LIFTED_VERIFIED },
     /* FEAT_BTI */           { "bti",             SUPPORT_NONE },
     // MTE: the allocation tags are not part of the memory of the IR: not lifted
@@ -137,8 +139,10 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // SPECRES: cfp, dvp, cpp, cosp restrict the speculation: no architectural
     // effect (neither oracle implements them: TestArm64Semantics.cpp)
     /* FEAT_SPECRES */       { "predres",         SUPPORT_LIFTED },
-    /* FEAT_I8MM */          { "i8mm",            SUPPORT_FULL },
-    /* FEAT_BF16 */          { "bf16",            SUPPORT_FULL },
+    /* FEAT_I8MM */          { "i8mm",            SUPPORT_LIFTED_VERIFIED },
+    // BF16: the standard behaviors (FPCR.EBF = 0; the M4 has no FEAT_EBF16); Unicorn has no BF16
+    // and the M4 is the oracle
+    /* FEAT_BF16 */          { "bf16",            SUPPORT_LIFTED_VERIFIED },
     // LS64: ld64b and st64b are eight loads / stores (neither oracle runs them);
     // st64bv and st64bv0 (the status result of the device write) are not lifted
     /* FEAT_LS64 */          { "ls64",            SUPPORT_PARTIAL },
@@ -156,12 +160,18 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_GCS */           { "gcs",             SUPPORT_FULL },
     // CPA: the checked pointer arithmetic depends on the system configuration: not lifted
     /* FEAT_CPA */           { "cpa",             SUPPORT_FULL },
-    /* FEAT_FP8 */           { "fp8",             SUPPORT_FULL },
+    // FP8: fscale is lifted (neither oracle runs it: Arm64SimdSemanticRowsFloat.inc checks it).
+    // The conversions from and to the FP8 formats (f1cvtl, bf1cvtl, fcvtn of two sources...)
+    // and the FP8 products (FP8FMA, FP8DOT2, FP8DOT4, F8F16MM, F8F32MM) depend on the FPMR
+    // register (formats, scaling, overflow saturation), which the description doesn't model:
+    // not lifted
+    /* FEAT_FP8 */           { "fp8",             SUPPORT_PARTIAL },
     /* FEAT_FP8FMA */        { "fp8fma",          SUPPORT_FULL },
     /* FEAT_FP8DOT4 */       { "fp8dot4",         SUPPORT_FULL },
     /* FEAT_FP8DOT2 */       { "fp8dot2",         SUPPORT_FULL },
-    /* FEAT_FAMINMAX */      { "faminmax",        SUPPORT_FULL },
-    /* FEAT_LUT */           { "lut",             SUPPORT_FULL },
+    // FAMINMAX, LUT: lifted; neither oracle runs them, Arm64SimdSemanticRowsFloat.inc checks them
+    /* FEAT_FAMINMAX */      { "faminmax",        SUPPORT_LIFTED },
+    /* FEAT_LUT */           { "lut",             SUPPORT_LIFTED },
 
     // --- SVE
     /* FEAT_SVE */           { "sve",             SUPPORT_FULL },
@@ -205,9 +215,12 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_POE2 */          { "poe2",            SUPPORT_FULL },
     // TEV: the transactional exit: not lifted
     /* FEAT_TEV */           { "tev",             SUPPORT_FULL },
+    // F8F32MM, F8F16MM: the FP8 matrix multiplies (see FEAT_FP8): not lifted
     /* FEAT_F8F32MM */       { "f8f32mm",         SUPPORT_FULL },
     /* FEAT_F8F16MM */       { "f8f16mm",         SUPPORT_FULL },
-    /* FEAT_FPRCVT */        { "fprcvt",          SUPPORT_FULL },
+    // FPRCVT: the conversions between the integer and floating point scalar SIMD registers of
+    // different sizes; neither oracle runs them (Arm64SimdSemanticRowsFloat.inc)
+    /* FEAT_FPRCVT */        { "fprcvt",          SUPPORT_LIFTED },
 
     // --- AArch32 features added with the A32 / T32 tables
     /* FEAT_V5T */           { "v5t",             SUPPORT_LIFTED_VERIFIED },

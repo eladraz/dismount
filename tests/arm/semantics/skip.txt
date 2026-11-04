@@ -16,6 +16,11 @@
 [a64,a32,t32] ^b \.$  # an endless loop
 [a64] ^wf[ei]t \w+$  # waits with a timeout (the host raises SIGILL for the EL0 wait, Unicorn halts)
 
+# --- Unicorn aborts the process
+# The FP16 forms of FAMAX / FAMIN / FSCALE (FEAT_FAMINMAX, FEAT_FP8) are unallocated encodings of the FP16 three register
+# group for QEMU 5.0: disas_simd_three_reg_same_fp16 hits g_assert_not_reached() and kills the worker (the pool hangs)
+[a64,unicorn] ^(famax|famin|fscale)\b  # Unicorn: g_assert_not_reached() in disas_simd_three_reg_same_fp16 aborts the process (no FEAT_FAMINMAX / FP8)
+
 # --- AArch32 Advanced SIMD (Agent N)
 # Unicorn 2.1.4 crashes (the host process dies with SIGILL, rc -4) executing the 64 bit element d register forms of the
 # saturating add / subtract and of the shift by a register (the q forms and every other size run). The lines are covered by

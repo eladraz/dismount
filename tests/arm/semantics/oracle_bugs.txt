@@ -21,7 +21,7 @@
 # is an UNDEF (trap:undef), the host in streaming mode executes them
 ^mul z[0-9]+\.[bhsd], z[0-9]+\.[bhsd], z[0-9]+\.[bhsd]$  # Unicorn: no SVE2 (unpredicated MUL is SVE2)
 # FEAT_BF16 and FEAT_I8MM (ID_AA64ISAR1_EL1.BF16 / I8MM = 0 on QEMU 5.0): UNDEF
-^(bfcvt|bfdot|bfmmla|bfmlal|smmla|ummla|usmmla|usdot|sudot)\b  # Unicorn: no FEAT_BF16 / FEAT_I8MM
+[a64,unicorn] ^(bfcvt|bfcvtn2?|bfdot|bfmmla|bfmlal[bt]|smmla|ummla|usmmla|usdot|sudot)\b  # Unicorn: no FEAT_BF16 / FEAT_I8MM (the M4 has both and is the oracle)
 # SME (QEMU 5.0 predates it): smstart, smstop and every streaming / ZA instruction is an UNDEF
 ^(smstart|smstop|zero \{za|fmopa|smopa|addha|mova z|mova za|ld1w \{za|st1b \{za|ldr za|str za|fmla za)  # Unicorn: no SME
 
@@ -35,7 +35,7 @@
 
 # --- host (Apple M4) features
 # FEAT_SM3 / FEAT_SM4: SIGILL on the M4 (hw.optional.arm has no FEAT_SM3 / FEAT_SM4); Unicorn implements them
-^(sm3|sm4)[a-z0-9]*\b  # host: no FEAT_SM3 / FEAT_SM4 (the M4 raises SIGILL)
+[a64,host] ^(sm3|sm4)[a-z0-9]*\b  # host: no FEAT_SM3 / FEAT_SM4 (the M4 raises SIGILL)
 # fadda and compact are not legal in the streaming mode: the host (streaming) UNDEFs them while Unicorn
 # (non-streaming SVE) executes them
 ^(fadda|compact)\b  # host: not legal in the streaming mode (SME without FA64)
@@ -76,6 +76,31 @@
 ^(ldclrp|ldsetp|swpp)[a-z]* [wx]  # neither oracle has FEAT_LSE128
 ^(ldiapp|stilp) [wx]  # neither oracle has FEAT_LRCPC3
 
+# --- A64 scalar floating point, Advanced SIMD and cryptography (tests/arm/semantics/corpus/a64_fp*.s, a64_neon*.s,
+# a64_crypto*.s, a64_simdmem*.s; run_semantics.py --arch a64 --oracle unicorn|host)
+
+# Instructions that neither oracle implements (trap:undef on both): the M4 lacks FEAT_FAMINMAX, FEAT_FP8, FEAT_LUT,
+# FEAT_FPRCVT and FEAT_LRCPC3 (hw.optional.arm has none of them, the host runner raises SIGILL) and QEMU 5.0 predates
+# them. tests/TestArm64SemanticsSimd.cpp checks the lifter against rows computed by an independent model
+# (tests/arm/tools/armfp.py, which tests/arm/tools/check_armfp.py checks against the M4 for what the M4 runs)
+^(famax|famin|fscale|luti2|luti4)\b  # neither oracle has FEAT_FAMINMAX / FEAT_FP8 (fscale) / FEAT_LUT
+^(fcvt[nmapz][su]|[su]cvtf) ([sdh])\d+, (?!\2)[sdh]\d+$  # neither oracle has FEAT_FPRCVT (the conversions between SIMD&FP registers of different sizes)
+^(ldap1|stl1) \{  # neither oracle has FEAT_LRCPC3 (the SIMD single lane acquire / release forms): trap:undef on the M4 and on QEMU 5.0
+
+# Unicorn (QEMU 5.0.1): FCMLA by element on half precision raises extra exception flags (IOC / IDC / IXC) that the M4
+# and the Arm ARM pseudocode (FPMulAdd of the pairs) don't: e.g. `fcmla v0.4h, v0.4h, v0.h[0], #0` with fpcr = 0,
+# fpsr = 0 sets fpsr = 0x11 on Unicorn and 0x10 on the M4; the register results agree
+[a64,unicorn] ^fcmla v\d+\.[48]h, v\d+\.[48]h, v\d+\.h\[\d\], #\d+$  # Unicorn: FCMLA by element (half) raises extra exception flags; the M4 agrees with dismount
+
+# Unicorn: the half precision result of the fixed point conversion FCVTZS Hd, Hn, #fbits is sign extended into 32 bits
+# (`fcvtzs h0, h0, #16` with h0 = 0xc000 gives 0xffff8000 on Unicorn, 0x8000 on the M4 and in the Arm ARM, which writes
+# 16 bits and zeroes the rest of the register); FCVTZU is right
+[a64,unicorn] ^fcvtzs h\d+, h\d+, #  # Unicorn: FCVTZS (scalar, half, fixed point) sign extends the 16 bit result into 32 bits; the M4 agrees with dismount
+
+# FJCVTZS of a denormal flushed to zero (FPCR.FZ = 1, the input is not zero but flushed): the M4 clears Z (the
+# conversion is not exact; `fjcvtzs w12, d17` with d17 = 0x000fffffffffffff, fpcr = 0x1080000 gives nzcv = 0 and IDC),
+# Unicorn sets Z = 1 as for an exact zero. dismount follows the M4 (the arbiter)
+[a64,unicorn] ^fjcvtzs  # Unicorn: FJCVTZS of a flushed denormal sets Z; the M4 clears it (dismount follows the M4)
 # --- AArch32 integer instructions (Unicorn)
 # SMLAD / SMLADX: the Arm ARM computes result = product1 + product2 + SInt(R[a]) in unbounded integers and
 # sets Q only if the final sum does not fit in 32 bits. QEMU 5.0.1 adds product1 + product2 with a saturation

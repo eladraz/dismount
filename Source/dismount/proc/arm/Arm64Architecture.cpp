@@ -416,6 +416,19 @@ bool Arm64Architecture::getFloatEnvironment(
     // chooses NAN_DEFAULT). The default NaN is positive
     environment.m_nanRule = FloatEnvironment::NAN_SIGNALING_FIRST;
     environment.m_isDefaultNanNegative = false;
+    // The rules of the Arm ARM pseudocode (the same as AArch32): DN (bit 25)
+    // selects the default NaN, a flushed denormal operand raises IDC, a
+    // flushed result UFC only, the tininess is detected before rounding, FZ16
+    // (bit 19) flushes the half precision, AHP (bit 26) selects the
+    // alternative half precision of the conversions
+    environment.m_defaultNanOffset = 25;
+    environment.m_isTininessBeforeRounding = true;
+    environment.m_isInputFlushSignaled = true;
+    environment.m_isFlushInexact = false;
+    environment.m_isMinMaxNanSignaling = true;
+    environment.m_flushToZeroHalfOffset = 19;
+    environment.m_alternativeHalfOffset = 26;
+    environment.m_isAddendNanFirst = true;
     return true;
 }
 
@@ -631,6 +644,7 @@ bool isFloatOperation(SemanticOperation::Operation operation)
     case SemanticOperation::OP_FLOAT_SCALE:
     case SemanticOperation::OP_FLOAT_RECIPROCAL_ESTIMATE:
     case SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE:
+    case SemanticOperation::OP_DOT_PRODUCT:
     case SemanticOperation::OP_COMPARE:
     case SemanticOperation::OP_SHUFFLE:
     case SemanticOperation::OP_INTERLEAVE:

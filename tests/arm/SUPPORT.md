@@ -18,69 +18,69 @@ LLVM names them), so features that only add such names have no encodings.
 
 | id | LLVM feature | encodings | disassemble | assemble | lift | lift verified | encoding verified | corpus lines passing | semantics lines passing |
 |---|---|---|---|---|---|---|---|---|---|
-| 26 | (base) | 1213 | yes | yes | partial | yes | yes | 15342 / 15342 | 58365 / 58392 |
-| 27 | aes | 6 | yes | yes | - | - | yes | 99 / 99 | - |
-| 28 | sha2 | 6 | yes | yes | - | - | yes | 179 / 179 | - |
-| 29 | sha2 | 4 | yes | yes | - | - | yes | 179 / 179 | - |
-| 30 | sha3 | 4 | yes | yes | - | - | yes | 156 / 156 | - |
-| 31 | sha3 | 4 | yes | yes | - | - | yes | 156 / 156 | - |
-| 32 | sm4 | 7 | yes | yes | - | - | yes | 188 / 188 | - |
-| 33 | sm4 | 2 | yes | yes | - | - | yes | 188 / 188 | - |
+| 26 | (base) | 1213 | yes | yes | partial | yes | yes | 15342 / 15342 | 78119 / 78352 |
+| 27 | aes | 6 | yes | yes | yes | yes | yes | 99 / 99 | 122 / 122 |
+| 28 | sha2 | 6 | yes | yes | yes | yes | yes | 179 / 179 | 138 / 138 |
+| 29 | sha2 | 4 | yes | yes | yes | yes | yes | 179 / 179 | 138 / 138 |
+| 30 | sha3 | 4 | yes | yes | yes | yes | yes | 156 / 156 | 118 / 118 |
+| 31 | sha3 | 4 | yes | yes | yes | yes | yes | 156 / 156 | 118 / 118 |
+| 32 | sm4 | 7 | yes | yes | yes | yes | yes | 188 / 188 | 63 / 126 |
+| 33 | sm4 | 2 | yes | yes | yes | yes | yes | 188 / 188 | 63 / 126 |
 | 34 | crc | 8 | yes | yes | yes | yes | yes | 85 / 85 | 168 / 168 |
 | 35 | lse | 232 | yes | yes | yes | yes | yes | 2263 / 2263 | 3759 / 4078 |
-| 36 | rdm | 8 | yes | yes | - | - | yes | 82 / 82 | - |
-| 37 | fullfp16 | 172 | yes | yes | - | - | yes | 2778 / 2778 | - |
-| 38 | fp16fml | 8 | yes | yes | - | - | yes | 152 / 152 | - |
-| 39 | dotprod | 4 | yes | yes | - | - | yes | 76 / 76 | - |
+| 36 | rdm | 8 | yes | yes | yes | yes | yes | 82 / 82 | 234 / 234 |
+| 37 | fullfp16 | 172 | yes | yes | yes | yes | yes | 2778 / 2778 | 7225 / 7430 |
+| 38 | fp16fml | 8 | yes | yes | yes | yes | yes | 152 / 152 | 128 / 128 |
+| 39 | dotprod | 4 | yes | yes | yes | yes | yes | 76 / 76 | 72 / 72 |
 | 40 | ccpp | 0 | - | - | - | - | - | - | - |
 | 41 | pauth | 35 | yes | yes | partial | yes | yes | 308 / 311 | 24 / 42 |
-| 42 | complxnum | 3 | yes | yes | - | - | yes | 110 / 110 | - |
-| 43 | jsconv | 1 | yes | yes | - | - | yes | 16 / 16 | - |
+| 42 | complxnum | 3 | yes | yes | yes | yes | yes | 110 / 110 | 119 / 124 |
+| 43 | jsconv | 1 | yes | yes | yes | yes | yes | 16 / 16 | 13 / 14 |
 | 44 | rcpc | 4 | yes | yes | yes | yes | yes | 40 / 40 | 78 / 78 |
 | 45 | rcpc-immo | 13 | yes | yes | yes | yes | yes | 171 / 171 | 182 / 182 |
 | 46 | flagm | 4 | yes | yes | yes | yes | yes | 30 / 30 | 64 / 64 |
 | 47 | altnzcv | 2 | yes | yes | yes | yes | yes | 2 / 2 | 20 / 20 |
-| 48 | fptoint | 20 | yes | yes | - | - | yes | 183 / 183 | - |
+| 48 | fptoint | 20 | yes | yes | yes | yes | yes | 183 / 183 | 198 / 198 |
 | 49 | sb | 1 | yes | yes | yes | yes | yes | 1 / 1 | 4 / 4 |
 | 50 | bti | 0 | - | - | - | - | - | - | - |
 | 51 | mte | 40 | yes | yes | - | - | yes | 387 / 387 | 11 / 18 |
 | 52 | rand | 0 | - | - | - | - | - | - | - |
 | 53 | predres | 4 | yes | yes | yes | - | yes | - | - |
-| 54 | i8mm | 12 | yes | yes | - | - | yes | 126 / 156 | - |
-| 55 | bf16 | 22 | yes | yes | - | - | yes | 181 / 211 | - |
+| 54 | i8mm | 12 | yes | yes | yes | yes | yes | 126 / 156 | 54 / 108 |
+| 55 | bf16 | 22 | yes | yes | yes | yes | yes | 181 / 211 | 77 / 154 |
 | 56 | ls64 | 4 | yes | yes | partial | - | yes | 15 / 15 | 0 / 16 |
 | 57 | wfxt | 2 | yes | yes | yes | - | yes | 15 / 15 | - |
 | 58 | mops | 108 | yes | yes | - | - | yes | 667 / 667 | - |
 | 59 | hbc | 1 | yes | yes | yes | - | yes | 16 / 16 | 0 / 30 |
-| 60 | cssc | 11 | yes | yes | yes | - | yes | 132 / 132 | 0 / 234 |
-| 61 | rcpc3 | 24 | yes | yes | yes | - | yes | 265 / 265 | 50 / 350 |
+| 60 | cssc | 11 | yes | yes | yes | - | yes | 132 / 132 | 268 / 502 |
+| 61 | rcpc3 | 24 | yes | yes | yes | - | yes | 265 / 265 | 50 / 378 |
 | 62 | lse128 | 12 | yes | yes | yes | - | yes | 109 / 109 | 0 / 200 |
 | 63 | d128 | 5 | yes | yes | - | - | yes | 285 / 285 | - |
 | 64 | gcs | 10 | yes | yes | - | - | yes | 59 / 59 | - |
 | 65 | cpa | 10 | yes | yes | - | - | yes | 53 / 77 | - |
-| 66 | fp8 | 50 | yes | yes | - | - | yes | 236 / 240 | - |
-| 67 | fp8fma | 24 | yes | yes | - | - | yes | 228 / 228 | - |
-| 68 | fp8dot4 | 4 | yes | yes | - | - | yes | 34 / 34 | - |
-| 69 | fp8dot2 | 4 | yes | yes | - | - | yes | 36 / 36 | - |
-| 70 | faminmax | 18 | yes | yes | - | - | yes | 69 / 82 | - |
-| 71 | lut | 9 | yes | yes | - | - | yes | 76 / 88 | - |
-| 72 | sve | 898 | yes | yes | - | - | yes | 0 / 1560 | 1644 / 1644 |
-| 73 | f32mm | 1 | yes | yes | - | - | yes | - | - |
-| 74 | f64mm | 15 | yes | yes | - | - | yes | 0 / 24 | - |
-| 75 | sve2 | 279 | yes | yes | - | - | yes | 0 / 1024 | 76 / 76 |
-| 76 | sve2-aes | 6 | yes | yes | - | - | yes | - | - |
-| 77 | sve2-sha3 | 1 | yes | yes | - | - | yes | - | - |
-| 78 | sve2-sm4 | 2 | yes | yes | - | - | yes | - | - |
+| 66 | fp8 | 50 | yes | yes | partial | - | yes | 236 / 240 | 138 / 341 |
+| 67 | fp8fma | 24 | yes | yes | - | - | yes | 228 / 228 | 0 / 192 |
+| 68 | fp8dot4 | 4 | yes | yes | - | - | yes | 34 / 34 | 0 / 40 |
+| 69 | fp8dot2 | 4 | yes | yes | - | - | yes | 36 / 36 | 0 / 40 |
+| 70 | faminmax | 18 | yes | yes | yes | - | yes | 69 / 82 | 0 / 45 |
+| 71 | lut | 9 | yes | yes | yes | - | yes | 76 / 88 | 0 / 64 |
+| 72 | sve | 898 | yes | yes | - | - | yes | 0 / 1560 | 7893 / 7970 |
+| 73 | f32mm | 1 | yes | yes | - | - | yes | - | 0 / 8 |
+| 74 | f64mm | 15 | yes | yes | - | - | yes | 0 / 24 | 304 / 312 |
+| 75 | sve2 | 279 | yes | yes | - | - | yes | 0 / 1024 | 3950 / 3966 |
+| 76 | sve2-aes | 6 | yes | yes | - | - | yes | - | 16 / 16 |
+| 77 | sve2-sha3 | 1 | yes | yes | - | - | yes | - | 2 / 2 |
+| 78 | sve2-sm4 | 2 | yes | yes | - | - | yes | - | 2 / 4 |
 | 79 | sve2-bitperm | 3 | yes | yes | - | - | yes | - | - |
-| 80 | sve2p1 | 211 | yes | yes | - | - | yes | 0 / 345 | - |
+| 80 | sve2p1 | 211 | yes | yes | - | - | yes | 0 / 345 | 208 / 232 |
 | 81 | sve-b16b16 | 34 | yes | yes | - | - | yes | 0 / 48 | - |
-| 82 | sme | 36 | yes | yes | - | - | yes | 0 / 2304 | 484 / 484 |
-| 83 | sme-f64f64 | 18 | yes | yes | - | - | yes | 0 / 4 | - |
-| 84 | sme-i16i64 | 68 | yes | yes | - | - | yes | 0 / 15 | 144 / 144 |
-| 85 | sme-f16f16 | 20 | yes | yes | - | - | yes | 0 / 16 | - |
-| 86 | sme2 | 515 | yes | yes | - | - | yes | 0 / 481 | 628 / 628 |
-| 87 | sme2p1 | 20 | yes | yes | - | - | yes | 0 / 167 | - |
-| 88 | sme-lutv2 | 3 | yes | yes | - | - | yes | - | - |
+| 82 | sme | 36 | yes | yes | - | - | yes | 0 / 2304 | 742 / 742 |
+| 83 | sme-f64f64 | 18 | yes | yes | - | - | yes | 0 / 4 | 312 / 312 |
+| 84 | sme-i16i64 | 68 | yes | yes | - | - | yes | 0 / 15 | 288 / 288 |
+| 85 | sme-f16f16 | 20 | yes | yes | - | - | yes | 0 / 16 | 416 / 416 |
+| 86 | sme2 | 515 | yes | yes | - | - | yes | 0 / 481 | 3937 / 4060 |
+| 87 | sme2p1 | 20 | yes | yes | - | - | yes | 0 / 167 | 0 / 16 |
+| 88 | sme-lutv2 | 3 | yes | yes | - | - | yes | - | 0 / 8 |
 | 89 | xs | 1 | yes | yes | yes | yes | yes | 4 / 4 | 30 / 34 |
 | 90 | tme | 4 | yes | yes | - | - | yes | 29 / 29 | - |
 | 91 | lsui | 64 | yes | yes | yes | - | yes | 717 / 717 | 0 / 1158 |
@@ -95,24 +95,24 @@ LLVM names them), so features that only add such names have no encodings.
 | 100 | pcdphint | 1 | yes | yes | yes | - | yes | 2 / 2 | 0 / 4 |
 | 101 | poe2 | 8 | yes | yes | - | - | yes | 80 / 80 | - |
 | 102 | tev | 4 | yes | yes | - | - | yes | 22 / 22 | - |
-| 103 | f8f32mm | 2 | yes | yes | - | - | yes | 19 / 24 | - |
-| 104 | f8f16mm | 2 | yes | yes | - | - | yes | 19 / 19 | - |
-| 105 | fprcvt | 48 | yes | yes | - | - | yes | 762 / 762 | - |
-| 118 | sve2p2 | 110 | yes | yes | - | - | yes | 0 / 195 | 230 / 230 |
-| 119 | sve2p3 | 10 | yes | yes | - | - | yes | 0 / 37 | - |
-| 120 | sve-aes2 | 10 | yes | yes | - | - | yes | 0 / 11 | - |
+| 103 | f8f32mm | 2 | yes | yes | - | - | yes | 19 / 24 | 0 / 20 |
+| 104 | f8f16mm | 2 | yes | yes | - | - | yes | 19 / 19 | 0 / 20 |
+| 105 | fprcvt | 48 | yes | yes | yes | - | yes | 762 / 762 | 2028 / 2510 |
+| 118 | sve2p2 | 110 | yes | yes | - | - | yes | 0 / 195 | 2622 / 2690 |
+| 119 | sve2p3 | 10 | yes | yes | - | - | yes | 0 / 37 | 534 / 566 |
+| 120 | sve-aes2 | 10 | yes | yes | - | - | yes | 0 / 11 | 26 / 26 |
 | 121 | sve-bfscale | 9 | yes | yes | - | - | yes | 0 / 3 | - |
 | 122 | sme-b16b16 | 18 | yes | yes | - | - | yes | 0 / 15 | - |
-| 123 | sme-f8f16 | 20 | yes | yes | - | - | yes | 0 / 10 | - |
-| 124 | sme-f8f32 | 17 | yes | yes | - | - | yes | 0 / 19 | - |
+| 123 | sme-f8f16 | 20 | yes | yes | - | - | yes | 0 / 10 | 130 / 146 |
+| 124 | sme-f8f32 | 17 | yes | yes | - | - | yes | 0 / 19 | 0 / 16 |
 | 125 | sme-mop4 | 136 | yes | yes | - | - | yes | 0 / 27 | - |
 | 126 | sme-tmop | 13 | yes | yes | - | - | yes | 0 / 36 | - |
-| 127 | sme2p2 | 12 | yes | yes | - | - | yes | 0 / 202 | - |
+| 127 | sme2p2 | 12 | yes | yes | - | - | yes | 0 / 202 | 118 / 118 |
 | 128 | sme2p3 | 5 | yes | yes | - | - | yes | 0 / 37 | - |
 | 129 | sme-fa64 | 0 | - | - | - | - | - | - | - |
-| 130 | ssve-fp8fma | 12 | yes | yes | - | - | yes | 0 / 34 | - |
-| 131 | ssve-fp8dot2 | 2 | yes | yes | - | - | yes | 0 / 1 | - |
-| 132 | ssve-fp8dot4 | 2 | yes | yes | - | - | yes | - | - |
+| 130 | ssve-fp8fma | 12 | yes | yes | - | - | yes | 0 / 34 | 0 / 48 |
+| 131 | ssve-fp8dot2 | 2 | yes | yes | - | - | yes | 0 / 1 | 0 / 16 |
+| 132 | ssve-fp8dot4 | 2 | yes | yes | - | - | yes | - | 0 / 16 |
 | 133 | ssve-aes | 0 | - | - | - | - | - | 0 / 23 | - |
 | 134 | ssve-bitperm | 0 | - | - | - | - | - | 0 / 18 | - |
 | 135 | ssve-fexpa | 0 | - | - | - | - | - | - | - |

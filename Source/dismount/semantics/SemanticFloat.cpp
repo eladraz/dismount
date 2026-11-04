@@ -36,7 +36,8 @@ SemanticFloat::Environment::Environment() :
     m_isHalfFlushSeparate(false),
     m_flushHalfToZero(false),
     m_isAlternativeHalf(false),
-    m_isAddendNanFirst(false)
+    m_isAddendNanFirst(false),
+    m_isOddOverflowInfinity(false)
 {
 }
 
@@ -446,8 +447,10 @@ Num unpack(const FormatInfo& fi, const Bits& b, const Environment& env)
             return n;
         if (flushesOperands(fi, env))
         {
-            // (ARM FZ: the flushed operand raises the denormal flag)
-            n.m_isDenormal = env.m_isInputFlushSignaled;
+            // (ARM FZ: the flushed operand raises the denormal flag, the
+            // half precision flush FZ16 doesn't)
+            n.m_isDenormal = env.m_isInputFlushSignaled &&
+                             !(isHalf(fi) && env.m_isHalfFlushSeparate);
             return n;
         }
         // (ARM: a denormal operand which is not flushed is silent)
@@ -659,8 +662,9 @@ Bits roundPack(const FormatInfo& fi, const Environment& env, bool sign,
             switch (mode)
             {
             case Op::ROUND_TOWARD_ZERO:
-            case Op::ROUND_TO_ODD:
                 isInfinity = false; break;
+            case Op::ROUND_TO_ODD:
+                isInfinity = env.m_isOddOverflowInfinity; break;
             case Op::ROUND_TOWARD_POSITIVE:
                 isInfinity = !sign; break;
             case Op::ROUND_TOWARD_NEGATIVE:
@@ -839,7 +843,7 @@ Wide wideOf(const Num& n)
 
 // Add two numbers exactly (a sticky bit for what is far below), and round
 Bits addWide(const FormatInfo& fi, const Environment& env, Wide a, Wide b,
-             uint p, uint32& flags)
+             uint p, uint32& flags, int32 exponentShift = 0)
 {
     if (a.m_isZero && b.m_isZero)
     {
@@ -870,8 +874,26 @@ Bits addWide(const FormatInfo& fi, const Environment& env, Wide a, Wide b,
         }
     }
     const uint lz = wClz(a.m_sig);
-    return roundPack(fi, env, a.m_sign, a.m_exp + 1 - (int32)lz,
+    return roundPack(fi, env, a.m_sign,
+                     a.m_exp + 1 - (int32)lz + exponentShift,
                      wShl(a.m_sig, lz), p, flags);
+}
+
+// The exact product of two finite non zero numbers
+Wide productOf(const Num& x, const Num& y)
+{
+    Wide product;
+    product.m_sign = x.m_sign != y.m_sign;
+    product.m_isZero = false;
+    W pr = wMul128(x.m_hi, x.m_lo, y.m_hi, y.m_lo);
+    product.m_exp = x.m_exp + y.m_exp;
+    if (wBit(pr, 255))
+    {
+        pr = wShr(pr, 1);
+        product.m_exp++;
+    }
+    product.m_sig = pr;
+    return product;
 }
 
 } // namespace
@@ -1194,12 +1216,20 @@ Bits SemanticFloat::squareRoot(Format format, const Environment& env,
                      flags);
 }
 
-Bits SemanticFloat::multiplyAdd(Format format, const Environment& env,
-                                const Bits& a, const Bits& b, const Bits& c,
-                                uint32& flags)
+namespace {
+
+/*
+ * a * b + c with a single rounding, where a and b are numbers of the format
+ * 'fiProduct' (unpacked with 'envProduct') and c and the result are of the
+ * format 'fi' (environment 'env'): the widening multiply-add of ARM FMLAL
+ */
+Bits multiplyAddMixed(const FormatInfo& fiProduct, const Environment& envProduct,
+                      const FormatInfo& fi, const Environment& env,
+                      const Bits& a, const Bits& b, const Bits& c,
+                      uint32& flags)
 {
-    const FormatInfo fi = infoOf(format);
-    const Num ops[3] = { unpack(fi, a, env), unpack(fi, b, env),
+    const Num ops[3] = { unpack(fiProduct, a, envProduct),
+                         unpack(fiProduct, b, envProduct),
                          unpack(fi, c, env) };
     const Num& x = ops[0];
     const Num& y = ops[1];
@@ -1245,17 +1275,29 @@ Bits SemanticFloat::multiplyAdd(Format format, const Environment& env,
         product.m_sig = wMake();
     } else
     {
-        product.m_isZero = false;
-        W pr = wMul128(x.m_hi, x.m_lo, y.m_hi, y.m_lo);
-        product.m_exp = x.m_exp + y.m_exp;
-        if (wBit(pr, 255))
-        {
-            pr = wShr(pr, 1);
-            product.m_exp++;
-        }
-        product.m_sig = pr;
+        product = productOf(x, y);
     }
     return addWide(fi, env, product, wideOf(z), p, flags);
+}
+
+} // namespace
+
+Bits SemanticFloat::multiplyAdd(Format format, const Environment& env,
+                                const Bits& a, const Bits& b, const Bits& c,
+                                uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    return multiplyAddMixed(fi, env, fi, env, a, b, c, flags);
+}
+
+Bits SemanticFloat::multiplyAddWidening(Format narrow, Format wide,
+                                        const Environment& narrowEnvironment,
+                                        const Environment& wideEnvironment,
+                                        const Bits& a, const Bits& b,
+                                        const Bits& c, uint32& flags)
+{
+    return multiplyAddMixed(infoOf(narrow), narrowEnvironment, infoOf(wide),
+                            wideEnvironment, a, b, c, flags);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1681,6 +1723,27 @@ Bits packEstimate(const FormatInfo& fi, bool sign, int32 exponent,
                       wMake(fraction >> (52 - fi.m_fracBits)), false);
 }
 
+// RecipEstimate and RecipSqrtEstimate of the Arm ARM: the 9 bit estimates of
+// the 9 bit numbers (also the integer URECPE / URSQRTE)
+uint64 recipEstimate(uint64 a)
+{
+    const uint64 d = a * 2 + 1;
+    const uint64 b = ((uint64)1 << 19) / d;
+    return (b + 1) / 2;
+}
+
+uint64 recipSqrtEstimate(uint64 a)
+{
+    if (a < 256)
+        a = a * 2 + 1;
+    else
+        a = (((a >> 1) << 1) + 1) * 2;
+    uint64 r = 512;
+    while (a * (r + 1) * (r + 1) < ((uint64)1 << 28))
+        r++;
+    return (r + 1) / 2;
+}
+
 // The width class of the estimates: 0 for 16 bits, 1 for 32, 2 for 64
 uint estimateWidth(const FormatInfo& fi)
 {
@@ -1754,10 +1817,7 @@ Bits SemanticFloat::reciprocalEstimate(Format format, const Environment& env,
     const uint64 scaled = 256 + (fraction >> 44);
     static const int32 bases[3] = { 29, 253, 2045 };
     int32 resultExponent = bases[width] - exponent;
-    // RecipEstimate
-    const uint64 d = scaled * 2 + 1;
-    const uint64 b = ((uint64)1 << 19) / d;
-    const uint64 estimate = (b + 1) / 2;
+    const uint64 estimate = recipEstimate(scaled);
     fraction = (estimate & 0xFF) << 44;
     if (resultExponent == 0)
     {
@@ -1813,23 +1873,14 @@ Bits SemanticFloat::reciprocalSqrtEstimate(Format format,
         scaled = 128 + (fraction >> 45);
     static const int32 bases[3] = { 44, 380, 3068 };
     const int32 resultExponent = (bases[width] - exponent) / 2;
-    // RecipSqrtEstimate
-    uint64 v = scaled;
-    if (v < 256)
-        v = v * 2 + 1;
-    else
-        v = (((v >> 1) << 1) + 1) * 2;
-    uint64 r = 512;
-    while (v * (r + 1) * (r + 1) < ((uint64)1 << 28))
-        r++;
-    const uint64 estimate = (r + 1) / 2;
+    const uint64 estimate = recipSqrtEstimate(scaled);
     fraction = (estimate & 0xFF) << 44;
     return packEstimate(fi, false, resultExponent, fraction);
 }
 
 Bits SemanticFloat::reciprocalStep(Format format, const Environment& env,
                                    const Bits& a, const Bits& b, bool isSqrt,
-                                   uint32& flags)
+                                   bool isFused, uint32& flags)
 {
     const FormatInfo fi = infoOf(format);
     CHECK((fi.m_total == 16) || (fi.m_total == 32) || (fi.m_total == 64));
@@ -1839,24 +1890,217 @@ Bits SemanticFloat::reciprocalStep(Format format, const Environment& env,
     static const uint64 halves[3] = { 0x3800, 0x3f000000, 0x3fe0000000000000ull };
     static const uint64 onePointFives[3] = { 0x3e00, 0x3fc00000, 0x3ff8000000000000ull };
     const uint width = (fi.m_total == 16) ? 0 : ((fi.m_total == 32) ? 1 : 2);
-    const Num x = unpack(fi, a, env);
-    const Num y = unpack(fi, b, env);
+    Num ops[2] = { unpack(fi, a, env), unpack(fi, b, env) };
+    // (the A64 steps negate the first operand before everything, a NaN too)
+    if (isFused)
+        ops[0].m_sign = !ops[0].m_sign;
+    const Num& x = ops[0];
+    const Num& y = ops[1];
     const bool isInfinityTimesZero =
         ((x.m_class == CLS_INF) && (y.m_class == CLS_ZERO)) ||
         ((x.m_class == CLS_ZERO) && (y.m_class == CLS_INF));
+    if (isFused)
+    {
+        noteFlushedInputs(env, ops, 2, flags);
+        if (hasNanOrInvalid(ops, 2))
+            return packSpecial(fi, propagateNan(env, ops, 2, flags));
+        if (isInfinityTimesZero)
+            return Bits(isSqrt ? onePointFives[width] : twos[width]);
+        if ((x.m_class == CLS_INF) || (y.m_class == CLS_INF))
+            return packInf(fi, x.m_sign != y.m_sign);
+        // 2 + (-a) * b, (3 + (-a) * b) / 2: one rounding
+        Wide product;
+        if ((x.m_class == CLS_ZERO) || (y.m_class == CLS_ZERO))
+        {
+            product.m_isZero = true;
+            product.m_sign = x.m_sign != y.m_sign;
+            product.m_exp = 0;
+            product.m_sig = wMake();
+        } else
+        {
+            product = productOf(x, y);
+        }
+        Num constant = makeNum(CLS_FINITE, false);
+        constant.m_exp = 1;
+        constant.m_hi = isSqrt ? (uint64)0xC000000000000000ULL
+                               : ((uint64)1 << 63);
+        return addWide(fi, env, product, wideOf(constant), fi.m_precision,
+                       flags, isSqrt ? -1 : 0);
+    }
     if (isInfinityTimesZero && !isNanClass(x.m_class) && !isNanClass(y.m_class))
     {
         // (the flushed denormal operands are zeros)
-        Num ops[2] = { x, y };
         noteFlushedInputs(env, ops, 2, flags);
         return Bits(isSqrt ? onePointFives[width] : twos[width]);
     }
     // FPRecipStep: 2 - a * b, FPRSqrtStep: (3 - a * b) / 2, the product
-    // rounded (the AArch32 steps are not fused)
+    // rounded
     const Bits product = multiply(format, env, a, b, flags);
     const Bits difference = subtract(format, env,
         Bits(isSqrt ? threes[width] : twos[width]), product, flags);
     if (!isSqrt)
         return difference;
     return multiply(format, env, difference, Bits(halves[width]), flags);
+}
+
+Bits SemanticFloat::multiplyExtended(Format format, const Environment& env,
+                                     const Bits& a, const Bits& b,
+                                     uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    const Num ops[2] = { unpack(fi, a, env), unpack(fi, b, env) };
+    const Num& x = ops[0];
+    const Num& y = ops[1];
+    if (!hasNanOrInvalid(ops, 2) &&
+        (((x.m_class == CLS_INF) && (y.m_class == CLS_ZERO)) ||
+         ((x.m_class == CLS_ZERO) && (y.m_class == CLS_INF))))
+    {
+        noteFlushedInputs(env, ops, 2, flags);
+        // 2.0 with the sign of the product
+        return packFinite(fi, env, x.m_sign != y.m_sign, 1,
+                          (uint64)1 << 63, 0, false, fi.m_precision, flags);
+    }
+    return multiply(format, env, a, b, flags);
+}
+
+Bits SemanticFloat::reciprocalExponent(Format format, const Environment& env,
+                                       const Bits& a, uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    const Num x = unpack(fi, a, env);
+    noteFlushedInputs(env, &x, 1, flags);
+    if (isNanClass(x.m_class))
+        return packSpecial(fi, propagateNan(env, &x, 1, flags));
+    uint64 fraction;
+    int32 exponent;
+    splitRaw(fi, a, fraction, exponent);
+    const int32 all = (int32)((1u << fi.m_expBits) - 1);
+    // A zero or a denormal gives the largest finite exponent (all ones but
+    // the lowest bit)
+    const int32 resultExponent = (exponent == 0) ? (all - 1) :
+                                                    ((~exponent) & all);
+    return packEstimate(fi, x.m_sign, resultExponent, 0);
+}
+
+Bits SemanticFloat::roundToIntegerBounded(Format format, const Environment& env,
+                                          const Bits& a, uint integerBits,
+                                          uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    const Num x = unpack(fi, a, env);
+    noteFlushedInputs(env, &x, 1, flags);
+    const Environment e = withoutPrecision(env);
+    // The result of an overflow: -2^(integerBits - 1)
+    uint32 ignored = 0;
+    const Bits overflow = packInteger(fi, e, true,
+                                      wShl(wMake(1), integerBits - 1), ignored);
+    if (isNanClass(x.m_class) || (x.m_class == CLS_INF) ||
+        (x.m_class == CLS_INVALID))
+    {
+        flags |= FF::FLOAT_INVALID;
+        return overflow;
+    }
+    if (x.m_class == CLS_ZERO)
+        return packZero(fi, x.m_sign);
+    if (x.m_exp >= (int32)integerBits)
+    {
+        flags |= FF::FLOAT_INVALID;
+        return overflow;
+    }
+    const W sig = wShl(wMake(x.m_lo, x.m_hi), 128);
+    const Rounded r = roundSignificand(sig, x.m_exp + 1, x.m_sign, modeOf(env));
+    const W limit = wShl(wMake(1), integerBits - 1);
+    const bool isFits = x.m_sign ? (wCmp(r.m_value, limit) <= 0)
+                                 : (wCmp(r.m_value, limit) < 0);
+    if (!isFits)
+    {
+        flags |= FF::FLOAT_INVALID;
+        return overflow;
+    }
+    if (r.m_isInexact)
+        flags |= FF::FLOAT_INEXACT;
+    if (wIsZero(r.m_value))
+        return packZero(fi, x.m_sign);
+    return packInteger(fi, e, x.m_sign, r.m_value, flags);
+}
+
+Bits SemanticFloat::scaleByInteger(Format format, const Environment& env,
+                                   const Bits& a, uint64 b, uint integerBits,
+                                   uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    const Num x = unpack(fi, a, env);
+    noteFlushedInputs(env, &x, 1, flags);
+    if (hasNanOrInvalid(&x, 1))
+        return packSpecial(fi, propagateNan(env, &x, 1, flags));
+    noteDenormals(&x, 1, flags);
+    if ((x.m_class == CLS_ZERO) || (x.m_class == CLS_INF))
+        return packSpecial(fi, x);
+    int64 n = (integerBits >= 64) ? (int64)b
+                                  : (((int64)(b << (64 - integerBits))) >>
+                                     (64 - integerBits));
+    if (n > ((int64)1 << 20))
+        n = (int64)1 << 20;
+    else if (n < -((int64)1 << 20))
+        n = -((int64)1 << 20);
+    return packFinite(fi, withoutPrecision(env), x.m_sign,
+                      (int32)(x.m_exp + n), x.m_hi, x.m_lo, false,
+                      fi.m_precision, flags);
+}
+
+uint32 SemanticFloat::unsignedEstimate(uint32 value, bool isSqrt)
+{
+    if (isSqrt)
+    {
+        if ((value & 0xC0000000u) == 0)
+            return 0xFFFFFFFFu;
+        return (uint32)(recipSqrtEstimate(value >> 23) << 23);
+    }
+    if ((value & 0x80000000u) == 0)
+        return 0xFFFFFFFFu;
+    return (uint32)(recipEstimate(value >> 23) << 23);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// BFloat16 dot product
+/////////////////////////////////////////////////////////////////////////////
+
+Bits SemanticFloat::bfloatDotAdd(const Bits& addend, const Bits& a0,
+                                 const Bits& a1, const Bits& b0, const Bits& b1)
+{
+    // The standard BFloat16 behaviors of ARM (FPCR.EBF = 0): the denormals
+    // are flushed to zero, every NaN is the default NaN, no exception is
+    // raised, FPCR is ignored. The two products are computed in single
+    // precision (exactly, but for the overflow and the flush of the tiny
+    // ones), their sum and the sum with the addend are rounded to odd (an
+    // overflow is an infinity)
+    const FormatInfo single = infoOf(SemanticType::FLOAT_SINGLE);
+    const FormatInfo brain = infoOf(SemanticType::FLOAT_BFLOAT16);
+    Environment env;
+    env.m_rounding = Op::ROUND_TO_ODD;
+    env.m_flushToZero = true;
+    env.m_denormalsAreZero = true;
+    env.m_isTininessBeforeRounding = true;
+    env.m_isDefaultNanNegative = false;
+    env.m_isOddOverflowInfinity = true;
+    uint32 ignored = 0;
+    const Bits operands[4] = { a0, a1, b0, b1 };
+    Bits widened[4];
+    for (uint i = 0; i < 4; i++)
+    {
+        const Num x = unpack(brain, operands[i], env);
+        if (isNanClass(x.m_class))
+            return packSpecial(single, defaultNan(env));
+        // A BFloat16 number is the high half of a single precision one
+        widened[i] = (x.m_class == CLS_ZERO) ? packZero(single, x.m_sign)
+                                             : Bits(operands[i].m_low << 16);
+    }
+    if (isNanClass(unpack(single, addend, env).m_class))
+        return packSpecial(single, defaultNan(env));
+    const Bits p0 = multiply(SemanticType::FLOAT_SINGLE, env, widened[0],
+                             widened[2], ignored);
+    const Bits p1 = multiply(SemanticType::FLOAT_SINGLE, env, widened[1],
+                             widened[3], ignored);
+    const Bits sum = add(SemanticType::FLOAT_SINGLE, env, p0, p1, ignored);
+    return add(SemanticType::FLOAT_SINGLE, env, addend, sum, ignored);
 }

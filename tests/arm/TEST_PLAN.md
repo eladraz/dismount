@@ -151,7 +151,12 @@ directed states in dismount (`run`) and in the oracles, the registers,
 flags, memory and floating point status are compared, and
 `oracle_bugs.txt` / `skip.txt` document the oracle mistakes with evidence.
 `--arch`, `--oracle unicorn|host`, `--strict`, `--baseline` as in
-tests/semantics.
+tests/semantics. The corpora of the A64 floating point, Advanced SIMD and
+cryptographic lifter (`a64_fp*.s`, `a64_neon*.s`, `a64_crypto*.s`,
+`a64_simdmem*.s`), the unit rows of `tests/TestArm64SemanticsSimd.cpp` and the
+Python model of the floating point pseudocode (`tools/armfp.py`, checked
+against the M4 by `tools/check_armfp.py`) are in
+`tests/arm/semantics/TEST_PLAN.md`.
 
 ## The support matrix
 

@@ -646,7 +646,41 @@ public:
 
         // OP_CRC32, the polynomial:
         BEHAVIOR_CRC32C = BEHAVIOR_DEFAULT,
-        BEHAVIOR_CRC32_IEEE
+        BEHAVIOR_CRC32_IEEE,
+
+        // OP_FLOAT_MULTIPLY: 0 * infinity is 2.0 with the sign of the product
+        // instead of an invalid operation (ARM FMULX)
+        BEHAVIOR_MULTIPLY_EXTENDED,
+
+        // OP_FLOAT_MULTIPLY_ADD as the Newton-Raphson step of ARM: s0 is
+        // negated first (a NaN too), the result is 2 + s0 * s1 (A64 FRECPS)
+        // or (3 + s0 * s1) / 2 (FRSQRTS), fused, s2 is ignored, and
+        // 0 * infinity gives 2.0 / 1.5
+        BEHAVIOR_STEP_RECIPROCAL,
+        BEHAVIOR_STEP_RECIPROCAL_SQRT,
+        // The AArch32 steps (VRECPS, VRSQRTS): 2 - s0 * s1 and
+        // (3 - s0 * s1) / 2 with the product rounded
+        BEHAVIOR_STEP_RECIPROCAL_UNFUSED,
+        BEHAVIOR_STEP_RECIPROCAL_SQRT_UNFUSED,
+
+        // OP_FLOAT_RECIPROCAL_ESTIMATE of ARM FRECPX: the reciprocal
+        // exponent. (On an integer type the ARM URECPE / URSQRTE estimate of
+        // an unsigned fixed point number is BEHAVIOR_ESTIMATE_ARM)
+        BEHAVIOR_ESTIMATE_ARM_EXPONENT,
+
+        // OP_FLOAT_ROUND to the integers of 32 or 64 bits: a value which
+        // doesn't fit, an infinity and a NaN give -2^31 / -2^63 and an
+        // invalid operation (ARM FRINT32Z/X, FRINT64Z/X)
+        BEHAVIOR_ROUND_INTEGER_32,
+        BEHAVIOR_ROUND_INTEGER_64,
+
+        // OP_FLOAT_SCALE where s1 is a signed integer lane (ARM FSCALE)
+        BEHAVIOR_SCALE_INTEGER,
+
+        // OP_COMPARE of floats: no NaN signals invalid except a signaling
+        // one / every NaN signals invalid, whatever the condition
+        BEHAVIOR_COMPARE_QUIET,
+        BEHAVIOR_COMPARE_SIGNALING
     };
 
     // The kind of OP_TRAP

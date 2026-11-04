@@ -66,6 +66,21 @@ def lazy_oracles():
 # skip.txt / oracle_bugs.txt:  `[a64,a32] <regex>  # <reason>`
 # ---------------------------------------------------------------------------
 
+def rule_applies(arches, arch, kind):
+    """True if a rule `[a64,unicorn] ...` applies to the architecture `arch` and the oracle `kind`
+    ('unicorn', 'host' or 'both'): the names of the architectures and of the oracles can be mixed
+    in the brackets, a rule with none of one sort applies to all of them."""
+    if arches is None:
+        return True
+    arch_names = arches & {'a64', 'a32', 't32'}
+    oracle_names = arches & {'unicorn', 'host'}
+    if arch_names and arch not in arch_names:
+        return False
+    if oracle_names and kind not in oracle_names and kind != 'both':
+        return False
+    return True
+
+
 def load_rules(path):
     """Lines: `<regex>  # <reason>`; '#' lines are comments. The regex is searched in the
     instruction text. A leading `[a64] ` (or `[a32,t32] `...) limits the rule to those
@@ -127,7 +142,7 @@ def collect(args, skips):
                 rec['status'], rec['message'] = 'ASM_ERR', 'clang: ' + err
             else:
                 for rx, reason, arches in skips:
-                    if (arches is None or args.arch in arches) and rx.search(r['text']):
+                    if rule_applies(arches, args.arch, args.oracle) and rx.search(r['text']):
                         rec['status'], rec['message'] = 'SKIP', reason
                         break
             recs.append(rec)
@@ -295,7 +310,7 @@ def process(recs, args, ctx):
             r['status'] = 'FAIL'
             r['message'] = '%d/%d states differ: %s' % (len(r['diffs']), good, r['diffs'][0]['diff'][0])
             for rx, reason, arches in ctx['oracle_bugs']:
-                if (arches is None or r['arch'] in arches) and rx.search(r['source']):
+                if rule_applies(arches, r['arch'], kind) and rx.search(r['source']):
                     r['status'], r['message'] = 'ORACLE_BUG', reason + ' (' + r['message'] + ')'
                     break
         else:
@@ -355,7 +370,7 @@ def compare_oracles(recs, args, ctx):
             r['status'] = 'FAIL'
             r['message'] = '%d/%d states differ: %s' % (differ, agree + differ, next(d for d in details if d[0] == 'differ')[2][0])
             for rx, reason, arches in ctx['oracle_bugs']:
-                if (arches is None or r['arch'] in arches) and rx.search(r['source']):
+                if rule_applies(arches, r['arch'], 'both') and rx.search(r['source']):
                     r['status'], r['message'] = 'ORACLE_BUG', reason + ' (' + r['message'] + ')'
                     break
         elif not agree:

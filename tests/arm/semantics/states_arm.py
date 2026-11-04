@@ -211,7 +211,7 @@ def make_state(arch, rng, text, overrides, mode):
     # the flags and the floating point control
     if a64:
         st['nzcv'] = rng.getrandbits(4)
-        st['fpcr'] = fp_control(rng, 'a64')
+        st['fpcr'] = fp_control(rng, 'a64', random.Random(stable_seed(arch, text + '|fpcr')))
         st['fpsr'] = rng.choice([0, 0, 0, rng.getrandbits(5), (1 << 27) | rng.getrandbits(5), 0x80])
         st['v'] = [draw_vector(rng, 128, lane) for _ in range(32)]
         st['mem'] = {}
@@ -251,7 +251,7 @@ def make_state(arch, rng, text, overrides, mode):
     return st
 
 
-def fp_control(rng, arch):
+def fp_control(rng, arch, ext=None):
     """FPCR (a64) or FPSCR (a32) control bits: the rounding mode, FZ, DN, sometimes the
     cumulative flags. 70% of the states have the default control (round to nearest)."""
     v = 0
@@ -259,6 +259,12 @@ def fp_control(rng, arch):
         v |= rng.getrandbits(2) << 22
         v |= rng.getrandbits(1) << 24             # FZ
         v |= rng.getrandbits(1) << 25             # DN
+        if arch == 'a64' and ext is not None:
+            # FZ16 and AHP (the alternative half precision of the conversions) come from a stream of their own, so
+            # the other random draws of a line don't depend on them
+            v |= ext.getrandbits(1) << 19         # FZ16
+            if ext.random() < 0.3:
+                v |= 1 << 26                      # AHP
     if arch == 'a32' and rng.random() < 0.1:
         v |= 1 << 26                              # AHP
     if arch == 'a32' and rng.random() < 0.15:

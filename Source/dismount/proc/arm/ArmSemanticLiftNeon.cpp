@@ -1177,60 +1177,16 @@ void liftNeonEstimate(ArmLiftContext& c)
     Val result[4];
     for (uint i = 0; i < lanes; i++)
     {
-        const Val x = b.lane(source, i, 32);
-        const Val wide = b.ext(x, 64, false);
-        // The 9 bit number operand<31:23>
-        const Val a = b.op(Op::OP_SHIFT_RIGHT_LOGICAL, 64, wide, b.imm(23, 64));
-        Val estimate;
-        Val isSmall;
-        if (isReciprocal)
-        {
-            // RecipEstimate: a = a * 2 + 1; b = 2^19 DIV a; r = (b + 1) DIV 2
-            const Val odd = b.op(Op::OP_ADD, 64,
-                                 b.op(Op::OP_SHIFT_LEFT, 64, a, b.imm(1, 64)),
-                                 b.imm(1, 64));
-            const Val quotient = b.op(Op::OP_DIVIDE_UNSIGNED, 64,
-                                      b.imm(1 << 19, 64), odd);
-            estimate = b.op(Op::OP_SHIFT_RIGHT_LOGICAL, 64,
-                            b.op(Op::OP_ADD, 64, quotient, b.imm(1, 64)),
-                            b.imm(1, 64));
-            isSmall = b.compare(Op::COND_UNSIGNED_LESS, wide, b.imm(0x80000000LL, 64));
-        } else
-        {
-            // RecipSqrtEstimate: a in 128..511
-            const Val isLow = b.compare(Op::COND_UNSIGNED_LESS, a, b.imm(256, 64));
-            const Val lowForm = b.op(Op::OP_ADD, 64,
-                                     b.op(Op::OP_SHIFT_LEFT, 64, a, b.imm(1, 64)),
-                                     b.imm(1, 64));
-            const Val highForm = b.op(Op::OP_SHIFT_LEFT, 64,
-                b.op(Op::OP_ADD, 64,
-                     b.op(Op::OP_SHIFT_LEFT, 64,
-                          b.op(Op::OP_SHIFT_RIGHT_LOGICAL, 64, a, b.imm(1, 64)),
-                          b.imm(1, 64)),
-                     b.imm(1, 64)), b.imm(1, 64));
-            const Val scaled = b.op(Op::OP_SELECT, 64, isLow, lowForm, highForm);
-            // The largest t with scaled * t * t < 2^28, found bit by bit
-            Val t = b.imm(0, 64);
-            for (int bit = 10; bit >= 0; bit--)
-            {
-                const Val candidate = b.op(Op::OP_OR, 64, t, b.imm((int64)1 << bit, 64));
-                const Val square = b.op(Op::OP_MULTIPLY, 64, scaled,
-                                        b.op(Op::OP_MULTIPLY, 64, candidate, candidate));
-                const Val isBelow = b.compare(Op::COND_UNSIGNED_LESS, square,
-                                              b.imm((int64)1 << 28, 64));
-                t = b.op(Op::OP_SELECT, 64, isBelow, candidate, t);
-            }
-            // b = max(512, t); r = (b + 1) DIV 2
-            const Val bValue = b.op(Op::OP_MAXIMUM_UNSIGNED, 64, t, b.imm(512, 64));
-            estimate = b.op(Op::OP_SHIFT_RIGHT_LOGICAL, 64,
-                            b.op(Op::OP_ADD, 64, bValue, b.imm(1, 64)), b.imm(1, 64));
-            isSmall = b.compare(Op::COND_UNSIGNED_LESS, wide, b.imm(0x40000000LL, 64));
-        }
-        // estimate<8:0> : Zeros(23)
-        const Val shifted = b.op(Op::OP_SHIFT_LEFT, 32,
-                                 b.ext(b.op(Op::OP_AND, 64, estimate, b.imm(0x1ff, 64)),
-                                       32, false), b.imm(23, 32));
-        result[i] = b.op(Op::OP_SELECT, 32, isSmall, b.imm(-1, 32), shifted);
+        // The estimate tables of the Arm ARM, interpreted by SemanticFloat
+        // (also used by the A64 urecpe and ursqrte)
+        SemanticInstruction instruction(
+            isReciprocal ? Op::OP_FLOAT_RECIPROCAL_ESTIMATE :
+                           Op::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE,
+            NeonBuilder::type(32), c.newTemporary(NeonBuilder::type(32)),
+            b.lane(source, i, 32));
+        instruction.setBehavior(Op::BEHAVIOR_ESTIMATE_ARM);
+        c.emit(instruction);
+        result[i] = instruction.getDestination();
     }
     writeLanes(b, result, lanes, 32);
 }

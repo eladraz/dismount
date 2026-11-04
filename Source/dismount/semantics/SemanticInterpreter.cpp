@@ -795,6 +795,8 @@ bool usesFloat(const SemanticInstruction& instruction)
     case SemanticOperation::OP_COMPARE:
     case SemanticOperation::OP_PAIRWISE_ADD:
         return isFloatType(getSourceType(instruction, 0));
+    case SemanticOperation::OP_DOT_PRODUCT:
+        return isFloatType(instruction.getType());
     case SemanticOperation::OP_REDUCE:
         return isFloatCombine(instruction.getCombineOperation());
     default:
@@ -917,13 +919,20 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
             return EVAL_UNDEFINED;
         const SemanticOperation::Condition condition =
                                                 instruction.getCondition();
+        bool isSignaling = !isQuietCondition(condition);
+        if (instruction.getBehavior() ==
+            SemanticOperation::BEHAVIOR_COMPARE_QUIET)
+            isSignaling = false;
+        else if (instruction.getBehavior() ==
+                 SemanticOperation::BEHAVIOR_COMPARE_SIGNALING)
+            isSignaling = true;
         for (uint lane = 0; lane < sourceType.getLanes(); lane++)
         {
             const uint offset = lane * sourceType.getElementBits();
             const SF::Relation relation = SF::compare(
                     format, env, loadFloat(sources[0], offset, format),
                     loadFloat(sources[1], offset, format),
-                    !isQuietCondition(condition), flags);
+                    isSignaling, flags);
             value.setBits(lane, 1,
                           isRelationTrue(condition, relation) ? 1 : 0);
         }
@@ -994,10 +1003,24 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
     case SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE:
     {
         // The estimate tables of the ARM instructions only
-        if (instruction.getBehavior() !=
-            SemanticOperation::BEHAVIOR_ESTIMATE_ARM)
+        const bool isSqrt = operation ==
+                    SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE;
+        const SemanticOperation::Behavior behavior = instruction.getBehavior();
+        if ((behavior != SemanticOperation::BEHAVIOR_ESTIMATE_ARM) &&
+            (behavior != SemanticOperation::BEHAVIOR_ESTIMATE_ARM_EXPONENT))
             return EVAL_UNDEFINED;
-        const SemanticType type = getFloatType(instruction);
+        const SemanticType type = instruction.getType();
+        if (type.getKind() == SemanticType::KIND_INTEGER)
+        {
+            // URECPE / URSQRTE (VRECPE.U32) on unsigned fixed point lanes
+            if (type.getElementBits() != 32)
+                return EVAL_UNDEFINED;
+            for (uint lane = 0; lane < type.getLanes(); lane++)
+                value.setBits(lane * 32, 32, SF::unsignedEstimate(
+                    (uint32)sources[0].getBits(lane * 32, 32), isSqrt));
+            result = value;
+            return EVAL_OK;
+        }
         const SemanticType::FloatFormat format = type.getFloatFormat();
         if (!SF::isSupported(format))
             return EVAL_UNDEFINED;
@@ -1005,10 +1028,36 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         {
             const uint offset = lane * type.getElementBits();
             const FloatBits a = loadFloat(sources[0], offset, format);
-            storeFloat(value, offset, format,
-                (operation == SemanticOperation::OP_FLOAT_RECIPROCAL_ESTIMATE) ?
-                    SF::reciprocalEstimate(format, env, a, flags) :
-                    SF::reciprocalSqrtEstimate(format, env, a, flags));
+            FloatBits r;
+            if (behavior == SemanticOperation::BEHAVIOR_ESTIMATE_ARM_EXPONENT)
+                r = SF::reciprocalExponent(format, env, a, flags);
+            else if (isSqrt)
+                r = SF::reciprocalSqrtEstimate(format, env, a, flags);
+            else
+                r = SF::reciprocalEstimate(format, env, a, flags);
+            storeFloat(value, offset, format, r);
+        }
+        result = value;
+        return EVAL_OK;
+    }
+    case SemanticOperation::OP_DOT_PRODUCT:
+    {
+        // d[i] = s2[i] + s0[2i] * s1[2i] + s0[2i + 1] * s1[2i + 1]: the
+        // BFloat16 dot product of ARM with single precision lanes
+        const SemanticType type = instruction.getType();
+        const SemanticType multiplicand = getFloatSourceType(instruction, 0);
+        if ((type.getFloatFormat() != SemanticType::FLOAT_SINGLE) ||
+            (multiplicand.getFloatFormat() != SemanticType::FLOAT_BFLOAT16))
+            return EVAL_UNDEFINED;
+        for (uint lane = 0; lane < type.getLanes(); lane++)
+        {
+            const FloatBits r = SF::bfloatDotAdd(
+                loadFloat(sources[2], lane * 32, SemanticType::FLOAT_SINGLE),
+                loadFloat(sources[0], (2 * lane) * 16, SemanticType::FLOAT_BFLOAT16),
+                loadFloat(sources[0], (2 * lane + 1) * 16, SemanticType::FLOAT_BFLOAT16),
+                loadFloat(sources[1], (2 * lane) * 16, SemanticType::FLOAT_BFLOAT16),
+                loadFloat(sources[1], (2 * lane + 1) * 16, SemanticType::FLOAT_BFLOAT16));
+            storeFloat(value, lane * 32, SemanticType::FLOAT_SINGLE, r);
         }
         result = value;
         return EVAL_OK;
@@ -1025,11 +1074,14 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         if (!SF::isSupported(toType.getFloatFormat()) ||
             !SF::isSupported(fromType.getFloatFormat()))
             return EVAL_UNDEFINED;
+        // (the conversions don't flush the half precision by FZ16)
+        SF::Environment convertEnv(env);
+        convertEnv.m_flushHalfToZero = false;
         for (uint lane = 0; lane < toType.getLanes(); lane++)
             storeFloat(value, lane * toType.getElementBits(),
                 toType.getFloatFormat(),
                 SF::convert(fromType.getFloatFormat(), toType.getFloatFormat(),
-                    env, loadFloat(sources[0],
+                    convertEnv, loadFloat(sources[0],
                                    lane * fromType.getElementBits(),
                                    fromType.getFloatFormat()), flags));
         result = value;
@@ -1100,6 +1152,22 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
     if (!SF::isSupported(format))
         return EVAL_UNDEFINED;
     const uint stride = type.getElementBits();
+    const SemanticOperation::Behavior behavior = instruction.getBehavior();
+    // A multiply-add of narrower numbers (FMLAL): the multiplicands are of
+    // the format of the source operands
+    SemanticType::FloatFormat narrowFormat = SemanticType::FLOAT_NONE;
+    uint narrowBits = 0;
+    if (operation == SemanticOperation::OP_FLOAT_MULTIPLY_ADD)
+    {
+        const SemanticType multiplicand = getFloatSourceType(instruction, 0);
+        if (multiplicand.getFloatFormat() != format)
+        {
+            narrowFormat = multiplicand.getFloatFormat();
+            narrowBits = multiplicand.getElementBits();
+            if (!SF::isSupported(narrowFormat))
+                return EVAL_UNDEFINED;
+        }
+    }
     for (uint lane = 0; lane < type.getLanes(); lane++)
     {
         const uint offset = lane * stride;
@@ -1114,18 +1182,43 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         case SemanticOperation::OP_FLOAT_SUBTRACT:
             r = SF::subtract(format, env, a, b, flags); break;
         case SemanticOperation::OP_FLOAT_MULTIPLY:
-            r = SF::multiply(format, env, a, b, flags); break;
+            if (behavior == SemanticOperation::BEHAVIOR_MULTIPLY_EXTENDED)
+                r = SF::multiplyExtended(format, env, a, b, flags);
+            else
+                r = SF::multiply(format, env, a, b, flags);
+            break;
         case SemanticOperation::OP_FLOAT_DIVIDE:
             r = SF::divide(format, env, a, b, flags); break;
         case SemanticOperation::OP_FLOAT_MULTIPLY_ADD:
-            // (the kind 1 and 2 are the ARM reciprocal step 2 - a * b and
-            // the reciprocal square root step (3 - a * b) / 2, which ignore
-            // the third source)
-            if (instruction.getKind() != 0)
+            if (narrowFormat != SemanticType::FLOAT_NONE)
+            {
+                // The operands are narrower than the accumulator
+                r = SF::multiplyAddWidening(narrowFormat, format, env, env,
+                        loadFloat(sources[0], lane * narrowBits, narrowFormat),
+                        loadFloat(sources[1], lane * narrowBits, narrowFormat),
+                        c, flags);
+                break;
+            }
+            // (the steps of ARM ignore the third source)
+            switch (behavior)
+            {
+            case SemanticOperation::BEHAVIOR_STEP_RECIPROCAL:
+            case SemanticOperation::BEHAVIOR_STEP_RECIPROCAL_SQRT:
                 r = SF::reciprocalStep(format, env, a, b,
-                                       instruction.getKind() == 2, flags);
-            else
+                    behavior == SemanticOperation::BEHAVIOR_STEP_RECIPROCAL_SQRT,
+                    true, flags);
+                break;
+            case SemanticOperation::BEHAVIOR_STEP_RECIPROCAL_UNFUSED:
+            case SemanticOperation::BEHAVIOR_STEP_RECIPROCAL_SQRT_UNFUSED:
+                r = SF::reciprocalStep(format, env, a, b,
+                    behavior ==
+                        SemanticOperation::BEHAVIOR_STEP_RECIPROCAL_SQRT_UNFUSED,
+                    false, flags);
+                break;
+            default:
                 r = SF::multiplyAdd(format, env, a, b, c, flags);
+                break;
+            }
             break;
         case SemanticOperation::OP_FLOAT_SQUARE_ROOT:
             r = SF::squareRoot(format, env, a, flags); break;
@@ -1142,13 +1235,25 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         case SemanticOperation::OP_FLOAT_COPY_SIGN:
             r = SF::copySign(format, a, b); break;
         case SemanticOperation::OP_FLOAT_ROUND:
-            r = SF::roundToIntegral(format, env, a,
-                    instruction.getKind() ==
-                        SemanticOperation::FLOAT_ROUND_SIGNAL_INEXACT,
-                    flags);
+            if ((behavior == SemanticOperation::BEHAVIOR_ROUND_INTEGER_32) ||
+                (behavior == SemanticOperation::BEHAVIOR_ROUND_INTEGER_64))
+                r = SF::roundToIntegerBounded(format, env, a,
+                    (behavior == SemanticOperation::BEHAVIOR_ROUND_INTEGER_32) ?
+                        32 : 64, flags);
+            else
+                r = SF::roundToIntegral(format, env, a,
+                        instruction.getKind() ==
+                            SemanticOperation::FLOAT_ROUND_SIGNAL_INEXACT,
+                        flags);
             break;
         case SemanticOperation::OP_FLOAT_SCALE:
-            r = SF::scale(format, env, a, b, flags); break;
+            if (behavior == SemanticOperation::BEHAVIOR_SCALE_INTEGER)
+                r = SF::scaleByInteger(format, env, a,
+                                       sources[1].getBits(offset, stride),
+                                       stride, flags);
+            else
+                r = SF::scale(format, env, a, b, flags);
+            break;
         case SemanticOperation::OP_FLOAT_GET_EXPONENT:
             r = SF::getExponent(format, env, a, flags); break;
         default:

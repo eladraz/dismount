@@ -12,7 +12,7 @@ the other format parameters.
 The control state (class Ctl) is the FPSCR: the rounding mode, FZ (flush to zero of the operands
 and the tiny results), DN (default NaN), AHP. The exception flags accumulate in a State (the FPSCR
 cumulative bits IOC DZC OFC UFC IXC IDC). Tininess is detected before rounding and an input flush
-raises IDC (ARM).
+raises IDC (ARM), but the half precision one.
 
 Author: Elad Raz <e@eladraz.com>
 """
@@ -121,7 +121,10 @@ def unpack(fmt, bits, ctl, st, ahp_half=False):
         if frac == 0:
             return Num('zero', sign, bits=bits)
         if ctl.flush(fmt):
-            st.raise_(IDC)
+            # (the half precision flush by FZ16 doesn't raise IDC: the Arm ARM FPUnpackBase,
+            # confirmed on the M4 by the A64 corpora)
+            if not (fmt.N == 16 and fmt.E == 5):
+                st.raise_(IDC)
             return Num('zero', sign, bits=bits)
         value = Fraction(frac) * Fraction(2) ** (fmt.minexp - fmt.F)
     else:

@@ -54,6 +54,12 @@
     <ClCompile Include="TestArm64Semantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestArm64SemanticsSimd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSemanticFloatArm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestArmAArch32Semantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

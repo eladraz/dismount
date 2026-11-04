@@ -121,3 +121,31 @@ aesmc v0.16b, v1.16b
 sha1h s0, s1
 sha256h q0, q1, v2.4s
 pmull v0.1q, v1.1d, v2.1d
+// --- directed states: the saturation flag (FPSR.QC), the shift counts, the rounding, the NaNs
+sqadd v0.4s, v1.4s, v2.4s   // @state: v1=7fffffff80000000ffffffff00000001 v2=000000018000000001000000ffffffff
+uqadd v0.16b, v1.16b, v2.16b   // @state: v1=ff80017f00ff1020ffffffffffffffff v2=01ff0101ff01f0f0ff00ff00ff00ff00
+sqsub v0.8h, v1.8h, v2.8h   // @state: v1=8000800080007fff7fff8000ffff0000 v2=00018000ffff7fff80008000ffff0001
+sqshl v0.4s, v1.4s, #31   // @state: v1=00000001ffffffff8000000040000000
+sqshlu v0.2d, v1.2d, #63   // @state: v1=0000000000000001ffffffffffffffff
+uqshl v0.8b, v1.8b, v2.8b   // @state: v1=ff80017f00ff1020 v2=01ff0101ff01f0f0
+sqrdmulh v0.8h, v1.8h, v2.8h   // @state: v1=80008000800080007fff7fff7fff7fff v2=8000800080007fff80007fff80007fff
+sqdmull v0.2d, v1.2s, v2.2s   // @state: v1=8000000080000000 v2=8000000080000000
+sqxtun v0.8b, v1.8h   // @state: v1=ffff80000000ffff7fff0100fffe0001
+srshr v0.4s, v1.4s, #1   // @state: v1=7fffffff80000000ffffffff00000001
+urshr v0.2d, v1.2d, #64   // @state: v1=ffffffffffffffff8000000000000000
+sshl v0.4s, v1.4s, v2.4s   // @state: v1=80000000800000008000000080000000 v2=000000200000001f00000000ffffffff
+srshl v0.16b, v1.16b, v2.16b   // @state: v1=8081827f7e7d7c7b7a79787776757473 v2=ff01fe02fd03fc04fb05fa06f907f808
+sli v0.4s, v1.4s, #31   // @state: v0=ffffffffffffffffffffffffffffffff v1=00000001ffffffff8000000040000000
+sri v0.2d, v1.2d, #64   // @state: v0=ffffffffffffffffffffffffffffffff v1=ffffffffffffffff0000000000000001
+neg v0.2d, v1.2d   // @state: v1=80000000000000000000000000000000
+sqneg v0.4s, v1.4s   // @state: v1=80000000800000007fffffff00000000
+abs v0.8h, v1.8h   // @state: v1=80008000ffff00017fff80010000fffe
+fadd v0.4s, v1.4s, v2.4s   // @state: v1=7fc0000000000001ff8000007f800000 v2=3f8000003f800000ff80000000000001 fpcr=0
+fmax v0.2d, v1.2d, v2.2d   // @state: v1=7ff00000000000010000000000000000 v2=3ff00000000000008000000000000000 fpcr=2000000
+fminnm v0.4s, v1.4s, v2.4s   // @state: v1=7fc000003f800000bf8000007f800001 v2=3f8000007fc000007f800001bf800000 fpcr=0
+fmla v0.2s, v1.2s, v2.2s   // @state: v0=7fc0000000000000 v1=7f8000000000000a v2=00000000ff800000 fpcr=3000000
+fcvtzs v0.4s, v1.4s   // @state: v1=7fc0000050000000d0000000bf800000 fpcr=0 fpsr=0
+fcvtzu v0.2d, v1.2d   // @state: v1=bff0000000000000c3e0000000000000
+frintx v0.4s, v1.4s   // @state: v1=3fc000007f80000000000001ff800000 fpcr=c00000
+fcvt h0, s1   // @state: v1=33800000 fpcr=4000000
+fcvt s0, h1   // @state: v1=7c01 fpcr=4000000

@@ -142,6 +142,9 @@ public:
         // The NaN operand of a multiply-add is chosen in the order addend,
         // first and second multiplicand (ARM)
         bool m_isAddendNanFirst;
+        // Rounding to odd turns an overflow into an infinity instead of the
+        // largest finite number (the ARM BFloat16 dot product)
+        bool m_isOddOverflowInfinity;
     };
 
     //////////////////////////////////////////////////////////////////////
@@ -199,6 +202,17 @@ public:
     static Bits multiplyAdd(Format format, const Environment& environment,
                             const Bits& a, const Bits& b, const Bits& c,
                             uint32& flags);
+    /*
+     * a * b + c with a single rounding where a and b are numbers of the
+     * format 'narrow' (unpacked with narrowEnvironment) and c and the result
+     * are of the format 'wide' (ARM FMLAL: half precision products added to a
+     * single precision accumulator)
+     */
+    static Bits multiplyAddWidening(Format narrow, Format wide,
+                                    const Environment& narrowEnvironment,
+                                    const Environment& wideEnvironment,
+                                    const Bits& a, const Bits& b, const Bits& c,
+                                    uint32& flags);
     /*
      * Round a to an integral value, in the same format
      *
@@ -271,12 +285,46 @@ public:
                                        const Environment& environment,
                                        const Bits& a, uint32& flags);
     /*
-     * The AArch32 reciprocal step 2 - a * b (FPRecipStep) or, with isSqrt, the
-     * reciprocal square root step (3 - a * b) / 2 (FPRSqrtStep): the product
-     * is rounded, they are not fused (the A64 steps are)
+     * The reciprocal step 2 - a * b (FPRecipStep) or, with isSqrt, the
+     * reciprocal square root step (3 - a * b) / 2 (FPRSqrtStep). The AArch32
+     * steps round the product (not fused). The A64 steps (isFused) are
+     * fused: the first operand is negated before everything (a NaN too), and
+     * 0 * infinity gives 2.0 (1.5)
      */
     static Bits reciprocalStep(Format format, const Environment& environment,
                                const Bits& a, const Bits& b, bool isSqrt,
+                               bool isFused, uint32& flags);
+    // a * b where 0 * infinity is 2.0 with the sign of the product (FMULX)
+    static Bits multiplyExtended(Format format, const Environment& environment,
+                                 const Bits& a, const Bits& b, uint32& flags);
+    // FRECPX: the reciprocal exponent of a
+    static Bits reciprocalExponent(Format format, const Environment& environment,
+                                   const Bits& a, uint32& flags);
+    /*
+     * FRINT32Z/X and FRINT64Z/X: round to an integral value of the rounding
+     * mode of the environment, and an infinity, a NaN or a value which
+     * doesn't fit a signed integer of 'integerBits' (32 or 64) gives
+     * -2^(integerBits - 1) with FLOAT_INVALID
+     */
+    static Bits roundToIntegerBounded(Format format,
+                                      const Environment& environment,
+                                      const Bits& a, uint integerBits,
+                                      uint32& flags);
+    /*
+     * The BFloat16 dot product step of ARM (BFDOT, BFMMLA) with the standard
+     * behaviors (FPCR.EBF = 0): addend + a0 * b0 + a1 * b1 where the addend
+     * and the result are single precision and the other operands BFloat16.
+     * The denormals are flushed, a NaN is the default NaN, no exception is
+     * raised, FPCR is ignored; the sum of the products and the sum with the
+     * addend are rounded to odd
+     */
+    static Bits bfloatDotAdd(const Bits& addend, const Bits& a0, const Bits& a1,
+                             const Bits& b0, const Bits& b1);
+    // URECPE / URSQRTE: the estimate of an unsigned 32 bit fixed point number
+    static uint32 unsignedEstimate(uint32 value, bool isSqrt);
+    // a * 2^b where b is a signed integer of 'integerBits' bits (FSCALE)
+    static Bits scaleByInteger(Format format, const Environment& environment,
+                               const Bits& a, uint64 b, uint integerBits,
                                uint32& flags);
 
     /*
