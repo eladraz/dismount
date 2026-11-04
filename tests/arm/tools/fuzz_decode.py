@@ -56,9 +56,71 @@ def generate(arch, count, seed, rows, only_class=None, tops=None):
     return sorted(words)
 
 
+def generate_t32(count, seed, rows):
+    """Random T32 units: random halfwords, the fixed bits of the entries with
+    random operand bits (and a flipped bit now and then). An it instruction is
+    replaced by a nop: the it state of a stream would carry to the next units."""
+    rng = armlib.seeded_rng(seed)
+    units = set()
+    wide = [r for r in rows if r[4] == 4]
+    narrow = [r for r in rows if r[4] == 2]
+    while len(units) < count:
+        kind = rng.random()
+        if kind < 0.2:
+            value = rng.getrandbits(32)
+        elif kind < 0.85 and rows:
+            mask, value_, _, _, size, _ = rng.choice(wide if rng.random() < 0.6 and wide else narrow)
+            value = (value_ | (rng.getrandbits(32) & ~mask & 0xffffffff)) & (0xffffffff if size == 4 else 0xffff)
+            if size == 2:
+                value <<= 16
+            if rng.random() < 0.3:
+                for _ in range(rng.choice((1, 1, 2))):
+                    value ^= 1 << rng.randrange(16 if size == 2 else 32, 32) if size == 2 else 1 << rng.randrange(32)
+        else:
+            value = (rng.getrandbits(16) << 16) | rng.getrandbits(16)
+        unit = armlib.t32_unit(value & 0xffffffff)
+        if armlib.t32_is_it(unit):
+            unit = (2, 0xbf00)
+        units.add(unit)
+    return sorted(units)
+
+
+def compare_units(units, show=3):
+    objdump, addresses = armlib.objdump_unit_chunks(units)
+    ours = armlib.dis_units(units, None, addresses)
+    stats = collections.Counter()
+    groups = collections.defaultdict(list)
+    for unit, theirs, (status, text) in zip(units, objdump, ours):
+        stats['compared'] += 1
+        unknown = (theirs == '<unknown>')
+        word = armlib.t32_hex(unit)
+        if status in ('CRASH', 'ERR'):
+            groups[(status, armlib.mnemonic_of(theirs))].append((word, theirs, status))
+        elif unknown and status == 'INVALID':
+            stats['both invalid'] += 1
+        elif not unknown and status == 'OK' and text == theirs:
+            stats['same text'] += 1
+        elif unknown:
+            groups[('EXTRA', armlib.mnemonic_of(text))].append((word, theirs, text))
+        elif status == 'INVALID':
+            groups[('MISSING', armlib.mnemonic_of(theirs))].append((word, theirs, 'INVALID'))
+        else:
+            groups[('DIFF', armlib.mnemonic_of(theirs))].append((word, theirs, text))
+    bugs = sum(len(v) for v in groups.values())
+    for key in sorted(stats):
+        print('%-28s %d' % (key, stats[key]))
+    print('%-28s %d' % ('mismatches', bugs))
+    for (kind, mnemonic), items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        print('\n%s %s (%d)' % (kind, mnemonic, len(items)))
+        for word, theirs, ours_text in items[:show]:
+            print('   %-10s  objdump: %s' % (word, theirs))
+            print('              dismount: %s' % ours_text)
+    return 1 if bugs else 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--arch', default='a64', choices=['a64'])
+    parser.add_argument('--arch', default='a64', choices=['a64', 'a32', 't32'])
     parser.add_argument('--count', type=int, default=20000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--show', type=int, default=3,
@@ -71,6 +133,8 @@ def main():
     args = parser.parse_args()
 
     rows = armlib.entries(args.arch)
+    if args.arch == 't32':
+        return compare_units(generate_t32(args.count, args.seed, rows), args.show)
     if args.words:
         words = [int(w, 16) for w in open(args.words).read().split()]
     else:
@@ -90,7 +154,7 @@ def compare_and_report(arch, words, show=3, only_class=None):
     stats = collections.Counter()
     groups = collections.defaultdict(list)
     for word, address, theirs, (status, text) in zip(words, addresses, objdump, ours):
-        cls = armlib.a64_class(word)
+        cls = armlib.a64_class(word) if arch == 'a64' else 'base'
         if cls not in IMPLEMENTED_CLASSES and only_class is None:
             stats['unimplemented (%s)' % cls] += 1
             continue

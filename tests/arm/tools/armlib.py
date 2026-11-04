@@ -34,7 +34,7 @@ def run(cmd, input_text=None):
 # ---------------------------------------------------------------------------
 # Text
 
-_COMMENT = re.compile(r'//.*$')
+_COMMENT = re.compile(r'(//|\s@\s).*$')
 _SYMBOL = re.compile(r'\s*<[^>]*>\s*$')
 
 
@@ -52,6 +52,15 @@ def normalize(text):
 # objdump
 
 _LINE = re.compile(r'^\s*([0-9a-f]+):\s+([0-9a-f]{8})\s+(.*)$')
+
+
+# The features which objdump needs to decode everything dismount knows of
+# AArch32 (the architecture of the object is not enough)
+OBJDUMP_MATTR = {
+    'a32': '+v8,+neon,+fp-armv8,+crypto,+crc,+dotprod,+fullfp16,+fp16fml,+i8mm,+bf16,+sb,+ras,'
+           '+virtualization,+trustzone,+mp,+dsp,+hwdiv,+hwdiv-arm,+aes,+sha2,+v8.4a,+d32',
+}
+OBJDUMP_MATTR['t32'] = OBJDUMP_MATTR['a32']
 
 
 def objdump_words(words, arch='a64', base=BASE, mattr=None):
@@ -73,6 +82,8 @@ def objdump_words(words, arch='a64', base=BASE, mattr=None):
         if r.returncode != 0:
             raise RuntimeError('clang failed: ' + r.stderr[:500])
         cmd = ['objdump', '-d', '--adjust-vma=0x%x' % base, '--disassemble-zeroes', obj]
+        if mattr is None:
+            mattr = OBJDUMP_MATTR.get(arch)
         if mattr:
             cmd.insert(2, '--mattr=' + mattr)
         r = run(cmd)
@@ -106,6 +117,131 @@ def objdump_chunks(words, arch='a64', mattr=None, chunk=100000):
 
 
 # ---------------------------------------------------------------------------
+# T32: instruction units. A unit is (size, value): size 2 and the halfword, or
+# size 4 and hw1 << 16 | hw2 (the bit numbers of the Arm ARM). The first
+# halfword decides the size, as it does in the processor and in objdump.
+
+def t32_size(hw1):
+    return 4 if (hw1 >> 11) >= 0x1d else 2
+
+
+def t32_unit(value32):
+    """The unit that starts with the halfword hw1 of a 32 bit random value."""
+    hw1 = value32 >> 16
+    if t32_size(hw1) == 4:
+        return (4, value32 & 0xffffffff)
+    return (2, hw1)
+
+
+def t32_is_it(unit):
+    """True for an it instruction (0xbf00 with a mask): the state carries over
+    to the next instructions, so the random streams don't have them."""
+    return unit[0] == 2 and (unit[1] & 0xff00) == 0xbf00 and (unit[1] & 0xf) != 0
+
+
+def t32_hex(unit):
+    size, value = unit
+    if size == 2:
+        return '%04x' % value
+    return '%04x %04x' % (value >> 16, value & 0xffff)
+
+
+_THUMB_LINE = re.compile(r'^\s*([0-9a-f]+):\s+((?:[0-9a-f]{4}\s)+)\s*(.*)$')
+
+
+def objdump_units(units, mattr=None, base=BASE, arch='t32'):
+    """Disassemble a stream of T32 units with objdump (the it state carries
+    over the units). Return (texts, addresses, sizes) with a text per unit."""
+    if not units:
+        return [], [], []
+    tmp = tempfile.mkdtemp(prefix='armobjdump')
+    try:
+        src = os.path.join(tmp, 'a.s')
+        obj = os.path.join(tmp, 'a.o')
+        with open(src, 'w') as f:
+            f.write('.thumb\n')
+            for size, value in units:
+                if size == 2:
+                    f.write('.inst.n 0x%04x\n' % value)
+                else:
+                    f.write('.inst.w 0x%08x\n' % value)
+        r = run(['clang', '-target', TRIPLES['t32'], '-c', src, '-o', obj])
+        if r.returncode != 0:
+            raise RuntimeError('clang failed: ' + r.stderr[:500])
+        cmd = ['objdump', '-d', '--adjust-vma=0x%x' % base, '--disassemble-zeroes', obj]
+        if mattr is None:
+            mattr = OBJDUMP_MATTR.get(arch)
+        if mattr:
+            cmd.insert(2, '--mattr=' + mattr)
+        r = run(cmd)
+        if r.returncode != 0:
+            raise RuntimeError('objdump failed: ' + r.stderr[:500])
+        texts = []
+        addresses = []
+        sizes = []
+        for line in r.stdout.splitlines():
+            m = _THUMB_LINE.match(line)
+            if m:
+                groups = m.group(2).split()
+                addresses.append(int(m.group(1), 16))
+                sizes.append(2 * len(groups))
+                texts.append(normalize(m.group(3)))
+        if len(texts) != len(units) or sizes != [u[0] for u in units]:
+            raise RuntimeError('objdump gave %d instructions for %d units' % (len(texts), len(units)))
+        return texts, addresses, sizes
+    finally:
+        for name in os.listdir(tmp):
+            os.unlink(os.path.join(tmp, name))
+        os.rmdir(tmp)
+
+
+def objdump_unit_chunks(units, mattr=None, chunk=50000):
+    texts = []
+    addresses = []
+    for start in range(0, len(units), chunk):
+        part = units[start:start + chunk]
+        t, a, _ = objdump_units(part, mattr)
+        texts.extend(t)
+        addresses.extend(a)
+    return texts, addresses
+
+
+def dis_units(units, mattr=None, addresses=None):
+    """Disassemble T32 units with dismount, one unit per line. Return
+    (status, text) tuples as dis_words()."""
+    args = ['dis', '--arch', 't32']
+    if mattr:
+        args.extend(['--mattr', mattr])
+    lines = []
+    for i, unit in enumerate(units):
+        address = addresses[i] if addresses else BASE + 4 * i
+        lines.append('@%x %s' % (address, t32_hex(unit)))
+    return _parse_dis(cli_lines(args, lines))
+
+
+def dis_sequences(sequences, mattr=None, base=BASE):
+    """Disassemble sequences of T32 units, each one by one disassembler (the it
+    state is kept over a sequence). Return a list with, for each sequence, the
+    list of the texts of its instructions (None if one is invalid)."""
+    args = ['dis', '--arch', 't32']
+    if mattr:
+        args.extend(['--mattr', mattr])
+    lines = []
+    address = base
+    for i, seq in enumerate(sequences):
+        lines.append('@%x %s' % (address, ' ; '.join(t32_hex(u) for u in seq)))
+        address += sum(u[0] for u in seq)
+    result = []
+    for line in cli_lines(args, lines):
+        if line.startswith('OK '):
+            texts = line.split(' ', 2)[2]
+            result.append([normalize(t) for t in texts.split(' ; ')])
+        else:
+            result.append(None)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # clang
 
 _ERROR = re.compile(r'^[^:\n]+:(\d+):\d+: error: (.*)$')
@@ -120,7 +256,7 @@ def llvm_features(arch='a64'):
     return names
 
 
-def clang_assemble(lines, arch='a64', features_on=None):
+def clang_assemble(lines, arch='a64', features_on=None, triple=None):
     """Assemble instruction lines with the integrated assembler.
 
     features_on is the list of the LLVM features to enable (default: all of
@@ -130,6 +266,8 @@ def clang_assemble(lines, arch='a64', features_on=None):
     one."""
     if features_on is None:
         features_on = llvm_features(arch)
+    if arch in ('a32', 't32'):
+        return _clang_assemble_labeled(lines, arch, features_on, triple)
     results = [None] * len(lines)
     pending = list(range(len(lines)))
     tmp = tempfile.mkdtemp(prefix='armclang')
@@ -187,6 +325,78 @@ def clang_assemble(lines, arch='a64', features_on=None):
             pending = [index for k, index in enumerate(pending) if k not in bad]
         for index in pending:
             results[index] = clang_assemble_one(lines[index], arch, features_on)
+        return results
+    finally:
+        for name in os.listdir(tmp):
+            os.unlink(os.path.join(tmp, name))
+        os.rmdir(tmp)
+
+
+def _text_symbols(obj):
+    """The offsets of the labels L<n> of an object: {n: offset}."""
+    r = run(['objdump', '-t', obj])
+    symbols = {}
+    for line in r.stdout.splitlines():
+        m = re.match(r'^([0-9a-f]+)\s+\w+\s+\.text\s+[0-9a-f]+\s+L(\d+)$', line)
+        if m:
+            symbols[int(m.group(2))] = int(m.group(1), 16)
+    return symbols
+
+
+def _clang_assemble_labeled(lines, arch, features_on, triple=None):
+    """clang_assemble() of the AArch32 sets: a label before each line gives
+    its bytes (the sizes vary). A line with ';' is several instructions (an
+    it block): their bytes are together. Return ('ok', bytes) / ('err', msg)."""
+    header = ['.arm', '.syntax unified'] if arch == 'a32' else ['.thumb', '.syntax unified']
+    results = [None] * len(lines)
+    pending = list(range(len(lines)))
+    tmp = tempfile.mkdtemp(prefix='armclang')
+    try:
+        for _attempt in range(60):
+            if not pending:
+                break
+            src = os.path.join(tmp, 'a.s')
+            obj = os.path.join(tmp, 'a.o')
+            line_of = {}          # source line number -> position in pending
+            text = list(header)
+            for k, index in enumerate(pending):
+                text.append('L%d:' % index)
+                for part in lines[index].split(';'):
+                    text.append(part.strip())
+                    line_of[len(text)] = k
+            with open(src, 'w') as f:
+                f.write('\n'.join(text) + '\n')
+            cmd = ['clang', '-cc1as', '-triple', triple or TRIPLES[arch], '-filetype', 'obj', src, '-o', obj]
+            for name in features_on:
+                cmd.extend(['-target-feature', name if name[0] in '+-' else '+' + name])
+            r = run(cmd)
+            if r.returncode == 0:
+                data = _text_bytes(obj)
+                symbols = _text_symbols(obj)
+                offsets = [symbols.get(index) for index in pending]
+                for k, index in enumerate(pending):
+                    if offsets[k] is None:
+                        results[index] = ('err', 'no label')
+                        continue
+                    end = offsets[k + 1] if k + 1 < len(pending) and offsets[k + 1] is not None else len(data)
+                    results[index] = ('ok', data[offsets[k]:end])
+                pending = []
+                break
+            bad = {}
+            for err_line in r.stderr.splitlines():
+                m = _ERROR.match(err_line)
+                if m:
+                    position = line_of.get(int(m.group(1)))
+                    if position is not None and position not in bad:
+                        bad[position] = m.group(2)
+            if not bad:
+                for index in pending:
+                    results[index] = ('err', r.stderr.strip().splitlines()[0] if r.stderr else 'error')
+                pending = []
+                break
+            for position, message in bad.items():
+                results[pending[position]] = ('err', message)
+            pending = [index for k, index in enumerate(pending) if k not in bad]
         return results
     finally:
         for name in os.listdir(tmp):
@@ -282,8 +492,12 @@ def dis_words(arch, words, mattr=None, addresses=None):
     for i, word in enumerate(words):
         address = addresses[i] if addresses else BASE + 4 * i
         lines.append('@%x %08x' % (address, word))
+    return _parse_dis(cli_lines(args, lines))
+
+
+def _parse_dis(output):
     result = []
-    for line in cli_lines(args, lines):
+    for line in output:
         if line.startswith('OK '):
             parts = line.split(' ', 2)
             result.append(('OK', normalize(parts[2]) if len(parts) > 2 else ''))

@@ -33,6 +33,9 @@
     <ClCompile Include="TestArm64Simd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestArmAArch32Disassembler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemantics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

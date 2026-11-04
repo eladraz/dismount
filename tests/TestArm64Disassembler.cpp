@@ -446,12 +446,6 @@ public:
         ARM64_ASSERT(ArmInstructionSet::getInstructionAlignment(ArmInstructionSet::ARM_T32) == 2);
         ARM64_ASSERT(OpcodeSubsystems::isLittleEndian(OpcodeSubsystems::DISASSEMBLER_ARM_64_LE));
         ARM64_ASSERT(!OpcodeSubsystems::isLittleEndian(OpcodeSubsystems::DISASSEMBLER_ARM_64_BE));
-
-        // The A32 and T32 tables are empty: nothing is decoded yet
-        ARM64_ASSERT(ArmStreamDisassembler::decode(ArmInstructionSet::ARM_A32, 0xe1a00000, 4, 0,
-                                                   ArmFeatureSet::all()).isEmpty());
-        ARM64_ASSERT(ArmStreamDisassembler::decode(ArmInstructionSet::ARM_T32, 0x4600, 2, 0,
-                                                   ArmFeatureSet::all()).isEmpty());
     }
 
     // The factory of the stream disassembler

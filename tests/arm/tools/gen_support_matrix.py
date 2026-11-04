@@ -15,6 +15,7 @@ an inconsistency.
 """
 import argparse
 import collections
+import glob
 import json
 import os
 import sys
@@ -43,24 +44,41 @@ def main():
     parser.add_argument('--semantics', default=os.path.join(armlib.REPO, 'out', 'semantics-arm', 'report.json'))
     args = parser.parse_args()
 
-    lines_of = collections.defaultdict(lambda: collections.Counter())
-    failed = collections.Counter()
-    if os.path.exists(args.report):
-        report = json.load(open(args.report))
+    # The reports of run_compat.py of each instruction set: --report (a64 by
+    # default) and the out/compat-arm*/report.json files of the other sets
+    lines_of = {}
+    failed = {}
+    reports = {}
+    paths = [args.report] + sorted(glob.glob(os.path.join(armlib.REPO, 'out', 'compat-arm-*', 'report.json')))
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        report = json.load(open(path))
+        reports[report.get('arch', 'a64')] = report
+    for arch, report in reports.items():
+        lines_of[arch] = collections.defaultdict(collections.Counter)
+        failed[arch] = collections.Counter()
         for r in report['lines']:
             names = r['features'] or ['']
             for name in names:
                 ok = all(r[c]['status'] in ('PASS', 'ALT') for c in ('asm', 'dis', 'rt'))
-                lines_of[name]['total'] += 1
-                lines_of[name]['pass'] += 1 if ok else 0
+                lines_of[arch][name]['total'] += 1
+                lines_of[arch][name]['pass'] += 1 if ok else 0
                 if any(r[c]['status'] == 'FAIL' for c in ('asm', 'dis', 'rt', 'feat')):
-                    failed[name] += 1
+                    failed[arch][name] += 1
     unlifted = collections.Counter()
     if os.path.exists(args.semantics):
         for r in json.load(open(args.semantics)).get('lines', []):
             if r.get('status') == 'UNLIFTED':
                 for name in r.get('features', ['']):
                     unlifted[name] += 1
+
+    # An AArch32 feature can have its encodings in one of the two views only
+    # (hwdiv: T32, hwdiv-arm: A32)
+    entries_any = collections.Counter()
+    for view in ('a32', 't32'):
+        for index, name, isa, support, entries in armlib.features(view):
+            entries_any[index] = max(entries_any[index], entries)
 
     problems = []
     out = ['# ARM support matrix\n',
@@ -79,19 +97,19 @@ def main():
         for index, name, isa, support, entries in rows:
             shown = name if name != '-' else '(base)'
             key = '' if name == '-' else name
-            counts = lines_of.get(key, collections.Counter())
-            corpus = '%d / %d' % (counts['pass'], counts['total']) \
-                if (counts['total'] and arch == 'a64') else '-'
+            counts = lines_of.get(arch, {}).get(key, collections.Counter())
+            corpus = '%d / %d' % (counts['pass'], counts['total']) if counts['total'] else '-'
             lift = 'yes' if support & SUPPORT_LIFT else ('partial' if support & SUPPORT_PARTIAL_LIFT else '-')
             out.append('| %d | %s | %d | %s | %s | %s | %s | %s | %s |' % (
                 index, shown, entries, mark(support, SUPPORT_DISASSEMBLE),
                 mark(support, SUPPORT_ASSEMBLE), lift, mark(support, SUPPORT_LIFT_VERIFIED),
                 mark(support, SUPPORT_ENCODING_VERIFIED), corpus))
             if support & (SUPPORT_DISASSEMBLE | SUPPORT_ASSEMBLE | SUPPORT_ENCODING_VERIFIED):
-                if entries == 0:
+                if entries == 0 and (arch == 'a64' or entries_any[index] == 0):
                     problems.append('%s is marked but has no encodings' % shown)
-                if failed.get(key):
-                    problems.append('%s is marked and %d corpus lines fail' % (shown, failed[key]))
+                if failed.get(arch, {}).get(key):
+                    problems.append('%s (%s) is marked and %d corpus lines fail' % (
+                        shown, arch, failed[arch][key]))
             if support & SUPPORT_LIFT and unlifted.get(key):
                 problems.append('%s is marked SUPPORT_LIFT and has %d unlifted lines' % (shown, unlifted[key]))
     with open(OUTPUT, 'w') as f:

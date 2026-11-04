@@ -310,6 +310,18 @@ enum ArmOperandKind {
     // (#0 / #90 / #180 / #270, two bits at m_position); m_extra is an
     // ArmRotationScheme. Printed in decimal
     ARM_KIND_A64_SIMD_ROTATION,
+    // ---- AArch32 additions (A32 and T32), see ArmOperandCodecA32.h --------
+    // A fixed operand which has no field: the text is part of the syntax
+    // (apsr, spsr, sp, lr, csync, #0...). m_extra is an ArmA32FixedText.
+    // Decoded as ArmDecodedOperand::KIND_NAME, which the formatter prints
+    ARM_KIND_A32_FIXED,
+    // A part of the mnemonic which comes from a field and is not one of the
+    // kinds above (the ie / id of cps): the ArmA32MnemonicPart in m_extra
+    ARM_KIND_A32_MNEMONIC_PART,
+    // An operand made of fields of the encoding which no other kind covers
+    // (the 16 bit immediate of bkpt, the bit field operands...): the
+    // ArmA32FieldScheme in m_extra, which knows the fields
+    ARM_KIND_A32_FIELD,
 
     // The number of kinds. Must be last
     ARM_KINDS_COUNT
@@ -406,7 +418,11 @@ enum ArmEntryFlags {
     ARM_ENTRY_NOT_STREAMING         = 0x0200,
     // Only the assembler uses the entry: LLVM reads the text but never prints
     // it (cmpp is read for subps xzr, ...: the disassembler prints subps)
-    ARM_ENTRY_ASSEMBLE_ONLY         = 0x0400
+    ARM_ENTRY_ASSEMBLE_ONLY         = 0x0400,
+    // AArch32: the instruction exists only before ARMv8 (FEAT_V8_AA32 is not
+    // in the feature set): swp, the coprocessor instructions of cp other than
+    // 14 / 15 and the *2 variants
+    ARM_ENTRY_PRE_V8                = 0x0800
 };
 
 /*

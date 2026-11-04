@@ -14,6 +14,7 @@
 #include "xStl/except/assert.h"
 #include "dismount/proc/arm/ArmOperandCodec.h"
 #include "dismount/proc/arm/ArmOperandCodecInternal.h"
+#include "dismount/proc/arm/ArmOperandCodecA32.h"
 
 namespace armdis {
 
@@ -123,6 +124,7 @@ bool ArmOperandCodec::isMnemonicPart(const ArmOperandSpec& spec)
     case ARM_KIND_A32_NEON_DATA_TYPE:
     case ARM_KIND_MNEMONIC_SUFFIX:
     case ARM_KIND_T16_IT_MASK:
+    case ARM_KIND_A32_MNEMONIC_PART:
         return true;
     default:
         return false;
@@ -141,17 +143,18 @@ cString ArmOperandCodec::decodeMnemonicPart(const ArmOperandSpec& spec,
                                             uint32 encoding,
                                             const ArmCodecContext& context)
 {
+    if (context.m_type != ArmInstructionSet::ARM_A64)
+    {
+        // AArch32: the condition, s and the other parts
+        if (spec.m_kind != ARM_KIND_MNEMONIC_SUFFIX)
+            return decodeMnemonicPartA32(spec, encoding, context);
+    }
     switch (spec.m_kind)
     {
     case ARM_KIND_CONDITION_MNEMONIC:
     {
         uint condition = getField(encoding, spec.m_position, 4);
-        if (context.m_type == ArmInstructionSet::ARM_A64)
-            return cString(".") + getConditionName(condition);
-        // AArch32: al is not printed
-        if (condition == 14)
-            return cString();
-        return cString(getConditionName(condition));
+        return cString(".") + getConditionName(condition);
     }
     case ARM_KIND_SETS_FLAGS:
         return (getField(encoding, spec.m_position, 1) != 0) ? cString("s") : cString();
@@ -173,6 +176,11 @@ bool ArmOperandCodec::encodeMnemonicPart(const ArmOperandSpec& spec,
                                          const ArmCodecContext& context,
                                          uint32& encoding)
 {
+    if (context.m_type != ArmInstructionSet::ARM_A64)
+    {
+        if (spec.m_kind != ARM_KIND_MNEMONIC_SUFFIX)
+            return encodeMnemonicPartA32(spec, suffix, context, encoding);
+    }
     switch (spec.m_kind)
     {
     case ARM_KIND_CONDITION_MNEMONIC:
@@ -288,9 +296,8 @@ bool ArmOperandCodec::decode(const ArmOperandSpec& spec,
     }
     case ARM_KIND_BRANCH_TARGET:
     {
-        // A64 only for now. TODO: A32 and T32 (the pc offset, the split fields)
         if (context.m_type != ArmInstructionSet::ARM_A64)
-            return false;
+            return decodeA32(spec, encoding, context, operand);
         int64 offset = signExtend(getField(encoding, spec.m_position, spec.m_extra),
                                   spec.m_extra) * 4;
         operand.m_kind = ArmDecodedOperand::KIND_BRANCH_TARGET;
@@ -302,6 +309,10 @@ bool ArmOperandCodec::decode(const ArmOperandSpec& spec,
         uint condition = getField(encoding, spec.m_position, 4);
         if ((spec.m_flags & ARM_SPEC_INVERT) != 0)
             condition ^= 1;
+        // AArch32: the firstcond of it, 1111 is al
+        if ((context.m_type != ArmInstructionSet::ARM_A64) && (condition == 15) &&
+            ((spec.m_flags & ARM_A32_COND_FIRSTCOND) != 0))
+            condition = 14;
         operand.m_kind = ArmDecodedOperand::KIND_CONDITION;
         operand.m_condition = condition;
         return true;
@@ -392,7 +403,7 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
     case ARM_KIND_BRANCH_TARGET:
     {
         if (context.m_type != ArmInstructionSet::ARM_A64)
-            return false;
+            return encodeA32(spec, operand, context, encoding);
         uint64 target;
         if (!getBranchTarget(operand, context, target))
             return false;
@@ -420,6 +431,18 @@ bool ArmOperandCodec::encode(const ArmOperandSpec& spec,
         if ((spec.m_flags & ARM_SPEC_INVERT) != 0)
             condition ^= 1;
         setField(encoding, spec.m_position, 4, condition);
+        if ((context.m_type != ArmInstructionSet::ARM_A64) && ((spec.m_flags & ARM_A32_COND_FIRSTCOND) != 0))
+        {
+            // The mask of it was set with "then" as zero: an odd first
+            // condition flips the bits above the terminating one
+            uint mask = getField(encoding, 0, 4);
+            if (((condition & 1) != 0) && (mask != 0))
+            {
+                uint lowest = mask & (~mask + 1);
+                mask ^= 0xF & ((0u - lowest) << 1);
+                setField(encoding, 0, 4, mask);
+            }
+        }
         return true;
     }
     case ARM_KIND_GPR:

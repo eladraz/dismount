@@ -254,6 +254,33 @@ public:
         FEAT_F8F16MM,
         FEAT_FPRCVT,
 
+        // --- AArch32 features added with the A32 / T32 tables (A32 and T32
+        // both: the instruction set of a feature is A32, see getInstructionSet)
+        // ARMv5T: blx, clz, bkpt (FEAT_V5TE is the E extension)
+        FEAT_V5T,
+        // ARMv6-M instructions of the 16 bit Thumb which A-profile has with
+        // ARMv6T2 (the hints nop / yield / wfe / wfi / sev)
+        FEAT_V6M,
+        // ARMv7 Multiprocessing Extensions: pldw
+        FEAT_MP,
+        // sdiv / udiv in the A32 state (LLVM: hwdiv-arm; FEAT_DIV is the T32 one)
+        FEAT_DIV_ARM,
+        // The virtualization extension: hvc, eret, the banked mrs / msr
+        FEAT_VIRT,
+        // The security extension (TrustZone): smc
+        FEAT_TRUSTZONE,
+        // ARMv8.5 sb in AArch32 (FEAT_SB is the A64 one), ARMv8.2 RAS esb
+        FEAT_SB_AA32,
+        FEAT_RAS_AA32,
+        // ARMv8.1 AArch32 setpan
+        FEAT_PAN_AA32,
+        // ARMv8.4 AArch32 tsb
+        FEAT_V8_4A_AA32,
+        // The ARMv8 floating point (vsel, vmaxnm, vrint, vcvta...), LLVM fp-armv8
+        FEAT_FPARMV8,
+        // The half precision conversions vcvtb / vcvtt (LLVM fp16)
+        FEAT_FP16_CVT,
+
         // The number of features. Must be last
         FEATURES_COUNT
     };

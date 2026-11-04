@@ -1155,11 +1155,12 @@ static bool parseArmHex(const char* text, ArmInstructionSet::DisassemblerTypes t
                         cBuffer& out)
 {
     // The groups of hex digits, separated by blanks
-    uint8 bytes[8];
+    uint8 bytes[64];
     uint count = 0;
     while (*text != 0)
     {
-        while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r')
+        // (a ';' separates the instructions of a sequence, see runArmDis)
+        while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r' || *text == ';')
             text++;
         if (*text == 0)
             break;
@@ -1172,7 +1173,7 @@ static bool parseArmHex(const char* text, ArmInstructionSet::DisassemblerTypes t
             text++;
         }
         if (((digits != 4) && (digits != 8)) || ((*text != 0) && (*text != ' ') &&
-            (*text != '\t') && (*text != '\n') && (*text != '\r')))
+            (*text != '\t') && (*text != '\n') && (*text != '\r') && (*text != ';')))
             return false;
         if ((type != ArmInstructionSet::ARM_T32) && (digits != 8))
             return false;
@@ -1233,11 +1234,24 @@ static int runArmDis(ArmInstructionSet::DisassemblerTypes type, const ArmFeature
                 false, features);
             XSTL_TRY
             {
-                OpcodePtr opcode = disassembler.next();
-                DefaultOpcodeDataFormatter formatter(1);
-                OpcodeFormatterPtr fr = disassembler.getOpcodeFormat(opcode, formatter);
-                writeLine(cString("OK ") + cString((int32)opcode->getOpcodeSize()) +
-                          " " + fr->string());
+                // A line is one instruction, or a sequence of them (T32: the
+                // it state is kept over the sequence): the texts are joined
+                // with " ; "
+                cString texts;
+                uint total = 0;
+                bool isFirst = true;
+                while (!disassembler.isEndOfStream())
+                {
+                    OpcodePtr opcode = disassembler.next();
+                    DefaultOpcodeDataFormatter formatter(1);
+                    OpcodeFormatterPtr fr = disassembler.getOpcodeFormat(opcode, formatter);
+                    if (!isFirst)
+                        texts += " ; ";
+                    texts += fr->string();
+                    total += opcode->getOpcodeSize();
+                    isFirst = false;
+                }
+                writeLine(cString("OK ") + cString((int32)total) + " " + texts);
             }
             XSTL_CATCH(DisassemblerInvalidOpcodeException&)
             {
@@ -1278,24 +1292,55 @@ static int runArmAsm(ArmInstructionSet::DisassemblerTypes type, const ArmFeature
         }
         XSTL_TRY
         {
-            uint32 encoding = 0;
-            uint size = 0;
-            ArmAssemblerStream::assembleInstruction(type, features, cString(copy),
-                                                    address, 0, encoding, size);
-            // The bytes in memory order
+            // A line is one instruction or a sequence of them separated by ';'
+            // (T32: an it block, the it state is kept over the sequence). The
+            // bytes of all of them are written
             cString hex;
             static const char digits[] = "0123456789abcdef";
-            for (uint i = 0; i < size; i++)
+            uint itState = 0;
+            char* part = copy;
+            for (;;)
             {
-                uint8 b;
-                if (size == 2)
-                    b = (uint8)(encoding >> (8 * i));
-                else if (type == ArmInstructionSet::ARM_T32)
-                    b = (uint8)(encoding >> ((i < 2) ? (24 - 8 * i) : (8 - 8 * (i - 2))));
-                else
-                    b = (uint8)(encoding >> (8 * i));
-                hex += cString(digits[b >> 4]);
-                hex += cString(digits[b & 0xf]);
+                char* end = (type == ArmInstructionSet::ARM_T32) ? strchr(part, ';') : NULL;
+                if (end != NULL)
+                    *end = 0;
+                normalizeAsmLine(part);
+                uint32 encoding = 0;
+                uint size = 0;
+                ArmAssemblerStream::assembleInstruction(type, features, cString(part),
+                                                        address, itState, encoding, size);
+                // The bytes in memory order
+                for (uint i = 0; i < size; i++)
+                {
+                    uint8 b;
+                    if (size == 2)
+                        b = (uint8)(encoding >> (8 * i));
+                    else if (type == ArmInstructionSet::ARM_T32)
+                        b = (uint8)(encoding >> ((i < 2) ? (16 + 8 * i) : (8 * (i - 2))));
+                    else
+                        b = (uint8)(encoding >> (8 * i));
+                    hex += cString(digits[b >> 4]);
+                    hex += cString(digits[b & 0xf]);
+                }
+                address += size;
+                // The it state of the next instruction: an it sets it (the
+                // condition 1111 is 1110, as LLVM does), the others advance it
+                if (type == ArmInstructionSet::ARM_T32)
+                {
+                    if ((size == 2) && ((encoding & 0xFF00) == 0xBF00) && ((encoding & 0xF) != 0))
+                    {
+                        itState = encoding & 0xFF;
+                        if ((itState >> 4) == 15)
+                            itState = (itState & 0x0F) | 0xE0;
+                    } else if (itState != 0)
+                    {
+                        itState = ((itState & 7) == 0) ? 0 :
+                                  ((itState & 0xE0) | ((itState << 1) & 0x1F));
+                    }
+                }
+                if (end == NULL)
+                    break;
+                part = end + 1;
             }
             writeLine(cString("OK ") + hex);
         }

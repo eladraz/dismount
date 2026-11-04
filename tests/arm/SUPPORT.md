@@ -98,58 +98,82 @@ LLVM names them), so features that only add such names have no encodings.
 
 | id | LLVM feature | encodings | disassemble | assemble | lift | lift verified | encoding verified | corpus lines passing |
 |---|---|---|---|---|---|---|---|---|
-| 0 | (base) | 0 | - | - | - | - | - | - |
-| 2 | v5te | 0 | - | - | - | - | - | - |
-| 3 | v6 | 0 | - | - | - | - | - | - |
-| 4 | v6k | 0 | - | - | - | - | - | - |
-| 6 | v7 | 0 | - | - | - | - | - | - |
-| 7 | hwdiv | 0 | - | - | - | - | - | - |
-| 8 | v8 | 0 | - | - | - | - | - | - |
-| 9 | crc | 0 | - | - | - | - | - | - |
-| 10 | aes | 0 | - | - | - | - | - | - |
-| 11 | sha2 | 0 | - | - | - | - | - | - |
-| 12 | sha2 | 0 | - | - | - | - | - | - |
-| 13 | vfp2 | 0 | - | - | - | - | - | - |
-| 14 | vfp3 | 0 | - | - | - | - | - | - |
-| 15 | vfp4 | 0 | - | - | - | - | - | - |
-| 16 | neon | 0 | - | - | - | - | - | - |
-| 17 | vfp4 | 0 | - | - | - | - | - | - |
-| 18 | rdm | 0 | - | - | - | - | - | - |
-| 19 | fullfp16 | 0 | - | - | - | - | - | - |
-| 20 | dotprod | 0 | - | - | - | - | - | - |
-| 21 | i8mm | 0 | - | - | - | - | - | - |
-| 22 | bf16 | 0 | - | - | - | - | - | - |
-| 23 | complxnum | 0 | - | - | - | - | - | - |
-| 24 | jsconv | 0 | - | - | - | - | - | - |
-| 25 | fp16fml | 0 | - | - | - | - | - | - |
+| 0 | (base) | 309 | yes | yes | - | - | yes | 2529 / 2529 |
+| 2 | v5te | 24 | yes | yes | - | - | yes | 220 / 220 |
+| 3 | v6 | 44 | yes | yes | - | - | yes | 523 / 523 |
+| 4 | v6k | 7 | yes | yes | - | - | yes | 34 / 34 |
+| 6 | v7 | 8 | yes | yes | - | - | yes | 159 / 159 |
+| 7 | hwdiv | 0 | yes | yes | - | - | yes | - |
+| 8 | v8 | 44 | yes | yes | - | - | yes | 250 / 250 |
+| 9 | crc | 6 | yes | yes | - | - | yes | 58 / 58 |
+| 10 | aes | 5 | yes | yes | - | - | yes | 17 / 17 |
+| 11 | sha2 | 6 | yes | yes | - | - | yes | 33 / 33 |
+| 12 | sha2 | 4 | yes | yes | - | - | yes | 33 / 33 |
+| 13 | vfp2 | 111 | yes | yes | - | - | yes | 751 / 751 |
+| 14 | vfp3 | 2 | yes | yes | - | - | yes | 378 / 378 |
+| 15 | vfp4 | 12 | yes | yes | - | - | yes | 124 / 124 |
+| 16 | neon | 1151 | yes | yes | - | - | yes | 8265 / 8265 |
+| 17 | vfp4 | 0 | - | - | - | - | - | 124 / 124 |
+| 18 | v8.1a | 16 | yes | yes | - | - | yes | 118 / 118 |
+| 19 | fullfp16 | 171 | yes | yes | - | - | yes | 955 / 955 |
+| 20 | dotprod | 8 | yes | yes | - | - | yes | 60 / 60 |
+| 21 | i8mm | 9 | yes | yes | - | - | yes | 53 / 53 |
+| 22 | bf16 | 12 | yes | yes | - | - | yes | 73 / 73 |
+| 23 | v8.3a | 12 | yes | yes | - | - | yes | 100 / 100 |
+| 24 | v8.3a | 1 | yes | yes | - | - | yes | 100 / 100 |
+| 25 | fp16fml | 8 | yes | yes | - | - | yes | 61 / 61 |
+| 103 | v5t | 3 | yes | yes | - | - | yes | 28 / 28 |
+| 104 | v6m | 0 | yes | yes | - | - | yes | - |
+| 105 | mp | 2 | yes | yes | - | - | yes | 26 / 26 |
+| 106 | hwdiv-arm | 2 | yes | yes | - | - | yes | 19 / 19 |
+| 107 | virtualization | 4 | yes | yes | - | - | yes | 29 / 29 |
+| 108 | trustzone | 1 | yes | yes | - | - | yes | 9 / 9 |
+| 109 | sb | 1 | yes | yes | - | - | yes | 1 / 1 |
+| 110 | ras | 1 | yes | yes | - | - | yes | - |
+| 111 | v8.1a | 1 | yes | yes | - | - | yes | 118 / 118 |
+| 112 | v8.4a | 1 | yes | yes | - | - | yes | 1 / 1 |
+| 113 | fp-armv8 | 51 | yes | yes | - | - | yes | 619 / 619 |
+| 114 | fp16 | 6 | yes | yes | - | - | yes | 48 / 48 |
 
 ## T32
 
 | id | LLVM feature | encodings | disassemble | assemble | lift | lift verified | encoding verified | corpus lines passing |
 |---|---|---|---|---|---|---|---|---|
-| 0 | (base) | 0 | - | - | - | - | - | - |
-| 1 | (base) | 0 | - | - | - | - | - | - |
-| 2 | v5te | 0 | - | - | - | - | - | - |
-| 3 | v6 | 0 | - | - | - | - | - | - |
-| 4 | v6k | 0 | - | - | - | - | - | - |
-| 5 | v6t2 | 0 | - | - | - | - | - | - |
-| 6 | v7 | 0 | - | - | - | - | - | - |
-| 7 | hwdiv | 0 | - | - | - | - | - | - |
-| 8 | v8 | 0 | - | - | - | - | - | - |
-| 9 | crc | 0 | - | - | - | - | - | - |
-| 10 | aes | 0 | - | - | - | - | - | - |
-| 11 | sha2 | 0 | - | - | - | - | - | - |
-| 12 | sha2 | 0 | - | - | - | - | - | - |
-| 13 | vfp2 | 0 | - | - | - | - | - | - |
-| 14 | vfp3 | 0 | - | - | - | - | - | - |
-| 15 | vfp4 | 0 | - | - | - | - | - | - |
-| 16 | neon | 0 | - | - | - | - | - | - |
-| 17 | vfp4 | 0 | - | - | - | - | - | - |
-| 18 | rdm | 0 | - | - | - | - | - | - |
-| 19 | fullfp16 | 0 | - | - | - | - | - | - |
-| 20 | dotprod | 0 | - | - | - | - | - | - |
-| 21 | i8mm | 0 | - | - | - | - | - | - |
-| 22 | bf16 | 0 | - | - | - | - | - | - |
-| 23 | complxnum | 0 | - | - | - | - | - | - |
-| 24 | jsconv | 0 | - | - | - | - | - | - |
-| 25 | fp16fml | 0 | - | - | - | - | - | - |
+| 0 | (base) | 0 | yes | yes | - | - | yes | 3898 / 3898 |
+| 1 | (base) | 70 | yes | yes | - | - | yes | 3898 / 3898 |
+| 2 | v5te | 0 | yes | yes | - | - | yes | 5 / 5 |
+| 3 | v6 | 7 | yes | yes | - | - | yes | 110 / 110 |
+| 4 | v6k | 0 | yes | yes | - | - | yes | 5 / 5 |
+| 5 | v6t2 | 338 | yes | yes | - | - | yes | 6417 / 6417 |
+| 6 | v7 | 10 | yes | yes | - | - | yes | 102 / 102 |
+| 7 | hwdiv | 2 | yes | yes | - | - | yes | 34 / 34 |
+| 8 | v8 | 48 | yes | yes | - | - | yes | 251 / 251 |
+| 9 | crc | 6 | yes | yes | - | - | yes | 84 / 84 |
+| 10 | aes | 5 | yes | yes | - | - | yes | 3 / 3 |
+| 11 | sha2 | 6 | yes | yes | - | - | yes | 4 / 4 |
+| 12 | sha2 | 4 | yes | yes | - | - | yes | 4 / 4 |
+| 13 | vfp2 | 111 | yes | yes | - | - | yes | 129 / 129 |
+| 14 | vfp3 | 2 | yes | yes | - | - | yes | 64 / 64 |
+| 15 | vfp4 | 12 | yes | yes | - | - | yes | 22 / 22 |
+| 16 | neon | 1151 | yes | yes | - | - | yes | 297 / 297 |
+| 17 | vfp4 | 0 | - | - | - | - | - | 22 / 22 |
+| 18 | v8.1a | 16 | yes | yes | - | - | yes | 40 / 40 |
+| 19 | fullfp16 | 171 | yes | yes | - | - | yes | 354 / 354 |
+| 20 | dotprod | 8 | yes | yes | - | - | yes | 69 / 69 |
+| 21 | i8mm | 9 | yes | yes | - | - | yes | 82 / 82 |
+| 22 | bf16 | 12 | yes | yes | - | - | yes | 75 / 75 |
+| 23 | v8.3a | 12 | yes | yes | - | - | yes | 97 / 97 |
+| 24 | v8.3a | 1 | yes | yes | - | - | yes | 97 / 97 |
+| 25 | fp16fml | 8 | yes | yes | - | - | yes | 78 / 78 |
+| 103 | v5t | 2 | yes | yes | - | - | yes | 20 / 20 |
+| 104 | v6m | 6 | yes | yes | - | - | yes | 19 / 19 |
+| 105 | mp | 3 | yes | yes | - | - | yes | 44 / 44 |
+| 106 | hwdiv-arm | 0 | yes | yes | - | - | yes | 3 / 3 |
+| 107 | virtualization | 4 | yes | yes | - | - | yes | 40 / 40 |
+| 108 | trustzone | 1 | yes | yes | - | - | yes | 8 / 8 |
+| 109 | sb | 1 | yes | yes | - | - | yes | 1 / 1 |
+| 110 | ras | 1 | yes | yes | - | - | yes | 1 / 1 |
+| 111 | v8.1a | 1 | yes | yes | - | - | yes | 40 / 40 |
+| 112 | v8.4a | 1 | yes | yes | - | - | yes | 1 / 1 |
+| 113 | fp-armv8 | 51 | yes | yes | - | - | yes | 472 / 472 |
+| 114 | fp16 | 6 | yes | yes | - | - | yes | 3 / 3 |

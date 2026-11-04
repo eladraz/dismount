@@ -17,6 +17,7 @@
 #include "xStl/exceptions.h"
 #include "xStl/parser/parser.h"
 #include "dismount/assembler/proc/arm/ArmAssembler.h"
+#include "dismount/assembler/proc/arm/ArmAssemblerA32.h"
 #include "dismount/proc/arm/ArmOperandCodec.h"
 #include "dismount/proc/arm/ArmOperandCodecInternal.h"
 #include "dismount/proc/arm/ArmStreamDisassembler.h"
@@ -955,11 +956,21 @@ void ArmAssemblerStream::assemble()
 void ArmAssemblerStream::assembleLine(const cString& line)
 {
     Assembled assembled;
-    // TODO: T32 tracks the it block of the previous lines in m_itState
-    (void)m_itState;
     // The address of an instruction in a binary is the offset in its block
     uint64 address = m_binary.getCurrentBlockData().getSize();
-    assembleText(m_type, m_features, line, address, assembled);
+    if (m_type != ArmInstructionSet::ARM_A64)
+    {
+        // AArch32: the it block of the previous lines is in m_itState
+        ArmAssembledA32 result;
+        assembleA32(m_type, m_features, line, address, m_itState, result);
+        m_itState = advanceItState(m_type, m_itState, result, address, m_features);
+        assembled.m_encoding = result.m_encoding;
+        assembled.m_size = result.m_size;
+        assembled.m_label = result.m_label;
+    } else
+    {
+        assembleText(m_type, m_features, line, address, assembled);
+    }
 
     uint position = m_binary.getCurrentBlockData().getSize();
     if (assembled.m_size == 2)
@@ -997,7 +1008,14 @@ void ArmAssemblerStream::assembleInstruction(ArmInstructionSet::DisassemblerType
                                              uint32& encoding,
                                              uint& size)
 {
-    // TODO: T32 it blocks
+    if (type != ArmInstructionSet::ARM_A64)
+    {
+        ArmAssembledA32 result;
+        assembleA32(type, features, line, address, itState, result);
+        encoding = result.m_encoding;
+        size = result.m_size;
+        return;
+    }
     Assembled assembled;
     assembleText(type, features, line, address, assembled);
     encoding = assembled.m_encoding;

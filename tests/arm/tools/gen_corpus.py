@@ -86,12 +86,18 @@ def random_class_words(rng, wanted_class, count):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--arch', default='a64', choices=['a64'])
+    parser.add_argument('--arch', default='a64', choices=['a64', 'a32', 't32'])
     parser.add_argument('--per-mnemonic', type=int, default=6)
     parser.add_argument('--class', dest='only_class', choices=['base', 'simd', 'sve', 'sme'],
                         help='write only the files of this encoding class (simd: simd.s and '
                              'simd-<feature>.s) and leave the others alone')
+    parser.add_argument('--random', type=int, default=200000,
+                        help='AArch32: the number of random words to sample')
     args = parser.parse_args()
+    if args.arch != 'a64':
+        import gen_corpus_aarch32
+        gen_corpus_aarch32.generate(args.arch, args)
+        return
 
     rng = armlib.seeded_rng(20240607)
     rows = armlib.entries(args.arch)

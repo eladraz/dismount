@@ -80,11 +80,17 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/proc/arm/ArmArchitecture.cpp
 	Source/dismount/proc/arm/Arm64Architecture.cpp
 	Source/dismount/assembler/proc/arm/ArmAssembler.cpp
+	Source/dismount/assembler/proc/arm/ArmAssemblerA32.cpp
 	Source/dismount/proc/arm/ArmInstructionSet.cpp
 	Source/dismount/proc/arm/ArmFeatures.cpp
 	Source/dismount/proc/arm/ArmOpcode.cpp
 	Source/dismount/proc/arm/ArmOperandCodec.cpp
 	Source/dismount/proc/arm/ArmOperandCodecA32.cpp
+	Source/dismount/proc/arm/ArmOperandCodecA32Memory.cpp
+	Source/dismount/proc/arm/ArmOperandCodecA32Thumb.cpp
+	Source/dismount/proc/arm/ArmOperandCodecA32Simd.cpp
+	Source/dismount/proc/arm/ArmNotationA32.cpp
+	Source/dismount/proc/arm/ArmNotationA32Simd.cpp
 	Source/dismount/proc/arm/ArmOperandCodecA64.cpp
 	Source/dismount/proc/arm/ArmOperandCodecSimd.cpp
 	Source/dismount/proc/arm/ArmOperandNames.cpp
@@ -148,6 +154,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestAMD64Assembler.cpp
 		tests/TestArm64Disassembler.cpp
 		tests/TestArm64Simd.cpp
+		tests/TestArmAArch32Disassembler.cpp
 		tests/TestSemantics.cpp
 		tests/TestAMD64Semantics.cpp
 		tests/TestSemanticFloat.cpp

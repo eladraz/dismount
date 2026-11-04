@@ -44,32 +44,33 @@ enum {
 
 const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     // --- AArch32
-    /* FEAT_A32_BASE */      { "",                SUPPORT_NONE },
-    /* FEAT_T32_BASE */      { "",                SUPPORT_NONE },
-    /* FEAT_V5TE */          { "v5te",            SUPPORT_NONE },
-    /* FEAT_V6 */            { "v6",              SUPPORT_NONE },
-    /* FEAT_V6K */           { "v6k",             SUPPORT_NONE },
-    /* FEAT_V6T2 */          { "v6t2",            SUPPORT_NONE },
-    /* FEAT_V7 */            { "v7",              SUPPORT_NONE },
-    /* FEAT_DIV */           { "hwdiv",           SUPPORT_NONE },
-    /* FEAT_V8_AA32 */       { "v8",              SUPPORT_NONE },
-    /* FEAT_CRC32_AA32 */    { "crc",             SUPPORT_NONE },
-    /* FEAT_AES_AA32 */      { "aes",             SUPPORT_NONE },
-    /* FEAT_SHA1_AA32 */     { "sha2",            SUPPORT_NONE },
-    /* FEAT_SHA256_AA32 */   { "sha2",            SUPPORT_NONE },
-    /* FEAT_VFP2 */          { "vfp2",            SUPPORT_NONE },
-    /* FEAT_VFP3 */          { "vfp3",            SUPPORT_NONE },
-    /* FEAT_VFP4 */          { "vfp4",            SUPPORT_NONE },
-    /* FEAT_NEON */          { "neon",            SUPPORT_NONE },
+    /* FEAT_A32_BASE */      { "",                SUPPORT_FULL },
+    /* FEAT_T32_BASE */      { "",                SUPPORT_FULL },
+    /* FEAT_V5TE */          { "v5te",            SUPPORT_FULL },
+    /* FEAT_V6 */            { "v6",              SUPPORT_FULL },
+    /* FEAT_V6K */           { "v6k",             SUPPORT_FULL },
+    /* FEAT_V6T2 */          { "v6t2",            SUPPORT_FULL },
+    /* FEAT_V7 */            { "v7",              SUPPORT_FULL },
+    /* FEAT_DIV */           { "hwdiv",           SUPPORT_FULL },
+    /* FEAT_V8_AA32 */       { "v8",              SUPPORT_FULL },
+    /* FEAT_CRC32_AA32 */    { "crc",             SUPPORT_FULL },
+    /* FEAT_AES_AA32 */      { "aes",             SUPPORT_FULL },
+    /* FEAT_SHA1_AA32 */     { "sha2",            SUPPORT_FULL },
+    /* FEAT_SHA256_AA32 */   { "sha2",            SUPPORT_FULL },
+    /* FEAT_VFP2 */          { "vfp2",            SUPPORT_FULL },
+    /* FEAT_VFP3 */          { "vfp3",            SUPPORT_FULL },
+    /* FEAT_VFP4 */          { "vfp4",            SUPPORT_FULL },
+    /* FEAT_NEON */          { "neon",            SUPPORT_FULL },
+    // (the NEON vfma.f32 / vfms.f32 are tagged FEAT_VFP4: LLVM needs neon and vfp4)
     /* FEAT_NEON_VFP4 */     { "vfp4",            SUPPORT_NONE },
-    /* FEAT_RDM_AA32 */      { "rdm",             SUPPORT_NONE },
-    /* FEAT_FP16_AA32 */     { "fullfp16",        SUPPORT_NONE },
-    /* FEAT_DOTPROD_AA32 */  { "dotprod",         SUPPORT_NONE },
-    /* FEAT_I8MM_AA32 */     { "i8mm",            SUPPORT_NONE },
-    /* FEAT_BF16_AA32 */     { "bf16",            SUPPORT_NONE },
-    /* FEAT_FCMA_AA32 */     { "complxnum",       SUPPORT_NONE },
-    /* FEAT_JSCVT_AA32 */    { "jsconv",          SUPPORT_NONE },
-    /* FEAT_FHM_AA32 */      { "fp16fml",         SUPPORT_NONE },
+    /* FEAT_RDM_AA32 */      { "v8.1a",             SUPPORT_FULL },
+    /* FEAT_FP16_AA32 */     { "fullfp16",        SUPPORT_FULL },
+    /* FEAT_DOTPROD_AA32 */  { "dotprod",         SUPPORT_FULL },
+    /* FEAT_I8MM_AA32 */     { "i8mm",            SUPPORT_FULL },
+    /* FEAT_BF16_AA32 */     { "bf16",            SUPPORT_FULL },
+    /* FEAT_FCMA_AA32 */     { "v8.3a",       SUPPORT_FULL },
+    /* FEAT_JSCVT_AA32 */    { "v8.3a",          SUPPORT_FULL },
+    /* FEAT_FHM_AA32 */      { "fp16fml",         SUPPORT_FULL },
 
     // --- AArch64
     /* FEAT_A64_BASE */      { "",                SUPPORT_FULL },
@@ -157,7 +158,21 @@ const FeatureInfo gFeatures[ArmFeatures::FEATURES_COUNT] = {
     /* FEAT_TEV */           { "tev",             SUPPORT_FULL },
     /* FEAT_F8F32MM */       { "f8f32mm",         SUPPORT_FULL },
     /* FEAT_F8F16MM */       { "f8f16mm",         SUPPORT_FULL },
-    /* FEAT_FPRCVT */        { "fprcvt",          SUPPORT_FULL }
+    /* FEAT_FPRCVT */        { "fprcvt",          SUPPORT_FULL },
+
+    // --- AArch32 features added with the A32 / T32 tables
+    /* FEAT_V5T */           { "v5t",             SUPPORT_FULL },
+    /* FEAT_V6M */           { "v6m",             SUPPORT_FULL },
+    /* FEAT_MP */            { "mp",              SUPPORT_FULL },
+    /* FEAT_DIV_ARM */       { "hwdiv-arm",       SUPPORT_FULL },
+    /* FEAT_VIRT */          { "virtualization",  SUPPORT_FULL },
+    /* FEAT_TRUSTZONE */     { "trustzone",       SUPPORT_FULL },
+    /* FEAT_SB_AA32 */       { "sb",              SUPPORT_FULL },
+    /* FEAT_RAS_AA32 */      { "ras",             SUPPORT_FULL },
+    /* FEAT_PAN_AA32 */      { "v8.1a",           SUPPORT_FULL },
+    /* FEAT_V8_4A_AA32 */    { "v8.4a",           SUPPORT_FULL },
+    /* FEAT_FPARMV8 */       { "fp-armv8",        SUPPORT_FULL },
+    /* FEAT_FP16_CVT */      { "fp16",            SUPPORT_FULL }
 };
 
 /*
@@ -195,7 +210,41 @@ const Implication gImplications[] = {
     { ArmFeatures::FEAT_VFP3,         ArmFeatures::FEAT_VFP2 },
     { ArmFeatures::FEAT_VFP4,         ArmFeatures::FEAT_VFP3 },
     { ArmFeatures::FEAT_NEON,         ArmFeatures::FEAT_VFP3 },
-    { ArmFeatures::FEAT_NEON_VFP4,    ArmFeatures::FEAT_NEON }
+    { ArmFeatures::FEAT_NEON_VFP4,    ArmFeatures::FEAT_NEON },
+    // The AArch32 architecture versions
+    { ArmFeatures::FEAT_V5TE,         ArmFeatures::FEAT_V5T },
+    { ArmFeatures::FEAT_V6,           ArmFeatures::FEAT_V5TE },
+    { ArmFeatures::FEAT_V6K,          ArmFeatures::FEAT_V6 },
+    { ArmFeatures::FEAT_V6M,          ArmFeatures::FEAT_V6 },
+    { ArmFeatures::FEAT_V6T2,         ArmFeatures::FEAT_V6K },
+    { ArmFeatures::FEAT_V6T2,         ArmFeatures::FEAT_V6M },
+    { ArmFeatures::FEAT_V7,           ArmFeatures::FEAT_V6T2 },
+    { ArmFeatures::FEAT_MP,           ArmFeatures::FEAT_V7 },
+    { ArmFeatures::FEAT_V8_AA32,      ArmFeatures::FEAT_V7 },
+    { ArmFeatures::FEAT_PAN_AA32,     ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_V8_4A_AA32,   ArmFeatures::FEAT_PAN_AA32 },
+    { ArmFeatures::FEAT_FPARMV8,      ArmFeatures::FEAT_VFP4 },
+    // The extensions that live in the coprocessor space of A32 (cp 8 - 15 of
+    // the unconditional space: vsel, vsdot, vcmla...) are ARMv8 ones: the
+    // pre ARMv8 coprocessor instructions are not there
+    { ArmFeatures::FEAT_FPARMV8,      ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_DOTPROD_AA32, ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_I8MM_AA32,    ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_BF16_AA32,    ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_FCMA_AA32,    ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_FHM_AA32,     ArmFeatures::FEAT_V8_AA32 },
+    { ArmFeatures::FEAT_FP16_CVT,     ArmFeatures::FEAT_VFP2 },
+    { ArmFeatures::FEAT_FP16_AA32,    ArmFeatures::FEAT_FPARMV8 },
+    { ArmFeatures::FEAT_FHM_AA32,     ArmFeatures::FEAT_FP16_AA32 },
+    { ArmFeatures::FEAT_RDM_AA32,     ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_DOTPROD_AA32, ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_I8MM_AA32,    ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_BF16_AA32,    ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_FCMA_AA32,    ArmFeatures::FEAT_FPARMV8 },
+    { ArmFeatures::FEAT_JSCVT_AA32,   ArmFeatures::FEAT_FPARMV8 },
+    { ArmFeatures::FEAT_AES_AA32,     ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_SHA1_AA32,    ArmFeatures::FEAT_NEON },
+    { ArmFeatures::FEAT_SHA256_AA32,  ArmFeatures::FEAT_NEON }
 };
 
 } // anonymous namespace
@@ -233,7 +282,7 @@ ArmInstructionSet::DisassemblerTypes ArmFeatures::getInstructionSet(Feature feat
     CHECK(feature < FEATURES_COUNT);
     if ((feature == FEAT_T32_BASE) || (feature == FEAT_V6T2))
         return ArmInstructionSet::ARM_T32;
-    if (feature < FEAT_A64_BASE)
+    if ((feature < FEAT_A64_BASE) || ((feature >= FEAT_V5T) && (feature <= FEAT_FP16_CVT)))
         return ArmInstructionSet::ARM_A32;
     return ArmInstructionSet::ARM_A64;
 }
@@ -269,6 +318,33 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
     // "armv<major>[.<minor>]-a"
     cString text(version);
     text.makeLower();
+
+    // The older AArch32 architectures have no profile: armv4t, armv5t, armv5te,
+    // armv6, armv6k, armv6t2
+    static const struct { const char* m_name; uint m_level; } older[] = {
+        { "armv4t", 0 }, { "armv5t", 1 }, { "armv5te", 2 }, { "armv6", 3 }, { "armv6k", 4 },
+        { "armv6t2", 5 }
+    };
+    for (uint i = 0; i < sizeof(older) / sizeof(older[0]); i++)
+        if (text == older[i].m_name)
+        {
+            ArmFeatureSet old;
+            if (older[i].m_level >= 1)
+                old.add(ArmFeatures::FEAT_V5T);
+            if (older[i].m_level >= 2)
+                old.add(ArmFeatures::FEAT_V5TE);
+            if (older[i].m_level >= 3)
+                old.add(ArmFeatures::FEAT_V6);
+            if (older[i].m_level >= 4)
+                old.add(ArmFeatures::FEAT_V6K);
+            if (older[i].m_level >= 5)
+            {
+                old.add(ArmFeatures::FEAT_V6M);
+                old.add(ArmFeatures::FEAT_V6T2);
+            }
+            return old;
+        }
+
     uint major = 0;
     uint minor = 0;
     bool valid = (text.length() >= 7) && (text.left(4) == "armv") &&
@@ -297,11 +373,17 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
 
     ArmFeatureSet result;
     // ARMv7-A: the AArch32 features up to Thumb-2 and the barriers
+    result.add(ArmFeatures::FEAT_V5T);
     result.add(ArmFeatures::FEAT_V5TE);
     result.add(ArmFeatures::FEAT_V6);
+    result.add(ArmFeatures::FEAT_V6M);
     result.add(ArmFeatures::FEAT_V6K);
     result.add(ArmFeatures::FEAT_V6T2);
     result.add(ArmFeatures::FEAT_V7);
+    // (LLVM's armv7-a and armv8-a have NEON)
+    result.add(ArmFeatures::FEAT_VFP2);
+    result.add(ArmFeatures::FEAT_VFP3);
+    result.add(ArmFeatures::FEAT_NEON);
     if (major == 7)
         return result;
 
@@ -310,12 +392,25 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
 
     // ARMv8.0-A
     result.add(ArmFeatures::FEAT_DIV);
+    result.add(ArmFeatures::FEAT_DIV_ARM);
     result.add(ArmFeatures::FEAT_V8_AA32);
+    result.add(ArmFeatures::FEAT_MP);
+    result.add(ArmFeatures::FEAT_VIRT);
+    result.add(ArmFeatures::FEAT_TRUSTZONE);
+    // (LLVM's armv8-a has the CRC32 instructions of AArch32)
+    result.add(ArmFeatures::FEAT_CRC32_AA32);
     result.add(ArmFeatures::FEAT_VFP2);
     result.add(ArmFeatures::FEAT_VFP3);
     result.add(ArmFeatures::FEAT_VFP4);
     result.add(ArmFeatures::FEAT_NEON);
     result.add(ArmFeatures::FEAT_NEON_VFP4);
+    // (the floating point of ARMv8, the half precision conversions and the
+    // cryptography are in LLVM's armv8-a)
+    result.add(ArmFeatures::FEAT_FPARMV8);
+    result.add(ArmFeatures::FEAT_FP16_CVT);
+    result.add(ArmFeatures::FEAT_AES_AA32);
+    result.add(ArmFeatures::FEAT_SHA1_AA32);
+    result.add(ArmFeatures::FEAT_SHA256_AA32);
     // ARMv8.1-A
     if (level >= 1)
     {
@@ -324,10 +419,14 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
         result.add(ArmFeatures::FEAT_LSE);
         result.add(ArmFeatures::FEAT_RDM);
         result.add(ArmFeatures::FEAT_RDM_AA32);
+        result.add(ArmFeatures::FEAT_PAN_AA32);
     }
     // ARMv8.2-A
     if (level >= 2)
+    {
         result.add(ArmFeatures::FEAT_DPB);
+        result.add(ArmFeatures::FEAT_RAS_AA32);
+    }
     // ARMv8.3-A
     if (level >= 3)
     {
@@ -345,6 +444,7 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
         result.add(ArmFeatures::FEAT_FLAGM);
         result.add(ArmFeatures::FEAT_DOTPROD);
         result.add(ArmFeatures::FEAT_DOTPROD_AA32);
+        result.add(ArmFeatures::FEAT_V8_4A_AA32);
     }
     // ARMv8.5-A (the memory tagging and the random numbers are optional)
     if (level >= 5)
@@ -352,6 +452,7 @@ ArmFeatureSet ArmFeatureSet::fromArchitecture(const char* version)
         result.add(ArmFeatures::FEAT_FLAGM2);
         result.add(ArmFeatures::FEAT_FRINTTS);
         result.add(ArmFeatures::FEAT_SB);
+        result.add(ArmFeatures::FEAT_SB_AA32);
         result.add(ArmFeatures::FEAT_BTI);
         result.add(ArmFeatures::FEAT_SPECRES);
     }
@@ -486,10 +587,18 @@ bool ArmFeatureSet::parse(const char* list)
             if (isRemove)
             {
                 remove(feature);
-                // Removing a feature removes the ones which need it
-                for (uint j = 0; j < sizeof(gImplications) / sizeof(gImplications[0]); j++)
-                    if (gImplications[j].m_implied == feature)
-                        remove(gImplications[j].m_feature);
+                // Removing a feature removes the ones which need it, transitively
+                bool changed;
+                do
+                {
+                    changed = false;
+                    for (uint j = 0; j < sizeof(gImplications) / sizeof(gImplications[0]); j++)
+                        if (!has(gImplications[j].m_implied) && has(gImplications[j].m_feature))
+                        {
+                            remove(gImplications[j].m_feature);
+                            changed = true;
+                        }
+                } while (changed);
             } else
             {
                 add(feature);

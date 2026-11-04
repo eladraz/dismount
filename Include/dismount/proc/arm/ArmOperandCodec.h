@@ -420,6 +420,15 @@ struct ArmCodecContext {
     ArmFeatureSet m_features;
     // The encoding being decoded or encoded
     const ArmEncodingEntry* m_entry;
+    // T32: the it state which applies to the instruction (ITSTATE: the
+    // condition in bits 4-7, the mask in 0-3), 0 outside of an it block. The
+    // condition and the s of the T16 mnemonics depend on it
+    uint m_itState;
+
+    ArmCodecContext() :
+        m_type(ArmInstructionSet::ARM_A64), m_address(0), m_entry(NULL), m_itState(0)
+    {
+    }
 };
 
 /*

@@ -19,9 +19,55 @@ import armlib
 import fuzz_decode
 
 
+def t32_bytes_to_unit(data):
+    """The unit of the bytes the assembler gave."""
+    # (the halfwords in memory order: little endian, hw1 first)
+    if len(data) == 2:
+        return (2, data[0] | (data[1] << 8))
+    return (4, (data[1] << 24) | (data[0] << 16) | (data[3] << 8) | data[2])
+
+
+def roundtrip_t32(args):
+    rows = armlib.entries('t32')
+    units = fuzz_decode.generate_t32(args.count, args.seed, rows)
+    addresses = [armlib.BASE + 4 * i for i in range(len(units))]
+    decoded = armlib.dis_units(units, None, addresses)
+    ok = [(u, d[1], a) for u, d, a in zip(units, decoded, addresses) if d[0] == 'OK']
+    assembled = armlib.asm_lines('t32', [t for _, t, _ in ok], None, [a for _, _, a in ok])
+    stats = collections.Counter()
+    again = []
+    groups = collections.defaultdict(list)
+    for (unit, text, address), (status, data) in zip(ok, assembled):
+        if status != 'OK':
+            groups[('ASM-ERR', armlib.mnemonic_of(text))].append((armlib.t32_hex(unit), text, data))
+        elif t32_bytes_to_unit(data) == unit:
+            stats['same word'] += 1
+        else:
+            again.append((unit, text, address, t32_bytes_to_unit(data)))
+    if again:
+        back = armlib.dis_units([b for _, _, _, b in again], None, [a for _, _, a, _ in again])
+        for (unit, text, address, other), (status, t2) in zip(again, back):
+            if status == 'OK' and t2 == text:
+                stats['same text, other word'] += 1
+            else:
+                groups[('DIFF', armlib.mnemonic_of(text))].append(
+                    (armlib.t32_hex(unit), text, '%s %s' % (armlib.t32_hex(other), t2)))
+    bugs = sum(len(v) for v in groups.values())
+    stats['decoded'] = len(ok)
+    for key in sorted(stats):
+        print('%-28s %d' % (key, stats[key]))
+    print('%-28s %d' % ('failures', bugs))
+    for (kind, mnemonic), items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        print('\n%s %s (%d)' % (kind, mnemonic, len(items)))
+        for word, text, other in items[:args.show]:
+            print('   %-10s  %s' % (word, text))
+            print('              -> %s' % other)
+    return 1 if bugs else 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--arch', default='a64', choices=['a64'])
+    parser.add_argument('--arch', default='a64', choices=['a64', 'a32', 't32'])
     parser.add_argument('--count', type=int, default=20000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--show', type=int, default=3)
@@ -29,12 +75,15 @@ def main():
                         help='only the words of this encoding class (default: the implemented ones)')
     args = parser.parse_args()
 
+    if args.arch == 't32':
+        return roundtrip_t32(args)
     rows = armlib.entries(args.arch)
     words = fuzz_decode.generate(args.arch, args.count, args.seed, rows, args.only_class)
-    if args.only_class:
-        words = [w for w in words if armlib.a64_class(w) == args.only_class]
-    else:
-        words = [w for w in words if armlib.a64_class(w) in fuzz_decode.IMPLEMENTED_CLASSES]
+    if args.arch == 'a64':
+        if args.only_class:
+            words = [w for w in words if armlib.a64_class(w) == args.only_class]
+        else:
+            words = [w for w in words if armlib.a64_class(w) in fuzz_decode.IMPLEMENTED_CLASSES]
     addresses = [armlib.BASE + 4 * i for i in range(len(words))]
     decoded = armlib.dis_words(args.arch, words, None, addresses)
 

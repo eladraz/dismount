@@ -19,6 +19,7 @@
 #include "dismount/DisassemblerEndOfStreamException.h"
 #include "dismount/DisassemblerInvalidOpcodeException.h"
 #include "dismount/proc/arm/ArmOperandCodec.h"
+#include "dismount/proc/arm/ArmOperandCodecA32.h"
 #include "dismount/proc/arm/ArmNotation.h"
 #include "dismount/proc/arm/ArmStreamDisassembler.h"
 
@@ -41,6 +42,14 @@ const ArmEncodingEntry* const gT16Tables[] = {
 };
 const ArmEncodingEntry* const gT32Tables[] = {
     gArmT32EncodingTable, gArmA32SimdEncodingTable, NULL
+};
+// The tables T32 searches with the A32 form of the instruction
+const ArmEncodingEntry* const gSimdTables[] = {
+    gArmA32SimdEncodingTable, NULL
+};
+// The T32 integer table only (the first match of the raw bits)
+const ArmEncodingEntry* const gT32IntegerTables[] = {
+    gArmT32EncodingTable, NULL
 };
 
 /*
@@ -106,24 +115,67 @@ const DecodeIndex& getIndex(ArmInstructionSet::DisassemblerTypes type, uint size
             return index;
         } else
         {
-            static const DecodeIndex index(gT32Tables, 24);
+            static const DecodeIndex index(gT32IntegerTables, 24);
             return index;
         }
     }
     CHECK_FAIL();
 }
 
-// Return the condition of an instruction: the condition part of its entry
-// (the A64 b.cond), AL for the others
-// TODO: A32 takes it from bits 28-31 and T32 from the it block
-uint getCondition(const ArmEncodingEntry* entry, uint32 encoding)
+// True if an A32 entry has a condition field and the encoding has the 1111
+// value in it
+bool hasInvalidCondition(const ArmEncodingEntry* entry, uint32 encoding)
 {
     for (uint i = 0; i < ARM_MAX_OPERAND_SPECS; i++)
     {
         if (entry->m_operands[i].m_kind == ARM_KIND_NONE)
             break;
         if (entry->m_operands[i].m_kind == ARM_KIND_CONDITION_MNEMONIC)
-            return ArmOperandCodec::getField(encoding, entry->m_operands[i].m_position, 4);
+        {
+            // (the condition of the it block is not a field)
+            if ((entry->m_operands[i].m_flags & (ARM_A32_COND_IT | ARM_A32_COND_IT_ONLY)) != 0)
+                return false;
+            return ArmOperandCodec::getField(encoding, entry->m_operands[i].m_position, 4) == 15;
+        }
+    }
+    return false;
+}
+
+// True if the entry has an A32 condition field at bit 28 (the floating point)
+bool hasConditionField28(const ArmEncodingEntry* entry)
+{
+    for (uint i = 0; i < ARM_MAX_OPERAND_SPECS; i++)
+    {
+        const ArmOperandSpec& spec = entry->m_operands[i];
+        if (spec.m_kind == ARM_KIND_NONE)
+            break;
+        if ((spec.m_kind == ARM_KIND_CONDITION_MNEMONIC) && (spec.m_position == 28) &&
+            ((spec.m_flags & (ARM_A32_COND_IT | ARM_A32_COND_IT_ONLY)) == 0))
+            return true;
+    }
+    return false;
+}
+
+// Return the condition of an instruction: the condition part of its entry
+// (the A64 b.cond, the A32 field, the T32 b<c>), the one of the it block for
+// the T32 instructions which take it from there, AL for the others
+uint getCondition(const ArmEncodingEntry* entry, ArmInstructionSet::DisassemblerTypes type,
+                  uint32 encoding, uint itState)
+{
+    for (uint i = 0; i < ARM_MAX_OPERAND_SPECS; i++)
+    {
+        const ArmOperandSpec& spec = entry->m_operands[i];
+        if (spec.m_kind == ARM_KIND_NONE)
+            break;
+        if (spec.m_kind == ARM_KIND_CONDITION_MNEMONIC)
+        {
+            // (the A32 floating point entries have the field too, T32 has an
+            // it block instead)
+            if (((spec.m_flags & ARM_A32_COND_IT) != 0) || (itState != 0 && type == ArmInstructionSet::ARM_T32) ||
+                ((spec.m_flags & ARM_A32_COND_IT_ONLY) != 0))
+                return (itState == 0) ? ArmOpcode::CONDITION_ALWAYS : (itState >> 4);
+            return ArmOperandCodec::getField(encoding, spec.m_position, 4);
+        }
     }
     return ArmOpcode::CONDITION_ALWAYS;
 }
@@ -173,22 +225,49 @@ const ArmEncodingEntry* const* ArmStreamDisassembler::getTables(
     CHECK_FAIL();
 }
 
-// Decode the bits into a new opcode, NULL if they are invalid. The caller owns
-// the opcode
-static ArmOpcode* decodeRaw(ArmInstructionSet::DisassemblerTypes type,
-                            uint32 encoding,
-                            uint size,
-                            uint64 address,
-                            const ArmFeatureSet& features,
-                            uint itState)
+// The T32 form of the floating point and Advanced SIMD instructions is the A32
+// form with another top byte (see gArmA32SimdEncodingTable). Return the A32
+// encodings which a T32 word can be, in the order LLVM tries them. Return the
+// number of them
+static uint translateT32ToA32(uint32 encoding, uint32 candidates[3])
 {
-    const DecodeIndex& index = getIndex(type, size);
-    const cArray<const ArmEncodingEntry*>& bucket = index.getBucket(encoding);
+    uint count = 0;
+    uint32 top = encoding >> 24;
+    // The VFP (the condition is 1110) and the ARMv8 VFP (1111 1110) as they are
+    if (((top >> 4) == 0xE) || (top == 0xFE) || (top == 0xFC) || (top == 0xFD))
+        candidates[count++] = encoding;
+    // The element and structure loads: 1111 1001 -> 1111 0100
+    if (top == 0xF9)
+        candidates[count++] = (encoding & 0xF0FFFFFF) | 0x04000000;
+    // The data processing: 111U 1111 -> 1111 001U (and the ARMv8 ones)
+    if ((top & 0xF) == 0xF)
+    {
+        uint32 data = encoding & 0xF0FFFFFF;
+        data |= (data & 0x10000000) >> 4;
+        data |= 0x12000000;
+        candidates[count++] = data;
+        candidates[count++] = encoding & 0xF3FFFFFF;
+    }
+    return count;
+}
 
+// Match the bits against the entries of a bucket: return the new opcode of the
+// first entry which decodes, NULL if none does. 'encoding' is the form that
+// the entries describe, 'original' the bits of the instruction
+static ArmOpcode* decodeBucket(const cArray<const ArmEncodingEntry*>& bucket,
+                               ArmInstructionSet::DisassemblerTypes type,
+                               uint32 encoding,
+                               uint32 original,
+                               uint size,
+                               uint64 address,
+                               const ArmFeatureSet& features,
+                               uint itState)
+{
     ArmCodecContext context;
     context.m_type = type;
     context.m_address = address;
     context.m_features = features;
+    context.m_itState = itState;
 
     ProcessorAddress opcodeAddress(
         (type == ArmInstructionSet::ARM_A64) ? ProcessorAddress::PROCESSOR_64 :
@@ -202,17 +281,39 @@ static ArmOpcode* decodeRaw(ArmInstructionSet::DisassemblerTypes type,
             continue;
         if (!features.has((ArmFeatures::Feature)entry->m_feature))
             continue;
+        if ((entry->m_flags & ARM_ENTRY_PRE_V8) != 0 &&
+            features.has(ArmFeatures::FEAT_V8_AA32))
+            continue;
         if ((entry->m_condition != NULL) && !entry->m_condition(encoding))
             continue;
-        // TODO: T32 searches the A32 floating point and Advanced SIMD table
-        // with the A32 form of the encoding
+        // The A32 condition 1111 is not a condition of the instructions which
+        // have one (they are in the unconditional space)
+        if ((type == ArmInstructionSet::ARM_A32) && hasInvalidCondition(entry, encoding))
+            continue;
+        // T32: the floating point entries (their A32 condition field) are the
+        // ones whose word starts with 1110
+        if ((type == ArmInstructionSet::ARM_T32) && hasConditionField28(entry) &&
+            ((encoding >> 28) != 0xE))
+            continue;
 
         context.m_entry = entry;
         // Decode the operands first: an operand with a reserved field means
         // that the encoding is not this entry
         ArmDecodedOperand operands[ArmOpcode::MAX_OPERANDS];
         uint operandsCount = 0;
+        // AArch32: the text of the entry up to its first '.' is the name, the
+        // rest ("vadd.f32", "add.w") is a fixed suffix after the parts
         cString mnemonic(entry->m_mnemonic);
+        cString fixedSuffix;
+        if (type != ArmInstructionSet::ARM_A64)
+        {
+            uint dot = mnemonic.find(XSTL_STRING("."));
+            if (dot < mnemonic.length())
+            {
+                fixedSuffix = mnemonic.part(dot, mnemonic.length());
+                mnemonic = mnemonic.left(dot);
+            }
+        }
         bool isValid = true;
         for (uint j = 0; j < ARM_MAX_OPERAND_SPECS; j++)
         {
@@ -235,14 +336,54 @@ static ArmOpcode* decodeRaw(ArmInstructionSet::DisassemblerTypes type,
         }
         if (!isValid)
             continue;
+        mnemonic += fixedSuffix;
+        // T32: the wide encoding of an instruction which has a narrow one
+        if ((entry->m_flags & ARM_ENTRY_T32_WIDE) != 0)
+            mnemonic += ".w";
 
-        ArmOpcode* opcode = new ArmOpcode(type, true, opcodeAddress, encoding, size,
-                                          entry, getCondition(entry, encoding),
+        ArmOpcode* opcode = new ArmOpcode(type, true, opcodeAddress, original, size,
+                                          entry, getCondition(entry, type, encoding, itState),
                                           itState);
         for (uint j = 0; j < operandsCount; j++)
             opcode->addOperand(operands[j]);
         opcode->setMnemonic(mnemonic);
         return opcode;
+    }
+    return NULL;
+}
+
+// The index of the Advanced SIMD and floating point table, which T32 searches
+// with the A32 form of the instruction
+static const DecodeIndex& getSimdIndex()
+{
+    static const DecodeIndex index(gSimdTables, 24);
+    return index;
+}
+
+// Decode the bits into a new opcode, NULL if they are invalid. The caller owns
+// the opcode
+static ArmOpcode* decodeRaw(ArmInstructionSet::DisassemblerTypes type,
+                            uint32 encoding,
+                            uint size,
+                            uint64 address,
+                            const ArmFeatureSet& features,
+                            uint itState)
+{
+    const DecodeIndex& index = getIndex(type, size);
+    ArmOpcode* opcode = decodeBucket(index.getBucket(encoding), type, encoding, encoding, size,
+                                     address, features, itState);
+    if ((opcode != NULL) || (type != ArmInstructionSet::ARM_T32) || (size != 4))
+        return opcode;
+
+    // T32: the floating point and Advanced SIMD instructions are the A32 ones
+    uint32 candidates[3];
+    uint count = translateT32ToA32(encoding, candidates);
+    for (uint i = 0; i < count; i++)
+    {
+        opcode = decodeBucket(getSimdIndex().getBucket(candidates[i]), type, candidates[i],
+                              encoding, size, address, features, itState);
+        if (opcode != NULL)
+            return opcode;
     }
     return NULL;
 }
@@ -329,9 +470,28 @@ OpcodePtr ArmStreamDisassembler::next()
         return next();
     }
 
-    // TODO: T32 it blocks. An it instruction sets m_itState to its
-    // firstcond:mask and the next instructions take their condition from it,
-    // advancing the state after each one
+    // T32: an it instruction sets the it state to its firstcond:mask, and each
+    // instruction of the block advances it (ITAdvance)
+    if (m_type == ArmInstructionSet::ARM_T32)
+    {
+        bool isIt = false;
+        for (uint i = 0; i < ARM_MAX_OPERAND_SPECS; i++)
+        {
+            if (opcode->getEntry()->m_operands[i].m_kind == ARM_KIND_NONE)
+                break;
+            if (opcode->getEntry()->m_operands[i].m_kind == ARM_KIND_T16_IT_MASK)
+                isIt = true;
+        }
+        if (isIt)
+        {
+            // (LLVM takes the firstcond 1111 as 1110)
+            m_itState = encoding & 0xFF;
+            if ((m_itState >> 4) == 15)
+                m_itState = (m_itState & 0x0F) | 0xE0;
+        }
+        else if (m_itState != 0)
+            m_itState = ((m_itState & 7) == 0) ? 0 : ((m_itState & 0xE0) | ((m_itState << 1) & 0x1F));
+    }
     if (m_shouldUseAddress)
         m_address = m_address + size;
     return OpcodePtr(opcode);

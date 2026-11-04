@@ -30,6 +30,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -69,6 +70,9 @@ def mattr_for(required):
 
 
 def run_file(arch, name, lines, known_features, wanted_features):
+    if arch == 't32':
+        import compat_t32
+        return compat_t32.run_file(name, lines, known_features, wanted_features)
     unimplemented = name in UNIMPLEMENTED_FILES
     texts = [t for t, _ in lines]
     addresses = [armlib.BASE + 4 * i for i in range(len(lines))]
@@ -198,17 +202,37 @@ def run_file(arch, name, lines, known_features, wanted_features):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--arch', default='a64', choices=['a64', 'all'],
-                        help='all: every instruction set which has a corpus (only a64 for now)')
+    parser.add_argument('--arch', default='a64', choices=['a64', 'a32', 't32', 'all'],
+                        help='all: every instruction set which has a corpus')
     parser.add_argument('--file', help='corpus files (without .s), comma separated')
     parser.add_argument('--features', help='only the lines of these LLVM features')
     parser.add_argument('--grep', help='only the lines matching this regex')
     parser.add_argument('--strict', action='store_true')
-    parser.add_argument('--out', default=DEFAULT_OUT)
+    parser.add_argument('--out', default=None,
+                        help='default: out/compat-arm-<arch>')
     args = parser.parse_args()
     if args.arch == 'all':
-        args.arch = 'a64'
+        # One run per instruction set (each with its own report)
+        status = 0
+        for arch in ('a64', 'a32', 't32'):
+            if not glob.glob(os.path.join(HERE, 'corpus', arch, '*.s')):
+                continue
+            sub = [sys.executable, os.path.abspath(__file__), '--arch', arch]
+            if args.out:
+                sub += ['--out', args.out + '-' + arch]
+            if args.strict:
+                sub.append('--strict')
+            if args.file:
+                sub += ['--file', args.file]
+            if args.features:
+                sub += ['--features', args.features]
+            if args.grep:
+                sub += ['--grep', args.grep]
+            status = max(status, subprocess.call(sub))
+        return status
 
+    if args.out is None:
+        args.out = DEFAULT_OUT + '-' + args.arch
     known = set(armlib.llvm_features(args.arch))
     files = sorted(glob.glob(os.path.join(HERE, 'corpus', args.arch, '*.s')))
     wanted_files = args.file.split(',') if args.file else None

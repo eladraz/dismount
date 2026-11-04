@@ -14,6 +14,7 @@
 #include "dismount/OpcodeSubsystems.h"
 #include "dismount/proc/arm/ArmOperandCodec.h"
 #include "dismount/proc/arm/ArmOperandCodecInternal.h"
+#include "dismount/proc/arm/ArmOperandCodecA32.h"
 #include "dismount/proc/arm/ArmNotation.h"
 
 using namespace armdis;
@@ -362,6 +363,8 @@ uint ArmNotation::parseOperandAddress(ProcessorAddress& address)
 cString ArmNotation::formatOperand(ArmInstructionSet::DisassemblerTypes type,
                                    const ArmDecodedOperand& operand)
 {
+    if (type != ArmInstructionSet::ARM_A64)
+        return formatOperandA32(operand);
     switch (operand.m_kind)
     {
     case Operand::KIND_REGISTER:

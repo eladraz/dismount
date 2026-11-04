@@ -164,6 +164,7 @@
     <ClCompile Include="TestAMD64Assembler.cpp" />
     <ClCompile Include="TestArm64Disassembler.cpp" />
     <ClCompile Include="TestArm64Simd.cpp" />
+    <ClCompile Include="TestArmAArch32Disassembler.cpp" />
     <ClCompile Include="TestSemantics.cpp" />
     <ClCompile Include="TestAMD64Semantics.cpp" />
     <ClCompile Include="TestArmArchitecture.cpp" />
