@@ -227,10 +227,16 @@ jobs:
           $exe = Get-ChildItem -Recurse -Filter testDismount.exe | Select-Object -First 1
           if (-not $exe) { throw "testDismount.exe not found" }
           Push-Location $exe.DirectoryName
-          & $exe.FullName
+          & $exe.FullName 2>&1 | Tee-Object -FilePath $env:RUNNER_TEMP\tests.log
           $code = $LASTEXITCODE
           Pop-Location
-          if ($code -ne 0) { exit $code }
+          if ($code -ne 0) {
+            # The end of the output, where the failing test is, as one annotation
+            # (a step shows at most 10 of them; %0A is a new line in it)
+            $tail = (Get-Content $env:RUNNER_TEMP\tests.log -Tail 60 | ForEach-Object { $_.TrimEnd() }) -join '%0A'
+            Write-Output "::error title=testDismount failed::$tail"
+            exit $code
+          }
 
   coverity:
     name: Coverity Scan
