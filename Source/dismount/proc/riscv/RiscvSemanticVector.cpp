@@ -389,6 +389,36 @@ SemanticOperand RvvLift::readScalar(uint number, uint bits)
     return x;
 }
 
+SemanticOperand RvvLift::readFloatScalar(uint bits, uint64 canonicalNan)
+{
+    CHECK((bits == 16) || (bits == 32) || (bits == 64));
+    const SemanticType registerType = integerType(64);
+    SemanticOperand value = emit(SemanticOperation::OP_MOVE, registerType,
+                                 m_context.getRegister(RISCV_REG_F0 + rs1()));
+    if (bits == 64)
+        return value;
+    // The value is boxed when the bits above it are all ones
+    SemanticOperand upper = emit(SemanticOperation::OP_SHIFT_RIGHT_LOGICAL,
+                                 registerType, value, imm(bits, registerType));
+    const uint64 ones = ((uint64)1 << (64 - bits)) - 1;
+    SemanticOperand isBoxed = compare(SemanticOperation::COND_EQUAL,
+                                      registerType, upper,
+                                      imm((int64)ones, registerType));
+    return select(isBoxed, truncate(value, bits),
+                  imm((int64)canonicalNan, integerType(bits)));
+}
+
+void RvvLift::writeFloatRegister(uint number, const SemanticOperand& value)
+{
+    const uint bits = value.getType().getTotalBits();
+    CHECK((bits == 16) || (bits == 32) || (bits == 64));
+    SemanticOperand pattern = zeroExtend(value, 64);
+    if (bits < 64)
+        pattern = emit(SemanticOperation::OP_OR, integerType(64), pattern,
+                       imm((int64)~(((uint64)1 << bits) - 1), integerType(64)));
+    move(m_context.getRegister(RISCV_REG_F0 + number), pattern);
+}
+
 SemanticOperand RvvLift::vlRegister()
 {
     return m_context.getRegister(RISCV_REG_VL);

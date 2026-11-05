@@ -58,12 +58,39 @@ void trapIfVstart(RvvLift& lift)
                                     lift.vstart(), lift.immX(0)));
 }
 
+// The f register rs1 as a scalar of 'bits' bits (a bad NaN box reads as the
+// canonical NaN)
+SemanticOperand readBoxedFloat(RvvLift& lift, uint bits)
+{
+    uint64 canonical = 0x7FF8000000000000ULL;
+    if (bits == 16)
+        canonical = 0x7E00;
+    else if (bits == 32)
+        canonical = 0x7FC00000;
+    return lift.readFloatScalar(bits, canonical);
+}
+
 /*
- * vmv.x.s and vmv.s.x
+ * vmv.x.s and vmv.s.x (and vfmv.f.s, vfmv.s.f)
  */
 void moveScalarBody(RvvLift& lift, const RvvType& type)
 {
     const uint sew = type.m_sew;
+    const bool isFloat = (permuteArgument(lift) & 1) != 0;
+    if (isFloat && (sew < 16))
+    {
+        lift.trapIllegal();
+        return;
+    }
+    if (isFloat)
+        lift.context().getRoundingMode(0);
+    if (isFloat && (permuteOperation(lift) == RVV_PERMUTE_MV_X_S))
+    {
+        // fd = vs2[0], NaN boxed (vl and vstart don't matter)
+        lift.writeFloatRegister(lift.vd(),
+                                lift.readElement(lift.vs2(), sew, lift.immX(0)));
+        return;
+    }
     if (permuteOperation(lift) == RVV_PERMUTE_MV_X_S)
     {
         // rd = vs2[0], sign extended (vl and vstart don't matter)
@@ -79,7 +106,8 @@ void moveScalarBody(RvvLift& lift, const RvvType& type)
     SemanticOperand skip = lift.newLabel();
     lift.branchIf(lift.compare(Op::COND_UNSIGNED_GREATER_EQUAL, lift.xlenType(),
                                lift.vstart(), lift.vl()), skip);
-    SemanticOperand value = lift.readScalar(lift.rs1(), sew);
+    SemanticOperand value = isFloat ? readBoxedFloat(lift, sew) :
+                                      lift.readScalar(lift.rs1(), sew);
     SemanticOperand reg = lift.readRegister(lift.vd());
     lift.writeRegister(lift.vd(), lift.insertBits(reg, value, lift.immX(0)));
     lift.placeLabel(skip);
@@ -98,15 +126,21 @@ void slideBody(RvvLift& lift, const RvvType& type)
     const RvvGroup s = RvvLift::makeGroupLmul(type, lift.vs2(), sew, type.m_lmulLog2);
     const bool isUp = (operation == RVV_PERMUTE_SLIDEUP) ||
                       (operation == RVV_PERMUTE_SLIDE1UP);
+    // vfslide1up.vf, vfslide1down.vf: the scalar is in an f register
+    const bool isFloat = (permuteArgument(lift) & 1) != 0;
     bool isLegal = RvvLift::isGroupLegal(d) && RvvLift::isGroupLegal(s) &&
                    !(lift.isMasked() && (lift.vd() == 0));
     if (isUp && (lift.vd() == lift.vs2()))
+        isLegal = false;
+    if (isFloat && (sew < 16))
         isLegal = false;
     if (!isLegal)
     {
         lift.trapIllegal();
         return;
     }
+    if (isFloat)
+        lift.context().getRoundingMode(0);
     const bool isVector = (operation == RVV_PERMUTE_SLIDEUP) ||
                           (operation == RVV_PERMUTE_SLIDEDOWN);
     // The offset: x[rs1] (unsigned, XLEN bits) or the immediate; the scalar
@@ -117,7 +151,8 @@ void slideBody(RvvLift& lift, const RvvType& type)
         offset = (lift.funct3() == 3) ? lift.immX(lift.uimm5())
                                        : lift.readX(lift.rs1());
     else
-        scalar = lift.readScalar(lift.rs1(), sew);
+        scalar = isFloat ? readBoxedFloat(lift, sew) :
+                           lift.readScalar(lift.rs1(), sew);
     const uint64 vlmax = type.vlmax(lift.vlen());
 
     SemanticOperand i = lift.beginLoop(lift.vl());

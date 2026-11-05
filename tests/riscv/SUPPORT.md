@@ -62,24 +62,24 @@ The semantics columns are the lines of `tests/riscv/semantics/corpus` run by `ru
 | zcb | RVA23U64 mandatory | 11 / 12 | disassemble, assemble, lift, lift verified, encoding verified | 359/359 | 367/367 | 150/150 | 159/159 |
 | zcmop | RVA23U64 mandatory | 8 / 8 | disassemble, assemble, lift, lift verified, encoding verified | 8/8 | 8/8 | 14/14 | 14/14 |
 | zve32x | RVA23U64 mandatory | 463 / 463 | disassemble, assemble, lift, lift verified, encoding verified | 72226/72226 | 72226/72226 | 8986/8986 | 8986/8986 |
-| zve32f | RVA23U64 mandatory | 103 / 103 | disassemble, assemble, encoding verified | 15900/15900 | 15900/15900 | 0/79 | 0/79 |
+| zve32f | RVA23U64 mandatory | 103 / 103 | disassemble, assemble, lift, lift verified, encoding verified | 15900/15900 | 15900/15900 | 2778/2778 | 2778/2778 |
 | zve64x | RVA23U64 mandatory | 44 / 76 | disassemble, assemble, lift, lift verified, encoding verified | 2937/2937 | 10475/10475 | 505/505 | 949/949 |
-| zve64f | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 | - | - |
-| zve64d | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 | - | - |
-| v | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; partial lift (the integer instructions of Zve32x / Zve64x are lifted, the floating point ones of Zve32f / Zve64d are not) | 0/0 | 0/0 | - | - |
-| zvfh | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 | - | - |
-| zvfhmin | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 | - | - |
-| zvfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 281/281 | 281/281 | 0/2 | 0/2 |
-| zvfbfwma | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 668/668 | 668/668 | 0/4 | 0/4 |
-| zvkb | RVA23U64 mandatory | 9 / 9 | disassemble, assemble, encoding verified | 1155/1155 | 1155/1155 | 0/7 | 0/7 |
-| zvbb | RVA23U64 mandatory | 7 / 7 | disassemble, assemble, encoding verified | 1224/1224 | 1224/1224 | 0/7 | 0/7 |
-| zvbc | RVA23U64 optional | 4 / 4 | disassemble, assemble, encoding verified | 620/620 | 620/620 | 0/2 | 0/2 |
-| zvkg | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 230/230 | 230/230 | 0/2 | 0/2 |
-| zvkned | RVA23U64 optional | 11 / 11 | disassemble, assemble, encoding verified | 1157/1157 | 1157/1157 | 0/8 | 0/8 |
-| zvknha | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 789/789 | 789/789 | 0/3 | 0/3 |
-| zvknhb | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified | 0/0 | 0/0 | - | - |
-| zvksed | RVA23U64 optional | 3 / 3 | disassemble, assemble, encoding verified | 294/294 | 294/294 | 0/3 | 0/3 |
-| zvksh | RVA23U64 optional | 2 / 2 | disassemble, assemble, encoding verified | 337/337 | 337/337 | 0/2 | 0/2 |
+| zve64f | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| zve64d | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| v | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| zvfh | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| zvfhmin | RVA23U64 mandatory | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| zvfbfmin | RVA23U64 optional | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 281/281 | 281/281 | 68/68 | 68/68 |
+| zvfbfwma | RVA23U64 optional | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 668/668 | 668/668 | 70/70 | 70/70 |
+| zvkb | RVA23U64 mandatory | 9 / 9 | disassemble, assemble, lift, lift verified, encoding verified | 1155/1155 | 1155/1155 | 216/216 | 216/216 |
+| zvbb | RVA23U64 mandatory | 7 / 7 | disassemble, assemble, lift, lift verified, encoding verified | 1224/1224 | 1224/1224 | 169/169 | 169/169 |
+| zvbc | RVA23U64 optional | 4 / 4 | disassemble, assemble, lift, lift verified, encoding verified | 620/620 | 620/620 | 112/112 | 112/112 |
+| zvkg | RVA23U64 optional | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 230/230 | 230/230 | 68/76 | 68/76 |
+| zvkned | RVA23U64 optional | 11 / 11 | disassemble, assemble, lift, lift verified, encoding verified | 1157/1157 | 1157/1157 | 366/402 | 366/402 |
+| zvknha | RVA23U64 optional | 3 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 789/789 | 789/789 | 111/123 | 111/123 |
+| zvknhb | RVA23U64 optional | 0 / 0 | no encodings of its own (the instructions of the features it implies), verified; the instructions of the features it implies are lifted and lift verified | 0/0 | 0/0 | - | - |
+| zvksed | RVA23U64 optional | 3 / 3 | disassemble, assemble, lift, lift verified, encoding verified | 294/294 | 294/294 | 107/115 | 107/115 |
+| zvksh | RVA23U64 optional | 2 / 2 | disassemble, assemble, lift, lift verified, encoding verified | 337/337 | 337/337 | 82/86 | 82/86 |
 | zvkt | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
 | ziccif | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |
 | ziccrse | RVA23U64 mandatory | 0 / 0 | no instructions | 0/0 | 0/0 | - | - |

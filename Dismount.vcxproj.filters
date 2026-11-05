@@ -144,6 +144,15 @@
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorFixed.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorFloat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorBits.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorCrypto.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\riscv\RiscvSemanticLiftVectorMask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

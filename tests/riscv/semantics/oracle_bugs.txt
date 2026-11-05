@@ -89,15 +89,15 @@
 #    trap:illegal in every state, Spike falls through.
 [qemu] ^\S+ v\d+, (?:\S+, )*v0, (?:\S+, )*v0\.t$ # QEMU: a masked instruction whose source is v0 is illegal (only the destination may not overlap v0)
 # 2. The same for the instructions that read v0 as data: vmerge.vvm v8, v0, v16, v0 (vs2 = v0): QEMU illegal.
-[qemu] ^(vmerge|vadc|vsbc|vmadc|vmsbc)\.\w+ v\d+, (v0, |[^,]+, v0, ) # QEMU: vmerge / vadc / vsbc / vmadc / vmsbc with a v0 source operand are illegal
+[qemu] ^(vmerge|vfmerge|vadc|vsbc|vmadc|vmsbc)\.\w+ v\d+, (v0, |[^,]+, v0, ) # QEMU: vmerge / vadc / vsbc / vmadc / vmsbc with a v0 source operand are illegal
 # 3. The widening instructions with the wide source (.wv) or the narrow vs1 overlapping a register group in a way
 #    the specification allows (rule 3 of 5.2: the narrow source in the highest numbered part of the wide
 #    destination; two sources may overlap each other freely): vwaddu.wv v16, v16, v18 (LMUL 2: vs1 = v18 is the top
 #    half of vd = v16), vwaddu.wv v2, v4, v5 (LMUL 1: vs1 inside the wide vs2): QEMU illegal, Spike executes.
-[qemu] ^vw(add|sub)u?\.w[vx] # QEMU: a narrow vs1 overlapping the wide destination (top half) or the wide vs2 is illegal
+[qemu] ^vf?w(add|sub)u?\.w[vxf] # QEMU: a narrow vs1 overlapping the wide destination (top half) or the wide vs2 is illegal
 # 4. The widening multiply-add: vwmaccu.vv v16, v20, v18 (LMUL 2: vs2 = v18 in the top half of vd = v16): QEMU
 #    illegal (it allows the overlap only for the other widening instructions), Spike executes.
-[qemu] ^vwmacc\w*\.v[vx] # QEMU: the widening multiply-add with a source in the top of the destination is illegal
+[qemu] ^(vwmacc\w*|vfw(n?macc|n?msac)(bf16)?)\.v[vxf] # QEMU: the widening multiply-add with a source in the top of the destination is illegal
 # 5. The narrowing shifts and clips with vs1 inside the wide vs2 group, or vd = vs2 with a unit group:
 #    vnsrl.wv v1, v2, v3 (LMUL 1: vs1 = v3 inside vs2 = v2/v3), vnsra.wv v8, v16, v16: QEMU illegal, Spike executes.
 [qemu] ^vn(srl|sra|clipu?)\.wv # QEMU: vs1 inside the wide vs2 group is illegal
@@ -145,6 +145,15 @@
 # elements; the specification makes it a no-op (vstart >= the number of elements: nothing is transferred). The
 # oracle splits a batch which dies down to the test that kills it and that state is ORACLE_ERR. Evidence:
 # run_semantics.py --oracle qemu --oracle-only --file rv_v --states 300 (vl2re16.v v8, (a1): 7 states).
+
+# vfredusum.vs / vfwredusum.vs with no active element (vl > 0 and every element masked off) and a NaN in vs1[0]: the
+# specification permits both (V 1.0, 14.3: "implementations are permitted to canonicalize the NaN and, if it is
+# signaling, set the invalid exception flag. Implementations are alternatively permitted to pass through the original
+# NaN and set no exception flags"). QEMU and dismount pass vs1[0] through unchanged, Spike canonicalizes it (and
+# raises invalid for a signaling NaN). The ordered sum and the min / max copy the scalar in all implementations.
+# Evidence: run_semantics.py --cross qemu,spike --file rv_vgen_fred (vfredusum.vs v0, v16, v24, v0.t with v0 = 0 and
+# vs1[0] = 7f800001: QEMU 7f800001, Spike 7fc00000).
+[spike] ^vfw?redusum\.vs # Spike canonicalizes a NaN scalar of a sum reduction without active elements (permitted; dismount passes it through like QEMU)
 
 # --- Implementation-defined behavior where the specification allows both (dismount follows QEMU)
 

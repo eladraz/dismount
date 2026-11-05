@@ -11,11 +11,11 @@
  * tests/riscv/tools/gen_vector_semantic_table.py (the .inc file is included
  * inside the initializer: no macro wraps the table).
  *
- * The floating point, the BFloat16, Zvbb / Zvkb / Zvbc and the vector
- * cryptography instructions have no rows yet: they are lifted to
- * OP_UNDEFINED until their lifter fills the files of rows
- * (RiscvSemanticTable_vector_float.inc, ..._bits.inc, ..._crypto.inc: plain
- * rows written with the macros below, empty now) next to the generated one.
+ * The rows are in four files: the integer instructions
+ * (RiscvSemanticTable_vector.inc), the floating point and BFloat16
+ * (..._vector_float.inc), Zvbb / Zvkb / Zvbc (..._vector_bits.inc) and the
+ * vector cryptography (..._vector_crypto.inc), plain rows written with the
+ * macros below.
  *
  * Author: Elad Raz <e@eladraz.com>
  */
@@ -58,6 +58,18 @@ namespace {
             P_(PREDICATED) | P_(VECTOR_LENGTH), parameter)
 #define RVM(name, parameter) \
     RVV_ROW(name, liftVectorMask, VECTOR_INTEGER, U_(VECTOR_INTEGER), \
+            P_(PREDICATED) | P_(VECTOR_LENGTH), parameter)
+#define RVK(name, parameter) \
+    RVV_ROW(name, liftVectorCrypto, CRYPTO, U_(CRYPTO), \
+            P_(VECTOR_LENGTH), parameter)
+#define RVB(name, parameter) \
+    RVV_ROW(name, liftVectorBits, VECTOR_INTEGER, U_(VECTOR_INTEGER), \
+            P_(PREDICATED) | P_(VECTOR_LENGTH), parameter)
+#define RVX(name, parameter) \
+    RVV_ROW(name, liftVectorFloat, VECTOR_FLOAT, U_(VECTOR_FLOAT), \
+            P_(PREDICATED) | P_(VECTOR_LENGTH), parameter)
+#define RVR(name, parameter) \
+    RVV_ROW(name, liftVectorFloatReduce, VECTOR_FLOAT, U_(VECTOR_FLOAT), \
             P_(PREDICATED) | P_(VECTOR_LENGTH), parameter)
 #define RVC(name, parameter) \
     RVV_ROW(name, liftVsetvl, SYSTEM, U_(SYSTEM), 0, parameter)

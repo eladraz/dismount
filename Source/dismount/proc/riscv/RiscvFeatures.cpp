@@ -61,7 +61,11 @@ enum {
     // and Zve64x; Zvfh and Zvfhmin are the element type of the floating point
     // instructions; Zvknhb adds the SEW 64 of the Zvknha encodings): they are
     // decoded, assembled and compared with LLVM
-    SUPPORT_IMPLIED_ONLY = SUPPORT_CSR_ONLY
+    SUPPORT_IMPLIED_ONLY = SUPPORT_CSR_ONLY,
+    // The same, and the instructions of the features it implies are lifted
+    // and compared with the reference processors
+    SUPPORT_IMPLIED_LIFTED = SUPPORT_IMPLIED_ONLY | F::SUPPORT_LIFT |
+                             F::SUPPORT_LIFT_VERIFIED
 };
 
 /*
@@ -93,14 +97,14 @@ enum {
     P_S64_OPT = F::PROFILE_RVA23S64_OPTIONAL
 };
 
-// The vector features: Zve32x and Zve64x (every integer vector instruction: the
+// The vector features are all lifted and compared with QEMU and Spike
+// (tests/riscv/semantics, the rv_vgen_* corpus): Zve32x and Zve64x (the
 // configuration, the loads and stores, the integer arithmetic, the fixed
-// point, the masks, the permutations and the integer reductions) are lifted
-// and compared with QEMU and Spike (tests/riscv/semantics, the rv_vgen_*
-// corpus). V (Zve64d) has no encodings of its own: it is marked partial
-// because the floating point instructions of Zve32f / Zve64d, BFloat16,
-// Zvbb / Zvkb / Zvbc and the vector cryptography are not lifted yet (their
-// features carry no lift mark).
+// point, the masks, the permutations and the integer reductions), Zve32f,
+// Zve64f and Zve64d (the floating point), Zvfh and Zvfhmin (the half
+// precision elements), Zvfbfmin and Zvfbfwma (BFloat16), Zvbb, Zvkb and Zvbc,
+// and the vector cryptography. V (Zve64d) and the features that have no
+// encodings of their own are marked by what they imply.
 // The vector implications
 #define V32X F::FEAT_ZVE32X, F::FEAT_ZICSR
 
@@ -156,24 +160,24 @@ const FeatureInfo gFeatures[F::FEATURES_COUNT] = {
     // floating point ones by Zve32f, the 64 bit element loads and Zvbc by
     // Zve64x
     /* FEAT_ZVE32X */     { "zve32x",            P_U64,     SUPPORT_LIFTED_VERIFIED, { F::FEAT_ZICSR, END } },
-    /* FEAT_ZVE32F */     { "zve32f",            P_U64,     SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVE32F */     { "zve32f",            P_U64,     SUPPORT_LIFTED_VERIFIED, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32X, END } },
     /* FEAT_ZVE64X */     { "zve64x",            P_U64,     SUPPORT_LIFTED_VERIFIED, { V32X, END } },
-    /* FEAT_ZVE64F */     { "zve64f",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
-    /* FEAT_ZVE64D */     { "zve64d",            P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64F, F::FEAT_ZVE64X, END } },
-    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_IMPLIED_ONLY | F::SUPPORT_PARTIAL_LIFT, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
-    /* FEAT_ZVFH */       { "zvfh",              P_U64_OPT, SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZFHMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFHMIN, END } },
-    /* FEAT_ZVFHMIN */    { "zvfhmin",           P_U64,     SUPPORT_IMPLIED_ONLY, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVFBFMIN */   { "zvfbfmin",          P_U64_OPT, SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
-    /* FEAT_ZVFBFWMA */   { "zvfbfwma",          P_U64_OPT, SUPPORT_FULL, { F::FEAT_F, F::FEAT_ZFBFMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFBFMIN, END } },
-    /* FEAT_ZVKB */       { "zvkb",              P_U64,     SUPPORT_FULL, { V32X, END } },
-    /* FEAT_ZVBB */       { "zvbb",              P_U64,     SUPPORT_FULL, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVKB, END } },
-    /* FEAT_ZVBC */       { "zvbc",              P_U64_OPT, SUPPORT_FULL, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
-    /* FEAT_ZVKG */       { "zvkg",              P_U64_OPT, SUPPORT_FULL, { V32X, END } },
-    /* FEAT_ZVKNED */     { "zvkned",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
-    /* FEAT_ZVKNHA */     { "zvknha",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
-    /* FEAT_ZVKNHB */     { "zvknhb",            P_U64_OPT, SUPPORT_IMPLIED_ONLY, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, F::FEAT_ZVKNHA, END } },
-    /* FEAT_ZVKSED */     { "zvksed",            P_U64_OPT, SUPPORT_FULL, { V32X, END } },
-    /* FEAT_ZVKSH */      { "zvksh",             P_U64_OPT, SUPPORT_FULL, { V32X, END } },
+    /* FEAT_ZVE64F */     { "zve64f",            P_U64,     SUPPORT_IMPLIED_LIFTED, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
+    /* FEAT_ZVE64D */     { "zve64d",            P_U64,     SUPPORT_IMPLIED_LIFTED, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64F, F::FEAT_ZVE64X, END } },
+    /* FEAT_V */          { "v",                 P_U64,     SUPPORT_IMPLIED_LIFTED, { F::FEAT_D, F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVE64D, F::FEAT_ZVE64F, F::FEAT_ZVE64X } },
+    /* FEAT_ZVFH */       { "zvfh",              P_U64_OPT, SUPPORT_IMPLIED_LIFTED, { F::FEAT_F, F::FEAT_ZFHMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFHMIN, END } },
+    /* FEAT_ZVFHMIN */    { "zvfhmin",           P_U64,     SUPPORT_IMPLIED_LIFTED, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVFBFMIN */   { "zvfbfmin",          P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { F::FEAT_F, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, END } },
+    /* FEAT_ZVFBFWMA */   { "zvfbfwma",          P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { F::FEAT_F, F::FEAT_ZFBFMIN, F::FEAT_ZICSR, F::FEAT_ZVE32F, F::FEAT_ZVE32X, F::FEAT_ZVFBFMIN, END } },
+    /* FEAT_ZVKB */       { "zvkb",              P_U64,     SUPPORT_LIFTED_VERIFIED, { V32X, END } },
+    /* FEAT_ZVBB */       { "zvbb",              P_U64,     SUPPORT_LIFTED_VERIFIED, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVKB, END } },
+    /* FEAT_ZVBC */       { "zvbc",              P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, END } },
+    /* FEAT_ZVKG */       { "zvkg",              P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { V32X, END } },
+    /* FEAT_ZVKNED */     { "zvkned",            P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { V32X, END } },
+    /* FEAT_ZVKNHA */     { "zvknha",            P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { V32X, END } },
+    /* FEAT_ZVKNHB */     { "zvknhb",            P_U64_OPT, SUPPORT_IMPLIED_LIFTED, { F::FEAT_ZICSR, F::FEAT_ZVE32X, F::FEAT_ZVE64X, F::FEAT_ZVKNHA, END } },
+    /* FEAT_ZVKSED */     { "zvksed",            P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { V32X, END } },
+    /* FEAT_ZVKSH */      { "zvksh",             P_U64_OPT, SUPPORT_LIFTED_VERIFIED, { V32X, END } },
     /* FEAT_ZVKT */       { "zvkt",              P_U64,     F::SUPPORT_NO_INSTRUCTIONS, { END } },
     // The properties of the memory system
     /* FEAT_ZICCIF */     { "ziccif",            P_U64,     F::SUPPORT_NO_INSTRUCTIONS, { END } },

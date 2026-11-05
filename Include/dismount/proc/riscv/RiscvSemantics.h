@@ -43,6 +43,10 @@ enum {
     // encoding. RiscvHelpers (RiscvHelpers.h) implements the ones of the
     // scalar lifter
     RISCV_HELPER_INSTRUCTION,
+    // The SM4 S-box of the vector cryptography (vsm4k, vsm4r): d = the S-box
+    // of each of the 4 bytes of the word s1 (the low 32 bits of the native
+    // integer)
+    RISCV_HELPER_SM4_SBOX,
     // The number of helpers. Must be last
     RISCV_HELPERS_COUNT
 };

@@ -22,7 +22,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 OUT = os.path.join(HERE, 'corpus')
-TABLE = os.path.join(REPO, 'Source', 'dismount', 'proc', 'riscv', 'RiscvSemanticTable_vector.inc')
+TABLES = [os.path.join(REPO, 'Source', 'dismount', 'proc', 'riscv', 'RiscvSemanticTable_vector%s.inc' % x)
+          for x in ('', '_float', '_bits', '_crypto')]
 
 SIMM = [-16, -1, 0, 1, 15]
 UIMM = [0, 1, 7, 15, 31]
@@ -41,12 +42,13 @@ for _i in range(2, 12):
     GPR['s%d' % _i] = 16 + _i
 for _i in range(3, 7):
     GPR['t%d' % _i] = 25 + _i
+FPR = {'ft0': 0, 'ft1': 1, 'fs0': 8, 'fs1': 9, 'fa0': 10, 'fa1': 11, 'fa2': 12, 'fa3': 13}
 ENCODINGS = {}
 
 
 def load_encodings():
     """name -> (mask, match, [(kind, position, extra)]) of the vector encoding tables."""
-    for t in ('config', 'int', 'mask', 'mem'):
+    for t in ('config', 'int', 'mask', 'mem', 'fp', 'ext'):
         path = os.path.join(REPO, 'Source', 'dismount', 'proc', 'riscv', 'RiscvEncodingTable_vector_%s.inc' % t)
         for line in open(path):
             m = re.match(r'E\("([^"]+)", (0x[0-9a-f]+), (0x[0-9a-f]+), \w+, [\w| ]+, ', line)
@@ -88,6 +90,11 @@ def encode(text):
             if i >= len(tokens) or tokens[i] not in GPR:
                 return None
             word |= GPR[tokens[i]] << pos
+            i += 1
+        elif kind == 'RISCV_KIND_FPR':
+            if i >= len(tokens) or tokens[i] not in FPR:
+                return None
+            word |= FPR[tokens[i]] << pos
             i += 1
         elif kind == 'RISCV_KIND_IMMEDIATE':
             if i >= len(tokens):
@@ -519,6 +526,258 @@ def gen_permute():
             add(f, '%s.vs v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: lmul=%s' % lm)
 
 
+# ---------------------------------------------------------------------------------------------------------
+# The vector floating point (Zve32f / Zve64d, Zvfh, Zvfhmin, Zvfbfmin, Zvfbfwma)
+
+FREGS = ['fa1', 'ft0']
+
+
+def build_float_binary(f, mn, form, shape, masked=True):
+    """vd, vs2, vs1 / fs1 forms of the floating point instructions (vv, vf, wv, wf)."""
+    pats = shape['plain']
+    if form in ('vv', 'wv'):
+        for p in pats:
+            add(f, '%s v%d, v%d, v%d' % (mn, p[0], p[1], p[2]))
+        if masked:
+            for p in shape['masked']:
+                add(f, '%s v%d, v%d, v%d, v0.t' % (mn, p[0], p[1], p[2]))
+        for lm, p in shape['forced']:
+            add(f, '%s v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: lmul=%s' % lm)
+    else:
+        for p in pats[:7] + pats[-2:]:
+            for x in FREGS:
+                add(f, '%s v%d, v%d, %s' % (mn, p[0], p[1], x))
+        if masked:
+            for p in shape['masked'][:4]:
+                add(f, '%s v%d, v%d, fa1, v0.t' % (mn, p[0], p[1]))
+        for lm, p in shape['forced'][:6]:
+            add(f, '%s v%d, v%d, fa1' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+
+
+def build_float_unary(f, mn, shape, tag=''):
+    """vd, vs2 forms: the pairs of the (vd, vs2, vs1) patterns."""
+    for p in shape['plain']:
+        add(f, '%s v%d, v%d' % (mn, p[0], p[1]), tag)
+    for p in shape['masked']:
+        add(f, '%s v%d, v%d, v0.t' % (mn, p[0], p[1]), tag)
+    for lm, p in shape['forced']:
+        add(f, '%s v%d, v%d' % (mn, p[0], p[1]), ('@state: lmul=%s ' % lm + tag).strip())
+
+
+def build_float_fma(f, mn, form, shape):
+    """vd, vs1 / fs1, vs2: the multiply-add operand order."""
+    if form == 'vv':
+        for p in shape['plain']:
+            add(f, '%s.vv v%d, v%d, v%d' % (mn, p[0], p[2], p[1]))
+        for p in shape['masked']:
+            add(f, '%s.vv v%d, v%d, v%d, v0.t' % (mn, p[0], p[2], p[1]))
+        for lm, p in shape['forced']:
+            add(f, '%s.vv v%d, v%d, v%d' % (mn, p[0], p[2], p[1]), '@state: lmul=%s' % lm)
+    else:
+        for p in shape['plain'][:8] + shape['plain'][-2:]:
+            for x in FREGS:
+                add(f, '%s.vf v%d, %s, v%d' % (mn, p[0], x, p[1]))
+        for p in shape['masked'][:4]:
+            add(f, '%s.vf v%d, fa1, v%d, v0.t' % (mn, p[0], p[1]))
+        for lm, p in shape['forced'][:6]:
+            add(f, '%s.vf v%d, fa1, v%d' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+
+
+# the directed rounding-mode lines: frm over the five modes for the instructions that round (and the reserved ones)
+FRM_LINES = ('vfadd.vv v8, v16, v24', 'vfsub.vf v8, v16, fa1', 'vfmul.vv v8, v16, v24', 'vfdiv.vv v8, v16, v24',
+             'vfmacc.vv v8, v16, v24', 'vfnmsub.vf v8, fa1, v16', 'vfsqrt.v v8, v16', 'vfrec7.v v8, v16',
+             'vfcvt.x.f.v v8, v16', 'vfcvt.xu.f.v v8, v16', 'vfcvt.f.x.v v8, v16', 'vfwcvt.x.f.v v8, v16',
+             'vfwcvt.f.x.v v8, v16', 'vfncvt.x.f.w v8, v16', 'vfncvt.f.f.w v8, v16', 'vfncvt.f.x.w v8, v16',
+             'vfwadd.vv v8, v16, v24', 'vfwmul.vf v8, v16, fa1', 'vfwmacc.vv v8, v16, v24', 'vfredusum.vs v8, v16, v24',
+             'vfredosum.vs v8, v16, v24', 'vfwredusum.vs v8, v16, v24', 'vfncvt.rod.f.f.w v8, v16',
+             'vfcvt.rtz.x.f.v v8, v16', 'vfmin.vv v8, v16, v24', 'vfsgnj.vv v8, v16, v24', 'vmflt.vv v8, v16, v24',
+             'vfclass.v v8, v16', 'vfrsqrt7.v v8, v16', 'vfwmaccbf16.vv v8, v16, v24', 'vfncvtbf16.f.f.w v8, v16',
+             'vfwcvtbf16.f.f.v v8, v16', 'vfmerge.vfm v8, v16, fa1, v0', 'vfmv.v.f v8, fa1', 'vfslide1up.vf v8, v16, fa1',
+             'vfredmax.vs v8, v16, v24', 'vfmv.s.f v8, fa1')
+
+
+def gen_float():
+    f = 'fadd'
+    # the arithmetic, min and max, the sign injection
+    for mn in ('vfadd', 'vfsub', 'vfmul', 'vfdiv', 'vfmin', 'vfmax', 'vfsgnj', 'vfsgnjn', 'vfsgnjx'):
+        build_float_binary(f, mn + '.vv', 'vv', SAME)
+        build_float_binary(f, mn + '.vf', 'vf', SAME)
+    for mn in ('vfrsub', 'vfrdiv'):
+        build_float_binary(f, mn + '.vf', 'vf', SAME)
+    # the aliases
+    for mn in ('vfneg.v', 'vfabs.v'):
+        for p in SAME['plain'][:6]:
+            add(f, '%s v%d, v%d' % (mn, p[0], p[1]))
+            add(f, '%s v%d, v%d, v0.t' % (mn, p[0], p[1]))
+    # multiply-add
+    f = 'ffma'
+    for mn in ('vfmacc', 'vfnmacc', 'vfmsac', 'vfnmsac', 'vfmadd', 'vfnmadd', 'vfmsub', 'vfnmsub'):
+        build_float_fma(f, mn, 'vv', SAME)
+        build_float_fma(f, mn, 'vf', SAME)
+    for mn in ('vfwmacc', 'vfwnmacc', 'vfwmsac', 'vfwnmsac', 'vfwmaccbf16'):
+        build_float_fma(f, mn, 'vv', WIDEN)
+        build_float_fma(f, mn, 'vf', WIDEN)
+    # widening
+    f = 'fwide'
+    for mn in ('vfwadd', 'vfwsub', 'vfwmul'):
+        build_float_binary(f, mn + '.vv', 'vv', WIDEN)
+        build_float_binary(f, mn + '.vf', 'vf', WIDEN)
+    for mn in ('vfwadd', 'vfwsub'):
+        build_float_binary(f, mn + '.wv', 'wv', WIDEN_W)
+        build_float_binary(f, mn + '.wf', 'wf', WIDEN_W)
+    # unary
+    f = 'funary'
+    for mn in ('vfsqrt.v', 'vfrsqrt7.v', 'vfrec7.v', 'vfclass.v'):
+        build_float_unary(f, mn, SAME)
+    # compares
+    f = 'fcmp'
+    for mn, forms in (('vmfeq', ('vv', 'vf')), ('vmfne', ('vv', 'vf')), ('vmflt', ('vv', 'vf')), ('vmfle', ('vv', 'vf')),
+                      ('vmfgt', ('vf',)), ('vmfge', ('vf',))):
+        for form in forms:
+            build_float_binary(f, mn + '.' + form, form, MASKDEST)
+    # merge and moves
+    f = 'fmove'
+    for p in SAME['plain'][:12]:
+        for x in FREGS:
+            add(f, 'vfmerge.vfm v%d, v%d, %s, v0' % (p[0], p[1], x))
+    for lm, p in SAME['forced'][:5]:
+        add(f, 'vfmerge.vfm v%d, v%d, fa1, v0' % (p[0], p[1]), '@state: lmul=%s' % lm)
+    for r in (8, 0, 1, 16, 31, 24, 9):
+        for x in FREGS:
+            add(f, 'vfmv.v.f v%d, %s' % (r, x))
+    for lm, r in (('m2', 9), ('m4', 10), ('m8', 12), ('m2', 8), ('m8', 8), ('m4', 8)):
+        add(f, 'vfmv.v.f v%d, fa1' % r, '@state: lmul=%s' % lm)
+    for fd in ('fa0', 'ft0', 'fs1'):
+        for s2 in (8, 0, 31, 9):
+            add(f, 'vfmv.f.s %s, v%d' % (fd, s2))
+    for fs in ('fa1', 'ft0', 'fa2'):
+        for d in (8, 0, 31, 9):
+            add(f, 'vfmv.s.f v%d, %s' % (d, fs))
+    for mn in ('vfslide1up', 'vfslide1down'):
+        for p in SAME['plain'][:9]:
+            add(f, '%s.vf v%d, v%d, fa1' % (mn, p[0], p[1]))
+        for p in SAME['masked'][:6]:
+            add(f, '%s.vf v%d, v%d, fa1, v0.t' % (mn, p[0], p[1]))
+        for lm, p in SAME['forced'][:6]:
+            add(f, '%s.vf v%d, v%d, fa1' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+    # conversions
+    f = 'fcvt'
+    same_cvt = ('vfcvt.xu.f.v', 'vfcvt.x.f.v', 'vfcvt.f.xu.v', 'vfcvt.f.x.v', 'vfcvt.rtz.xu.f.v', 'vfcvt.rtz.x.f.v')
+    for mn in same_cvt:
+        build_float_unary(f, mn, SAME)
+    for mn in ('vfwcvt.xu.f.v', 'vfwcvt.x.f.v', 'vfwcvt.f.xu.v', 'vfwcvt.f.x.v', 'vfwcvt.f.f.v', 'vfwcvt.rtz.xu.f.v',
+               'vfwcvt.rtz.x.f.v', 'vfwcvtbf16.f.f.v'):
+        build_float_unary(f, mn, WIDEN)
+    for mn in ('vfncvt.xu.f.w', 'vfncvt.x.f.w', 'vfncvt.f.xu.w', 'vfncvt.f.x.w', 'vfncvt.f.f.w', 'vfncvt.rod.f.f.w',
+               'vfncvt.rtz.xu.f.w', 'vfncvt.rtz.x.f.w', 'vfncvtbf16.f.f.w'):
+        build_float_unary(f, mn, NARROW)
+    # reductions
+    f = 'fred'
+    for mn in ('vfredosum', 'vfredusum', 'vfredmax', 'vfredmin'):
+        for p in ((8, 16, 24), (8, 8, 24), (8, 16, 8), (8, 16, 16), (0, 16, 24), (8, 0, 24), (8, 16, 0), (1, 2, 3),
+                  (31, 30, 29), (9, 16, 24), (8, 16, 25), (2, 8, 3), (3, 10, 3)):
+            add(f, '%s.vs v%d, v%d, v%d' % (mn, p[0], p[1], p[2]))
+        for p in ((8, 16, 24), (0, 16, 24), (8, 0, 24), (1, 2, 3), (8, 16, 0)):
+            add(f, '%s.vs v%d, v%d, v%d, v0.t' % (mn, p[0], p[1], p[2]))
+        for lm, p in (('m2', (8, 17, 24)), ('m2', (9, 16, 24)), ('m8', (8, 20, 24)), ('m4', (8, 18, 24))):
+            add(f, '%s.vs v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: lmul=%s' % lm)
+    for mn in ('vfwredosum', 'vfwredusum'):
+        for p in ((8, 16, 24), (8, 8, 24), (8, 16, 8), (0, 16, 24), (8, 0, 24), (1, 2, 3), (31, 30, 29), (9, 16, 24)):
+            add(f, '%s.vs v%d, v%d, v%d' % (mn, p[0], p[1], p[2]))
+        for p in ((8, 16, 24), (0, 16, 24), (1, 2, 3)):
+            add(f, '%s.vs v%d, v%d, v%d, v0.t' % (mn, p[0], p[1], p[2]))
+        for lm, p in (('m2', (8, 17, 24)), ('m8', (8, 16, 24)), ('m4', (8, 18, 24))):
+            add(f, '%s.vs v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: lmul=%s' % lm)
+    # the rounding modes, the reserved ones, and the elements that are not floating point (SEW 8)
+    f = 'fdir'
+    for line in FRM_LINES:
+        for frm in range(5):
+            add(f, line, '@state: frm=%d' % frm)
+        add(f, line, '@state: frm=5')
+        add(f, line, '@state: frm=7')
+        add(f, line, '@state: sew=8')
+    # a scalar which is not NaN boxed
+    for sew, bad in ((16, 'ffffffff00004400'), (16, '000000000000bc00'), (32, '00000000403f0000'), (32, 'ffffffff7fc00000'),
+                     (16, 'ffffffffffff4400'), (32, 'ffffffffffffffff')):
+        for line in ('vfadd.vf v8, v16, fa1', 'vfmul.vf v8, v16, fa1', 'vfmerge.vfm v8, v16, fa1, v0', 'vfmv.v.f v8, fa1',
+                     'vfsgnj.vf v8, v16, fa1', 'vfslide1up.vf v8, v16, fa1', 'vfmv.s.f v8, fa1', 'vfwadd.vf v8, v16, fa1',
+                     'vfmacc.vf v8, fa1, v16', 'vmfeq.vf v8, v16, fa1'):
+            add(f, line, '@state: sew=%d f11=%s' % (sew, bad))
+    for bad in ('ffffffff00004400', 'ffffffffffff4000', 'ffffffffffff7fc0', '000000000000c000'):
+        for line in ('vfwmaccbf16.vf v8, fa1, v16', 'vfmv.v.f v8, fa1'):
+            add(f, line, '@state: sew=16 f11=%s' % bad)
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Zvbb, Zvkb, Zvbc
+
+def gen_bits():
+    f = 'bits'
+    for mn in ('vandn', 'vrol', 'vror'):
+        build_binary(f, mn + '.vv', 'vv', SAME)
+        build_binary(f, mn + '.vx', 'vx', SAME)
+    build_binary(f, 'vror.vi', 'vi', SAME, immediates=[0, 1, 7, 31, 32, 33, 63])
+    for mn in ('vwsll',):
+        build_binary(f, mn + '.vv', 'vv', WIDEN)
+        build_binary(f, mn + '.vx', 'vx', WIDEN)
+        build_binary(f, mn + '.vi', 'vi', WIDEN, immediates=UIMM)
+    for mn in ('vbrev8.v', 'vrev8.v', 'vbrev.v', 'vclz.v', 'vctz.v', 'vcpop.v'):
+        for p in SAME['plain']:
+            add(f, '%s v%d, v%d' % (mn, p[0], p[1]))
+        for p in SAME['masked']:
+            add(f, '%s v%d, v%d, v0.t' % (mn, p[0], p[1]))
+        for lm, p in SAME['forced']:
+            add(f, '%s v%d, v%d' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+    for mn in ('vclmul', 'vclmulh'):
+        build_binary(f, mn + '.vv', 'vv', SAME)
+        build_binary(f, mn + '.vx', 'vx', SAME)
+        # (SEW 64 only: the states cycle through the SEWs, the others are illegal; a directed SEW 64 pass)
+        for p in SAME['plain'][:6]:
+            add(f, '%s.vv v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: sew=64')
+            add(f, '%s.vx v%d, v%d, a1' % (mn, p[0], p[1]), '@state: sew=64')
+
+
+# ---------------------------------------------------------------------------------------------------------
+# The vector cryptography (Zvkg, Zvkned, Zvknha / Zvknhb, Zvksed, Zvksh)
+
+def gen_crypto():
+    f = 'crypto'
+    # vd, vs2 (.vv with a vs1, .vs and .vi without)
+    vvs = ('vghsh.vv', 'vsha2ms.vv', 'vsha2ch.vv', 'vsha2cl.vv', 'vsm3me.vv')
+    for mn in vvs:
+        for p in SAME['plain'] + [(8, 16, 18), (16, 8, 12), (16, 24, 8), (8, 24, 16)]:
+            add(f, '%s v%d, v%d, v%d' % (mn, p[0], p[1], p[2]))
+        for lm, p in SAME['forced'] + [('m2', (8, 16, 24)), ('m2', (16, 8, 12)), ('m4', (8, 16, 24)), ('m4', (16, 8, 24))]:
+            add(f, '%s v%d, v%d, v%d' % (mn, p[0], p[1], p[2]), '@state: lmul=%s' % lm)
+        for p in SAME['masked'][:3]:
+            # (the masked encodings don't exist for these: llvm-mc refuses them, they are skipped)
+            pass
+    twos = ('vgmul.vv', 'vaesef.vv', 'vaesem.vv', 'vaesdf.vv', 'vaesdm.vv', 'vaesef.vs', 'vaesem.vs', 'vaesdf.vs',
+            'vaesdm.vs', 'vaesz.vs', 'vsm4r.vv', 'vsm4r.vs')
+    for mn in twos:
+        for p in SAME['plain'] + [(8, 12, 0), (16, 8, 0), (16, 20, 0), (12, 8, 0)]:
+            add(f, '%s v%d, v%d' % (mn, p[0], p[1]))
+        for lm, p in SAME['forced'] + [('m2', (8, 16, 0)), ('m2', (16, 8, 0)), ('m4', (8, 16, 0)), ('m4', (16, 8, 0)),
+                                       ('m2', (8, 12, 0)), ('m8', (8, 16, 0))]:
+            add(f, '%s v%d, v%d' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+    for mn in ('vaeskf1.vi', 'vaeskf2.vi', 'vsm4k.vi', 'vsm3c.vi'):
+        for imm in range(32):
+            add(f, '%s v8, v16, %d' % (mn, imm))
+        for p in SAME['plain'][:9]:
+            add(f, '%s v%d, v%d, 3' % (mn, p[0], p[1]))
+        for lm, p in SAME['forced'][:8] + [('m2', (8, 16, 0)), ('m4', (16, 8, 0)), ('m2', (8, 12, 0))]:
+            add(f, '%s v%d, v%d, 5' % (mn, p[0], p[1]), '@state: lmul=%s' % lm)
+    # the vl / vstart that are not multiples of EGS, and the other SEWs
+    for mn in vvs + twos:
+        form = '%s v8, v16, v24' % mn if mn in vvs else '%s v8, v16' % mn
+        for sew in (8, 16, 64):
+            add(f, form, '@state: sew=%d' % sew)
+        for vl in (1, 2, 3, 5, 6, 7):
+            add(f, form, '@state: sew=32 lmul=m4 vlsel=%d' % vl)
+        for vstart in (1, 2, 3, 5):
+            add(f, form, '@state: sew=32 lmul=m4 vlsel=max vstart=%d' % vstart)
+
+
 def gen_memory():
     f = 'mem'
     eews = (8, 16, 32, 64)
@@ -598,10 +857,11 @@ def gen_memory():
 
 def check_coverage():
     names = set()
-    for line in open(TABLE):
-        m = re.match(r'RV\w\("([^"]+)"', line)
-        if m:
-            names.add(m.group(1))
+    for table in TABLES:
+        for line in open(table):
+            m = re.match(r'RV\w\("([^"]+)"', line)
+            if m:
+                names.add(m.group(1))
     missing = sorted(n for n in names if n not in emitted)
     return missing
 
@@ -648,6 +908,9 @@ def main():
     gen_mask()
     gen_permute()
     gen_memory()
+    gen_float()
+    gen_bits()
+    gen_crypto()
     missing = check_coverage()
     if missing:
         print('no line for: ' + ' '.join(missing))

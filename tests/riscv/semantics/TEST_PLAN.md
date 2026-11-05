@@ -28,12 +28,12 @@ a disagreement between the three is resolved with the specification (`oracle_bug
 | `states_rv.py` | Random and directed states |
 | `gen_corpus.py` | Generates the scalar corpus `corpus/{rv,rv64,rv32}_gen_*.s` from the decoder corpus (`tests/riscv/corpus`) |
 | `gen_directed.py` | Generates the directed corpus `corpus/{rv,rv64,rv32}_dir_*.s` (special values, memory edges, atomics, CSRs, CFI) |
-| `gen_vector.py` | Generates the vector corpus `corpus/{rv,rv64}_vgen_*.s` (configuration, integer, fixed point, mask, permutation, memory) |
+| `gen_vector.py` | Generates the vector corpus `corpus/{rv,rv64}_vgen_*.s` (configuration, integer, fixed point, mask, permutation, memory, and the floating point `fadd ffma fwide funary fcmp fmove fcvt fred fdir`, bit manipulation `bits` and cryptography `crypto`) |
 | `gen_unit_rows_vector.py` | Generates the rows of `tests/TestRiscvSemanticsVector.cpp` (`tests/riscv/RiscvSemanticVectorRows{64,32}.inc`) from QEMU and Spike at VLEN 128, 256 and 512 |
 | `gen_unit_rows.py` | Generates the rows of `tests/TestRiscvSemantics.cpp` (`tests/riscv/RiscvSemanticRows{64,32}.inc`) from QEMU and Spike |
 | `build_guest.py`, `guest/runner.c`, `guest/rt.S`, `guest/link.ld` | The bare metal guest of QEMU and Spike (rv32 and rv64, built to `out/riscv_guest/`) |
 | `oracle_qemu.py`, `oracle_spike.py`, `oracle_unicorn.py` | The oracles |
-| `corpus/*.s` | `rv_*` (RV32 and RV64), `rv64_*`, `rv32_*` (one XLEN): `i m a a_pair f d d_gpr fd c b zfa zfh misc cfi v v2 oracle_diffs`, and the vector corpus `vgen_config int fixed mask perm mem` |
+| `corpus/*.s` | `rv_*` (RV32 and RV64), `rv64_*`, `rv32_*` (one XLEN): `i m a a_pair f d d_gpr fd c b zfa zfh misc cfi v v2 oracle_diffs`, and the vector corpus `vgen_config int fixed mask perm mem fadd ffma fwide funary fcmp fmove fcvt fred fdir bits crypto` |
 | `skip.txt`, `oracle_bugs.txt` | Lines that are not compared / oracle mistakes, with the evidence |
 
 ## Setup
@@ -187,7 +187,7 @@ single precision instructions only.
   a page and the end of the window; `lr` / `sc` sequences (other address, other size, in between stores, x0);
   Zacas pairs; the cache block operations at the edges; the CSR instructions with read back; the CFI states.
 
-* The vector corpus (`gen_vector.py`: `corpus/rv_vgen_*.s` and `rv64_vgen_*.s` for the `ei64` forms, about 9 600 lines):
+* The vector corpus (`gen_vector.py`: `corpus/rv_vgen_*.s` and `rv64_vgen_*.s` for the `ei64` forms, about 13 700 lines):
   every integer vector instruction the lifter lifts (526 mnemonics and the aliases `vneg.v`, `vnot.v`, `vwcvt*.x.x.v`,
   `vncvt.x.x.w`, `vmmv.m`, `vmclr.m`, `vmset.m`, `vmnot.m`, `vl<n>r.v`) in every operand form (`.vv .vx .vi .wv .wx
   .vvm .vxm .vim .vs .mm .m`), with and without `v0.t`, over register patterns: the aligned groups of LMUL 8, the
@@ -200,6 +200,17 @@ single precision instructions only.
   indexed, segments 2 to 8, whole register, mask) at the edges of the window.
   The encodings llvm-mc refuses to assemble (a reserved overlap) carry the word in a `@word:` tag, built by the script
   from the encoding table, and are run as such: the illegal instruction paths are tested too.
+  The floating point families (`vgen_f*`: all 105 OPFVV / OPFVF mnemonics, the BFloat16 ones of Zvfbfmin / Zvfbfwma and
+  the aliases `vfneg.v`, `vfabs.v`) use the same register patterns with the `.vv .vf .wv .wf .vfm .v .w .vs` forms. The
+  states draw the vector registers by the role of each operand (`states_rv.float_roles()`: the wide operand of a
+  widening instruction has elements of 2 * SEW, the integer source of `vfcvt.f.x.v` is drawn as integers, the BFloat16
+  sources as BFloat16), SEW 16, 32 and 64 (8 too for the conversions, whose integer side has 8 bit elements), the scalar
+  of the `.vf` forms is a float of SEW bits boxed 80% of the time. `vgen_fdir` is the directed part: every rounding
+  instruction at each of the five frm values and at the reserved 5 and 7, SEW 8 (reserved), and the scalars that are not
+  NaN boxed (the half, single and BFloat16 patterns with a bad box). `vgen_bits` (Zvbb, Zvkb, Zvbc) and `vgen_crypto`
+  (Zvkg, Zvkned, Zvknha / Zvknhb, Zvksed, Zvksh: the `.vv`, `.vs` and `.vi` forms, every round number of the key
+  schedules, LMUL from 1/8 to 8) draw SEW 32 (64 for SHA-512) most of the time and a `vl` and `vstart` that are multiples
+  of EGS 85% of the time (`states_rv.crypto_group_size()`), plus directed `vl` / `vstart` that are not, and SEW 8, 16, 64.
 
 The states: random integers (boundary values and random widths), floating point (zeros, infinities, quiet and
 signaling NaNs, denormals, the integer conversion boundaries, random normals) boxed 80% of the time (else the upper
@@ -229,9 +240,10 @@ fault, 17% of the vector memory ones at the edges of the window, atomics always 
 | 10 | QEMU/Spike | `vsetvl{i} x0, x0` with a changed SEW/LMUL ratio: QEMU keeps vl if it fits, Spike sets vill | reserved by the specification |
 | 11 | Spike | illegal instruction for vector arithmetic with vstart != 0 | permitted by the specification |
 | 12 | QEMU | a masked instruction with v0 as a source, or vmerge / vadc / vsbc with a v0 source, is illegal | QEMU wrong (only the destination may not overlap v0) |
-| 13 | QEMU | stricter overlap rules: a source in the top of a wide destination of a widening multiply-add, the narrow vs1 inside a wide group (`.wv`), vs1 inside the vs2 group of a narrowing instruction or of a widening reduction, the data and the index group of an indexed store, the index group and vs2 of `vrgatherei16` | QEMU stricter than the specification (rule 5.2); Spike executes them |
+| 13 | QEMU | stricter overlap rules (the floating point twins too: `vfwmacc`, `vfwnmsac`, `vfwmaccbf16`, `vfwadd.wv`): a source in the top of a wide destination of a widening multiply-add, the narrow vs1 inside a wide group (`.wv`), vs1 inside the vs2 group of a narrowing instruction or of a widening reduction, the data and the index group of an indexed store, the index group and vs2 of `vrgatherei16` | QEMU stricter than the specification (rule 5.2); Spike executes them |
 | 14 | QEMU | a whole register load or store that faults reports a vstart rounded down to a chunk of 8 bytes and transfers fewer elements | QEMU imprecise; Spike and dismount are exact |
 | 15 | QEMU | `vtype` bit 8 (altfmt of Zvfbfa) is valid for e8 / e16 | an extension dismount doesn't model yet; Spike without it: vill |
+| 17 | Spike | `vfredusum.vs` / `vfwredusum.vs` with vl > 0 and no active element and a NaN in `vs1[0]`: Spike writes the canonical NaN (and raises invalid for a signaling one), QEMU passes the scalar through | both permitted (V 1.0, 14.3: "permitted to canonicalize the NaN ... alternatively permitted to pass through the original NaN and set no exception flags"); dismount passes it through |
 | 16 | Spike | a vector store that faults on the upper bytes of an element writes the lower ones; a fault only first segment load writes the fields before the one that faults | implementation defined (dismount follows QEMU: the element is not written) |
 
 Other than these, QEMU and Spike agree on every scalar line (RV32 and RV64, 800 states per FP line, 128 per other
@@ -241,8 +253,10 @@ line) and on the vector sample (VLEN 128, 256 and 512, 400 states per line): see
 
 `RiscvSemanticLiftVector*.cpp` and `RiscvSemanticVector.cpp` lift the configuration (`vsetvli`, `vsetivli`, `vsetvl`),
 the loads and stores, the integer arithmetic, the fixed point instructions, the mask instructions, the permutations
-and the integer reductions (Zve32x and Zve64x: 526 mnemonics; the floating point, BFloat16, vector bit manipulation
-and vector cryptography instructions are the next lifter's). The infrastructure is documented in
+and the integer reductions (Zve32x and Zve64x: 526 mnemonics), and the rest of V (`RiscvSemanticLiftVectorFloat.cpp`: the
+floating point of Zve32f / Zve64d / Zvfh / Zvfhmin and the BFloat16 of Zvfbfmin / Zvfbfwma, 105 + 4 mnemonics;
+`...Bits.cpp`: Zvbb, Zvkb, Zvbc; `...Crypto.cpp`: Zvkg, Zvkned, Zvknha, Zvknhb, Zvksed, Zvksh). The infrastructure is
+documented in
 `Include/dismount/proc/riscv/RiscvSemanticVector.h`; the model, in short:
 
 * vtype, vl and vstart are registers read at runtime. Every instruction snapshots vl and vstart, traps if `vtype.vill`
@@ -275,6 +289,18 @@ and vector cryptography instructions are the next lifter's). The infrastructure 
 | a vector store that faults in an element | the element is not written at all, the elements before it are | QEMU. Spike writes the lower bytes of a misaligned element (`oracle_bugs.txt`) |
 | the memory accesses | element by element, byte accurate, misaligned elements allowed | Zicclsm / QEMU / Spike |
 | `ta` / `ma` | ignored: the tail and the masked off elements stay undisturbed | allowed; both processors are configured so |
+| the floating point flags and `frm` | every OPFVV / OPFVF instruction (also `vfmin`, `vfsgnj`, `vfclass`, the compares, `vfmerge`, `vfmv.*`, `vfslide1*`, the reductions and the `rtz` / `rod` conversions) raises illegal instruction for a reserved `frm` (5 - 7); `fflags` gets the flags of the active elements only (an inactive lane is replaced by a value that raises nothing before the operation) | QEMU and Spike agree (every vector floating point instruction checks `frm`) |
+| NaN results and `fmin` / `fmax` | the canonical NaN; `vfmin` / `vfmax` / `vfredmin` / `vfredmax` are minimumNumber / maximumNumber (a signaling NaN raises invalid) | V 1.0, 13.11; both processors |
+| `vmfeq` / `vmfne` / `vmflt` / `vmfle` / `vmfgt` / `vmfge` | `vmfeq`, `vmfne` signal invalid for a signaling NaN only, the others for any NaN | V 1.0, 13.13 |
+| `vfcvt.x.f.v` of a NaN or an out of range value | the largest (or smallest) integer, and invalid, as the scalar `fcvt` | V 1.0, 13.17 |
+| `vfrec7.v`, `vfrsqrt7.v` | the tables of the specification (`SemanticFloat::riscvEstimate`, `BEHAVIOR_ESTIMATE_RISCV`): exact, no estimate flag; the reciprocal of a subnormal that overflows gives infinity or the largest finite number by `frm` with overflow and inexact | V 1.0, 13.9 and 13.10; both processors |
+| `vfredosum.vs`, `vfwredosum.vs` | sequential in element order from `vs1[0]`, one rounding per element (an element loop) | V 1.0, 14.3 |
+| `vfredusum.vs`, `vfwredusum.vs` | the same sequential sum (the unordered sum may use any order), and `vs1[0]` passes through unchanged when no element is active | V 1.0, 14.3; QEMU does the same, Spike canonicalizes a NaN there (permitted, rule 17 above) |
+| `vfwcvt.f.f.v`, `vfncvt.f.f.w`, `vfncvt.rod.f.f.w` | exact widening; the narrowing rounds by `frm`, `rod` is round to odd; SEW 16 needs Zvfhmin (SEW 8 widening / narrowing integer sides need Zvfh), all enabled | V 1.0, 13.18 |
+| the scalar of the `.vf` forms | NaN boxed: the f register is read as a float of SEW bits, a value whose upper bits aren't all ones is the canonical NaN of the format (BFloat16: 0x7fc0) | V 1.0, 13.2 |
+| the crypto instructions | SEW 32 (64 for SHA-512 with Zvknhb), `vl` and `vstart` multiples of EGS (else illegal instruction), the element group must fit `LMUL * VLEN`, `vd` / `vs2` (`vs1`) aligned to LMUL, the `.vs` forms: `vs2` is the first element group, not in the group of `vd`; `vsha2*`: `vd` is not `vs1` / `vs2`; `vsm3*`: `vd` is not `vs2`; masked encodings don't exist | Zvk 1.0; both processors |
+| the SM4 S-box | the helper `RISCV_HELPER_SM4_SBOX` (RiscvHelpers) like the scalar `sm4ed` / `sm4ks` | the IR has no S-box operation |
+| Spike and the crypto instructions with `vstart != 0` | Spike raises illegal instruction for them like for all the vector arithmetic (permitted); the 68 directed lines of `vgen_crypto` with a `vstart` are `ORACLE_ERR` on Spike and are verified by QEMU only | `oracle_spike.py` |
 
 ## Throughput (Apple M4, 10 cores, `--jobs 8`)
 
@@ -338,65 +364,78 @@ What the reference runs do not cover, and why (the lines are in `skip.txt` or no
 | rv32 | qemu | 87156 | 86839 | 0 | 3 | 268 | 32 | 14 |
 | rv32 | spike | 87156 | 86836 | 0 | 3 | 278 | 39 | 0 |
 
-* The 3 UNLIFTED lines are the floating point / BFloat16 vector lines of `rv_oracle_diffs.s` (the vector lifter of those is the next task; the integer vector instructions are in the vector gates below). The 14
-  ORACLE_ERR are QEMU's RV32 `mstatush.MPELP` bug (table above, 8).
+* The 3 lines of `rv_oracle_diffs.s` that were UNLIFTED (the floating point and BFloat16 vector instructions) are lifted now (0 UNLIFTED). The 14 ORACLE_ERR are QEMU's RV32 `mstatush.MPELP` bug (table above, 8).
 * Unicorn, the RV64GC / RV32GC base files of the generated corpus and the starter files: rv64 19652 PASS, 455
   ORACLE_BUG, 0 FAIL; rv32 15728 PASS, 382 ORACLE_BUG, 0 FAIL.
 * `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release pass.
 
 ## Results of the vector gate (the vector corpus `rv_vgen_*`, `rv64_vgen_*`)
 
-16 states per line, every arch / oracle / VLEN:
+The whole vector corpus (integer, fixed point, mask, permutation, memory, floating point, bit manipulation and
+cryptography), 16 states per line, every arch / oracle / VLEN (`dismount_cli` against QEMU 11.1.3 `-cpu max` and
+Spike with zvfh, zvfbfmin, zvfbfwma, zvbb, zvbc, zvkg, zvkned, zvknhb, zvksed, zvksh):
 
 | Arch | Oracle | VLEN | Lines | States | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
 |---|---|---|---|---|---|---|---|---|---|---|
-| rv64 | qemu | 128 | 9648 | 16 | 9208 | 0 | 0 | 0 | 440 | 0 |
-| rv64 | qemu | 256 | 9648 | 16 | 9201 | 0 | 0 | 0 | 447 | 0 |
-| rv64 | qemu | 512 | 9648 | 16 | 9183 | 0 | 0 | 0 | 465 | 0 |
-| rv64 | spike | 128 | 9648 | 16 | 9573 | 0 | 0 | 0 | 75 | 0 |
-| rv64 | spike | 256 | 9648 | 16 | 9545 | 0 | 0 | 0 | 103 | 0 |
-| rv64 | spike | 512 | 9648 | 16 | 9454 | 0 | 0 | 0 | 194 | 0 |
-| rv32 | qemu | 128 | 9208 | 16 | 8798 | 0 | 0 | 0 | 410 | 0 |
-| rv32 | qemu | 256 | 9208 | 16 | 8780 | 0 | 0 | 0 | 428 | 0 |
-| rv32 | qemu | 512 | 9208 | 16 | 8759 | 0 | 0 | 0 | 449 | 0 |
-| rv32 | spike | 128 | 9208 | 16 | 9135 | 0 | 0 | 0 | 73 | 0 |
-| rv32 | spike | 256 | 9208 | 16 | 9087 | 0 | 0 | 0 | 121 | 0 |
-| rv32 | spike | 512 | 9208 | 16 | 9025 | 0 | 0 | 0 | 183 | 0 |
+| rv64 | qemu | 128 | 13744 | 16 | 13091 | 0 | 0 | 0 | 653 | 0 |
+| rv64 | qemu | 256 | 13744 | 16 | 13081 | 0 | 0 | 0 | 663 | 0 |
+| rv64 | qemu | 512 | 13744 | 16 | 13064 | 0 | 0 | 0 | 680 | 0 |
+| rv64 | spike | 128 | 13744 | 16 | 13600 | 0 | 0 | 0 | 76 | 68 |
+| rv64 | spike | 256 | 13744 | 16 | 13571 | 0 | 0 | 0 | 105 | 68 |
+| rv64 | spike | 512 | 13744 | 16 | 13481 | 0 | 0 | 0 | 195 | 68 |
+| rv32 | qemu | 128 | 13304 | 16 | 12679 | 0 | 0 | 0 | 625 | 0 |
+| rv32 | qemu | 256 | 13304 | 16 | 12665 | 0 | 0 | 0 | 639 | 0 |
+| rv32 | qemu | 512 | 13304 | 16 | 12640 | 0 | 0 | 0 | 664 | 0 |
+| rv32 | spike | 128 | 13304 | 16 | 13163 | 0 | 0 | 0 | 73 | 68 |
+| rv32 | spike | 256 | 13304 | 16 | 13113 | 0 | 0 | 0 | 123 | 68 |
+| rv32 | spike | 512 | 13304 | 16 | 13053 | 0 | 0 | 0 | 183 | 68 |
 
-48 states per line (the stress run: three times the states, so the rare configurations, the faults at the edges of the window and
-the masks show up), VLEN 128 and 512:
+The stress run of the new families (`vgen_bits crypto fadd fcmp fcvt fdir ffma fmove fred funary fwide`: 4 096 lines,
+64 states per line):
 
 | Arch | Oracle | VLEN | Lines | States | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
 |---|---|---|---|---|---|---|---|---|---|---|
-| rv64 | qemu | 128 | 9648 | 48 | 9186 | 0 | 0 | 0 | 462 | 0 |
-| rv64 | qemu | 512 | 9648 | 48 | 9135 | 0 | 0 | 0 | 513 | 0 |
-| rv64 | spike | 128 | 9648 | 48 | 9427 | 0 | 0 | 0 | 221 | 0 |
-| rv64 | spike | 512 | 9648 | 48 | 9187 | 0 | 0 | 0 | 461 | 0 |
-| rv32 | qemu | 128 | 9208 | 48 | 8764 | 0 | 0 | 0 | 444 | 0 |
-| rv32 | qemu | 512 | 9208 | 48 | 8717 | 0 | 0 | 0 | 491 | 0 |
-| rv32 | spike | 128 | 9208 | 48 | 9017 | 0 | 0 | 0 | 191 | 0 |
-| rv32 | spike | 512 | 9208 | 48 | 8773 | 0 | 0 | 0 | 435 | 0 |
+| rv64 | qemu | 128 | 4096 | 64 | 3874 | 0 | 0 | 0 | 222 | 0 |
+| rv64 | spike | 128 | 4096 | 64 | 4025 | 0 | 0 | 0 | 3 | 68 |
+| rv64 | qemu | 512 | 4096 | 64 | 3873 | 0 | 0 | 0 | 223 | 0 |
+| rv64 | spike | 512 | 4096 | 64 | 4025 | 0 | 0 | 0 | 3 | 68 |
+| rv32 | qemu | 256 | 4096 | 64 | 3873 | 0 | 0 | 0 | 223 | 0 |
+| rv32 | spike | 256 | 4096 | 64 | 4026 | 0 | 0 | 0 | 2 | 68 |
 
 * The ORACLE_BUG lines are the rules of `oracle_bugs.txt` (table of the disagreements above): the strictness of QEMU
-  (a v0 source of a masked instruction, the overlaps, 60 lines of `vsetvl{i} x0, x0`), the 8 byte chunks of the whole register
-  accesses of QEMU, the partial writes of a faulting store and of a fault only first segment of Spike. Every line is verified by
-  the other oracle at least for the states that do not hit its own quirk (`neither.py`-style check over the 48 state run: the
-  states where QEMU rejects an overlap that Spike executes and Spike writes the lower bytes of a faulting store are the same
-  states in a handful of indexed store lines; dismount does what the specification says there).
-* UNLIFTED is 0: the corpus has no floating point, bit manipulation or cryptography instruction.
+  (a v0 source of a masked instruction or of `vfmerge`, the overlaps of the integer and floating point widening and narrowing
+  instructions, 60 lines of `vsetvl{i} x0, x0`), the 8 byte chunks of the whole register accesses of QEMU, the partial writes of a
+  faulting store and of a fault only first segment of Spike, and the NaN of `vfredusum` without an active element for Spike.
+  Every line is verified by the other oracle at least for the states that do not hit its own quirk (for the new floating
+  point, bit manipulation and cryptography families Spike has 3 ORACLE_BUG lines at most, so Spike verifies them all but
+  those, and QEMU those; nothing is hidden by a rule: the QEMU rules match the strictness of the overlaps only).
+* ORACLE_ERR on Spike is the 68 directed lines of `vgen_crypto` with a nonzero `vstart` (Spike raises illegal instruction for
+  every state; QEMU runs them and verifies them).
+* UNLIFTED is 0.
 
 ## Results of the whole gate (scalar and vector corpus, 16 states per line, VLEN 128)
 
 | Arch | Oracle | Lines | PASS | FAIL | UNLIFTED | SKIP | ORACLE_BUG | ORACLE_ERR |
 |---|---|---|---|---|---|---|---|---|
-| rv64 | qemu | 127625 | 126836 | 0 | 119 | 157 | 513 | 0 |
-| rv64 | spike | 127625 | 127214 | 0 | 119 | 167 | 125 | 0 |
-| rv32 | qemu | 96763 | 95917 | 0 | 119 | 268 | 445 | 14 |
-| rv32 | spike | 96763 | 96252 | 0 | 119 | 278 | 114 | 0 |
+| rv64 | qemu | 131721 | 130837 | 0 | 0 | 157 | 727 | 0 |
+| rv64 | spike | 131721 | 131360 | 0 | 0 | 167 | 126 | 68 |
+| rv32 | qemu | 100859 | 99915 | 0 | 0 | 268 | 662 | 14 |
+| rv32 | spike | 100859 | 100399 | 0 | 0 | 278 | 114 | 68 |
 
-* The UNLIFTED lines are the vector starter lines (`rv_v.s`, `rv_v2.s`: 116) and the 3 of `rv_oracle_diffs.s` that use the floating
-  point, BFloat16, vector bit manipulation (Zvbb) and vector cryptography instructions, which the next lifter writes.
-* The scalar part is unchanged: for the scalar files the totals are the ones of the table above (rv64: 117 578 lines, PASS 117 348 /
-  117 358, ORACLE_BUG 70 / 50, SKIP 157 / 167; rv32: 87 156 lines, PASS 86 839 / 86 836, ORACLE_BUG 32 / 39, ORACLE_ERR 14 for QEMU),
-  four lines more for RV64, which pass (corpus lines added after the table above was made).
-* `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release pass (2 777 vector rows and 4 814 scalar rows).
+* UNLIFTED is 0: the vector starter lines (`rv_v.s`, `rv_v2.s`) and the lines of `rv_oracle_diffs.s` that use the floating
+  point, BFloat16, Zvbb and cryptography instructions are lifted now. The scalar files have the PASS / SKIP counts of the
+  scalar gate above (SKIP 157 / 167 and 268 / 278 are the same; the ORACLE_BUG counts of the scalar files are those of the
+  tables above plus the vector lines).
+* `run_compat.py` (decoder): 0 failures. `test_dismount`: Debug and Release (-O2) pass (5 049 vector rows: 2 567 RV64 and
+  2 482 RV32, and 4 814 scalar rows).
+* The shared code changed once: `SemanticFloat::riscvEstimate` and the `BEHAVIOR_ESTIMATE_RISCV` case of
+  `SemanticInterpreter` (vfrec7 / vfrsqrt7, new code only reached by the RISC-V behavior). The ARM and IA-32 gates were
+  re-run: see the results below.
+
+## The shared-code gates (the estimates of `SemanticFloat` / `SemanticInterpreter`)
+
+Re-run after the change (this branch, Debug): A64 against Unicorn PASS 48 026, FAIL 2 (`addsvl`, `rdsvl`: Unicorn has no SME
+streaming vector length) and against the host PASS 51 622, FAIL 1 (`ldxrb`); both are the same on the build before the
+change (`dismount_cli` of master, same lines), so there is no regression. A32 PASS 4 452 and T32 PASS 2 136, FAIL 0. IA-32
+(`tests/semantics/run_semantics.py --strict`): PASS 53 680, FAIL 0, UNLIFTED 779, ORACLE_BUG 694. `test_dismount` passes
+(the ARM and IA-32 unit tests).

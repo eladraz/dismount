@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Generates Source/dismount/proc/riscv/RiscvSemanticTable_vector.inc, the rows of
-gRiscvVectorSemanticTable (RiscvSemanticTableVector.cpp): one row per vector
-mnemonic of the encoding tables (config, int, mask, mem) that the lifters of
-RiscvSemanticLiftVector*.cpp handle. The floating point (RiscvEncodingTable_vector_fp.inc), the
-BFloat16, Zvbb / Zvkb / Zvbc and the cryptography (..._vector_ext.inc) rows are
-not here: the lifter of those adds its own rows (a second .inc included by the
-table) -- see the extension points of Include/dismount/proc/riscv/RiscvSemanticVector.h.
+Generates the rows of gRiscvVectorSemanticTable (RiscvSemanticTableVector.cpp), one row per vector mnemonic
+of the encoding tables that the lifters of RiscvSemanticLiftVector*.cpp handle, in four files of
+Source/dismount/proc/riscv:
+  RiscvSemanticTable_vector.inc         config, int, mask, mem: the integer vector instructions
+  RiscvSemanticTable_vector_float.inc   the floating point (RiscvEncodingTable_vector_fp.inc) and BFloat16
+  RiscvSemanticTable_vector_bits.inc    Zvbb, Zvkb, Zvbc
+  RiscvSemanticTable_vector_crypto.inc  Zvkg, Zvkned, Zvknha / Zvknhb, Zvksed, Zvksh
+The files are included inside the initializer of the table (no macro wraps it).
 
   python3 tests/riscv/tools/gen_vector_semantic_table.py [--check]
 
---check exits 1 if the file is out of date or a decoded mnemonic of the four tables has no row.
+--check exits 1 if a file is out of date or a decoded mnemonic of the tables has no row.
 """
 import os
 import re
@@ -19,8 +20,11 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, '..', '..', '..'))
 SRC = os.path.join(REPO, 'Source', 'dismount', 'proc', 'riscv')
-OUT = os.path.join(SRC, 'RiscvSemanticTable_vector.inc')
-TABLES = ['config', 'int', 'mask', 'mem']
+OUTS = {'int': os.path.join(SRC, 'RiscvSemanticTable_vector.inc'),
+        'float': os.path.join(SRC, 'RiscvSemanticTable_vector_float.inc'),
+        'bits': os.path.join(SRC, 'RiscvSemanticTable_vector_bits.inc'),
+        'crypto': os.path.join(SRC, 'RiscvSemanticTable_vector_crypto.inc')}
+TABLES = ['config', 'int', 'mask', 'mem', 'fp', 'ext']
 
 
 def read_names():
@@ -120,6 +124,114 @@ def build_arithmetic():
     return rows
 
 
+# ---- the floating point rows: (operation, shape, mask mode, flags)
+def build_float():
+    rows = {}
+
+    def fl(name, op, shape='SAME', mask='BY_V0', flags=()):
+        f = ' | '.join('RVF_FLAG_' + x for x in flags) or '0'
+        rows[name] = 'RVX("%s", RVF_PARAM(RVF_OP_%s, SH(%s), MK(%s), %s)),' % (name, op, shape, mask, f)
+
+    def both(prefix, op, shape='SAME', mask='BY_V0', flags=(), forms=('vv', 'vf')):
+        for f in forms:
+            fl(prefix + '.' + f, op, shape, mask, flags)
+
+    both('vfadd', 'ADD')
+    both('vfsub', 'SUB')
+    fl('vfrsub.vf', 'RSUB')
+    both('vfmul', 'MUL')
+    both('vfdiv', 'DIV')
+    fl('vfrdiv.vf', 'RDIV')
+    both('vfmin', 'MIN')
+    both('vfmax', 'MAX')
+    for n, op in (('vfsgnj', 'SGNJ'), ('vfsgnjn', 'SGNJN'), ('vfsgnjx', 'SGNJX')):
+        both(n, op)
+    # the multiply-add family: vd = +-(vs1 * vs2) +- vd, vd = +-(vs1 * vd) +- vs2
+    fma = (('vfmacc', ()), ('vfnmacc', ('NEGATE_PRODUCT', 'NEGATE_ADDEND')), ('vfmsac', ('NEGATE_ADDEND',)),
+           ('vfnmsac', ('NEGATE_PRODUCT',)), ('vfmadd', ('MULTIPLY_DESTINATION',)),
+           ('vfnmadd', ('MULTIPLY_DESTINATION', 'NEGATE_PRODUCT', 'NEGATE_ADDEND')),
+           ('vfmsub', ('MULTIPLY_DESTINATION', 'NEGATE_ADDEND')),
+           ('vfnmsub', ('MULTIPLY_DESTINATION', 'NEGATE_PRODUCT')))
+    for n, fg in fma:
+        both(n, 'MACC', flags=fg)
+    for n, fg in (('vfwmacc', ()), ('vfwnmacc', ('NEGATE_PRODUCT', 'NEGATE_ADDEND')),
+                  ('vfwmsac', ('NEGATE_ADDEND',)), ('vfwnmsac', ('NEGATE_PRODUCT',))):
+        both(n, 'MACC', 'WIDEN', flags=fg)
+    both('vfwmaccbf16', 'MACC', 'WIDEN', flags=['BFLOAT16'])
+    for n, op in (('vfwadd', 'ADD'), ('vfwsub', 'SUB')):
+        both(n, op, 'WIDEN')
+        both(n, op, 'WIDEN_W', forms=('wv', 'wf'))
+    both('vfwmul', 'MUL', 'WIDEN')
+    fl('vfsqrt.v', 'SQRT')
+    fl('vfrsqrt7.v', 'RSQRT7')
+    fl('vfrec7.v', 'REC7')
+    fl('vfclass.v', 'CLASS')
+    fl('vfmerge.vfm', 'MERGE', mask='DATA')
+    fl('vfmv.v.f', 'MOVE', mask='NONE')
+    for n, op, forms in (('vmfeq', 'EQ', ('vv', 'vf')), ('vmfne', 'NE', ('vv', 'vf')), ('vmflt', 'LT', ('vv', 'vf')),
+                         ('vmfle', 'LE', ('vv', 'vf')), ('vmfgt', 'GT', ('vf',)), ('vmfge', 'GE', ('vf',))):
+        both(n, op, 'MASK_DEST', forms=forms)
+    # the conversions
+    for suffix, shape in (('', 'SAME'), ('w', 'WIDEN'), ('n', 'NARROW')):
+        src = '.w' if shape == 'NARROW' else '.v'
+        base = 'vf%scvt' % suffix
+        for n, op, fg in (('xu.f', 'TO_INTEGER', ['UNSIGNED']), ('x.f', 'TO_INTEGER', []),
+                          ('f.xu', 'FROM_INTEGER', ['UNSIGNED']), ('f.x', 'FROM_INTEGER', []),
+                          ('rtz.xu.f', 'TO_INTEGER', ['UNSIGNED', 'RTZ']),
+                          ('rtz.x.f', 'TO_INTEGER', ['RTZ'])):
+            if shape != 'SAME' or True:
+                fl('%s.%s%s' % (base, n, src), op, shape, flags=fg)
+        if shape != 'SAME':
+            fl('%s.f.f%s' % (base, src), 'CONVERT', shape)
+    fl('vfncvt.rod.f.f.w', 'CONVERT', 'NARROW', flags=['ROD'])
+    fl('vfwcvtbf16.f.f.v', 'CONVERT', 'WIDEN', flags=['BFLOAT16'])
+    fl('vfncvtbf16.f.f.w', 'CONVERT', 'NARROW', flags=['BFLOAT16'])
+    # the reductions
+    for n, k, w in (('vfredosum', 'SUM_ORDERED', 0), ('vfredusum', 'SUM_UNORDERED', 0), ('vfredmax', 'MAX', 0),
+                    ('vfredmin', 'MIN', 0), ('vfwredosum', 'SUM_ORDERED', 1), ('vfwredusum', 'SUM_UNORDERED', 1)):
+        rows[n + '.vs'] = 'RVR("%s.vs", RVF_REDUCE_%s | (%d << 8)),' % (n, k, w)
+    # the moves between the f registers and the vector, and the slides with a float scalar
+    rows['vfmv.f.s'] = 'RVP("vfmv.f.s", RVV_PERMUTE_MV_X_S | (1 << 8)),'
+    rows['vfmv.s.f'] = 'RVP("vfmv.s.f", RVV_PERMUTE_MV_S_X | (1 << 8)),'
+    rows['vfslide1up.vf'] = 'RVP("vfslide1up.vf", RVV_PERMUTE_SLIDE1UP | (1 << 8)),'
+    rows['vfslide1down.vf'] = 'RVP("vfslide1down.vf", RVV_PERMUTE_SLIDE1DOWN | (1 << 8)),'
+    return rows
+
+
+def build_extension():
+    """Zvbb, Zvkb, Zvbc and the vector cryptography rows."""
+    rows = {}
+
+    def bits(name, op, shape='SAME', ea='ZERO', eb='ZERO', flags=()):
+        f = ' | '.join('RVV_FLAG_' + x for x in flags) or '0'
+        rows[name] = 'RVB("%s", RVV_PARAM(RVB_OP_%s, SH(%s), EX(%s), EX(%s), MK(BY_V0), %s, 0)),' % (
+            name, op, shape, ea, eb, f)
+
+    bits('vandn.vv', 'ANDN')
+    bits('vandn.vx', 'ANDN')
+    for n, op in (('vbrev8.v', 'BREV8'), ('vrev8.v', 'REV8'), ('vbrev.v', 'BREV'), ('vclz.v', 'CLZ'),
+                  ('vctz.v', 'CTZ'), ('vcpop.v', 'CPOP')):
+        bits(n, op, flags=['NO_B'])
+    for n, op in (('vrol', 'ROL'), ('vror', 'ROR')):
+        bits(n + '.vv', op)
+        bits(n + '.vx', op)
+    bits('vror.vi', 'ROR', flags=['IMMEDIATE_UNSIGNED'])
+    for f in ('vv', 'vx', 'vi'):
+        bits('vwsll.' + f, 'WSLL', 'WIDEN', flags=['IMMEDIATE_UNSIGNED'])
+    for n, op in (('vclmul', 'CLMUL'), ('vclmulh', 'CLMULH')):
+        bits(n + '.vv', op)
+        bits(n + '.vx', op)
+    crypto = (('vaesef.vv', 'AESEF_VV'), ('vaesef.vs', 'AESEF_VS'), ('vaesem.vv', 'AESEM_VV'),
+              ('vaesem.vs', 'AESEM_VS'), ('vaesdf.vv', 'AESDF_VV'), ('vaesdf.vs', 'AESDF_VS'),
+              ('vaesdm.vv', 'AESDM_VV'), ('vaesdm.vs', 'AESDM_VS'), ('vaesz.vs', 'AESZ_VS'),
+              ('vaeskf1.vi', 'AESKF1'), ('vaeskf2.vi', 'AESKF2'), ('vghsh.vv', 'GHSH'), ('vgmul.vv', 'GMUL'),
+              ('vsha2ms.vv', 'SHA2MS'), ('vsha2ch.vv', 'SHA2CH'), ('vsha2cl.vv', 'SHA2CL'),
+              ('vsm3me.vv', 'SM3ME'), ('vsm3c.vi', 'SM3C'), ('vsm4k.vi', 'SM4K'), ('vsm4r.vv', 'SM4R_VV'),
+              ('vsm4r.vs', 'SM4R_VS'))
+    for name, op in crypto:
+        rows[name] = 'RVK("%s", RVK_%s),' % (name, op)
+    return rows
+
 def arith_row(name, spec, fixed):
     flags = ' | '.join('RVV_FLAG_' + f for f in spec['flags']) or '0'
     cat = 'VECTOR_INTEGER'
@@ -187,28 +299,49 @@ def build_other():
     return rows
 
 
+def area_of(table, name):
+    if table in ('config', 'int', 'mask', 'mem'):
+        return 'int'
+    if table == 'fp' or name.startswith(('vfwcvtbf16', 'vfncvtbf16', 'vfwmaccbf16')):
+        return 'float'
+    if name.startswith(('vg', 'vaes', 'vsm', 'vsha')):
+        return 'crypto'
+    return 'bits'
+
+
 def main():
     names = read_names()
     arithmetic = build_arithmetic()
     other = build_other()
-    lines = ['// GENERATED by tests/riscv/tools/gen_vector_semantic_table.py: do not edit']
+    floats = build_float()
+    extra = build_extension()
+    texts = {a: ['// GENERATED by tests/riscv/tools/gen_vector_semantic_table.py: do not edit'] for a in OUTS}
     missing = []
     for table, name in names:
+        area = area_of(table, name)
         if name in arithmetic:
-            lines.append(arith_row(name, arithmetic[name], True))
+            texts[area].append(arith_row(name, arithmetic[name], True))
         elif name in other:
-            lines.append(other[name])
+            texts[area].append(other[name])
+        elif name in floats:
+            texts[area].append(floats[name])
+        elif name in extra:
+            texts[area].append(extra[name])
         else:
             missing.append(name)
-    text = '\n'.join(lines) + '\n'
+    ok = True
+    for area, path in OUTS.items():
+        text = '\n'.join(texts[area]) + '\n'
+        if '--check' in sys.argv:
+            ok = ok and os.path.exists(path) and open(path).read() == text
+        else:
+            with open(path, 'w') as f:
+                f.write(text)
     if '--check' in sys.argv:
-        ok = os.path.exists(OUT) and open(OUT).read() == text and not missing
         if missing:
             print('no row:', ' '.join(missing))
-        sys.exit(0 if ok else 1)
-    with open(OUT, 'w') as f:
-        f.write(text)
-    print('%d rows, %d without a row: %s' % (len(lines) - 1, len(missing), ' '.join(missing)))
+        sys.exit(0 if ok and not missing else 1)
+    print('%d rows, %d without a row: %s' % (sum(len(t) - 1 for t in texts.values()), len(missing), ' '.join(missing)))
 
 
 if __name__ == '__main__':

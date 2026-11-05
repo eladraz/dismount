@@ -112,6 +112,8 @@ def marks(support, name=''):
             text = 'no encodings of its own (the instructions of the features it implies), verified'
             if support & 0x08:
                 text += '; partial lift (the integer instructions of Zve32x / Zve64x are lifted, the floating point ones of Zve32f / Zve64d are not)'
+            elif support & 0x04:
+                text += '; the instructions of the features it implies are lifted and lift verified'
             return text
         return 'no instructions' + (' (CSR names)' if support & 0x2 else '')
     return ', '.join(n for n, b in SUPPORT.items() if support & b)

@@ -65,8 +65,9 @@
  * that require 0 (reductions, vcpop, vfirst, vmsbf, viota, vcompress...; the
  * arithmetic ones honor vstart).
  *
- * Extension points (the floating point, BFloat16, Zvbb / Zvkb / Zvbc and the
- * vector cryptography)
+ * Extension points (how the floating point, BFloat16, Zvbb / Zvkb / Zvbc and the
+ * vector cryptography use the infrastructure: RiscvSemanticLiftVectorFloat.cpp,
+ * ...Bits.cpp and ...Crypto.cpp are the examples)
  * ----------------------------------------------------------------
  *   - An arithmetic instruction (also the floating point ones, Zvbb: vandn,
  *     vrol, vror, vwsll, vbrev8..., Zvbc: vclmul): add a row to the table of
@@ -82,8 +83,8 @@
  *     gets the narrow lanes (C lanes of the narrow width) and converts them
  *     (OP_FLOAT_CONVERT) itself.
  *   - A sketch of vfadd.vv / vfadd.vf (SEW 16, 32, 64: the body of the
- *     dispatch returns trapIllegal() for the other SEWs and for Zvfh without
- *     SEW 16):
+ *     dispatch returns trapIllegal() for the other SEWs; the real one is
+ *     floatElementOp()):
  *         SemanticOperand floatAdd(RvvChunk& c)
  *         {
  *             const SemanticType t = SemanticType::vector(
@@ -110,9 +111,12 @@
  *     the engine does it for vs2 / vs1 when RvvPlan::m_sanitizeA / B is
  *     the neutral value (not negative; call sanitize() from the callback for
  *     an all ones neutral value).
- *   - The permutations and reductions with a floating point twin are the
- *     bodies of RiscvSemanticLiftVectorPermute.cpp with another element
- *     type: vfmv.f.s / vfmv.s.f are moveScalarBody (vmv.x.s / vmv.s.x) with the
+ *   - The permutations with a floating point twin are the bodies of
+ *     RiscvSemanticLiftVectorPermute.cpp with the scalar from an f register
+ *     (parameter bit 8), the floating point reductions are
+ *     RiscvSemanticLiftVectorFloat.cpp (element loops, in element order, for
+ *     the sums: vfredusum is the ordered sum too, a choice the specification
+ *     allows). Originally planned as: vfmv.f.s / vfmv.s.f are moveScalarBody (vmv.x.s / vmv.s.x) with the
  *     NaN boxing of RiscvLiftContext::readFloat / writeFloat, vfslide1up /
  *     vfslide1down are slideBody with the scalar from the f register,
  *     vfredusum / vfredmax / vfredmin are reduceBody with an OP_FLOAT_*
@@ -126,19 +130,16 @@
  *     m_carry.
  *   - The element groups of the cryptography (EGS = 4 or 8 elements of
  *     SEW 32 / 64, vl / EGS groups, vstart in units of groups): they
- *     don't fit the lane engine. Use readGroup() / writeGroup() (the
- *     register group of 'registers' registers as a list of VLEN bit values)
- *     or the element access helpers, RvvLift::dispatch() for the frame and
- *     isGroupLegal() / isOverlapped() for the checks of the register numbers; an EGW wider than VLEN is
- *     impossible here (VLEN >= 128 >= the 128 bit element group of AES /
- *     GHASH / SM4 / SM3; the 256 bit SHA-2 groups need VLEN >= 256 and are
- *     reserved otherwise: isElementGroupLegal()).
+ *     don't fit the lane engine. RiscvSemanticLiftVectorCrypto.cpp unrolls the
+ *     groups of the register group at lift time (a group of 256 bits spans two
+ *     registers at VLEN = 128, the EGW must fit LMUL * VLEN), computes them as
+ *     integers of EGW bits, and writes them after all are computed.
  *   - The rows of the semantic table: RiscvSemanticTableVector.cpp includes
  *     one .inc of plain rows per area (the generated one of this half and
- *     RiscvSemanticTable_vector_float.inc, ..._bits.inc, ..._crypto.inc, empty
- *     until the second half is written). The row macros of that file
- *     (RVA for a chunk engine arithmetic row with RVV_PARAM(), RVP, RVM, RVL
- *     and RVS) take the mnemonic and the parameter of the lifter.
+ *     RiscvSemanticTable_vector_float.inc, ..._bits.inc, ..._crypto.inc). The
+ *     row macros of that file (RVA for a chunk engine arithmetic row with
+ *     RVV_PARAM(), RVP, RVM, RVL, RVS, RVX / RVR for the floating point, RVB
+ *     and RVK) take the mnemonic and the parameter of the lifter.
  *   - vsetvl{i}: vtype bit 8 (altfmt of Zvfbfa) and the other upper bits
  *     are reserved here (vill), see RiscvSemanticLiftVectorConfig.cpp
  *     (RvvLift::vtypeIsValid()).
@@ -436,6 +437,13 @@ public:
     // The x register as a scalar operand of 'bits' bits: truncated when XLEN
     // is wider, sign extended when it is narrower (the .vx / .vf operands)
     SemanticOperand readScalar(uint number, uint bits);
+    // The scalar of the .vf instructions: the f register rs1 as an integer of
+    // 'bits' bits (16, 32 or 64). A value which is not NaN boxed (the bits
+    // above 'bits' are not all ones) reads as 'canonicalNan', the canonical
+    // NaN of its format
+    SemanticOperand readFloatScalar(uint bits, uint64 canonicalNan);
+    // f<number> = value, an integer of 'bits' bits, NaN boxed
+    void writeFloatRegister(uint number, const SemanticOperand& value);
     // vl, vstart, vtype as the snapshot taken by dispatch() / readState()
     const SemanticOperand& vl() const { return m_vl; }
     const SemanticOperand& vstart() const { return m_vstart; }
@@ -650,6 +658,8 @@ RvvPlan makeArithmeticPlan(uint64 parameter);
 // The element operations (RiscvSemanticLiftVectorInteger.cpp, ...Fixed.cpp)
 SemanticOperand integerElementOp(RvvChunk& chunk);
 SemanticOperand fixedElementOp(RvvChunk& chunk);
+SemanticOperand floatElementOp(RvvChunk& chunk);
+SemanticOperand bitsElementOp(RvvChunk& chunk);
 
 /*
  * The lifters of the vector mnemonics (the m_lift of the entries of
@@ -664,6 +674,78 @@ void liftVectorMemory(RiscvLiftContext& context);
 // The integer and fixed point arithmetic (RiscvSemanticLiftVectorInteger.cpp,
 // ...Fixed.cpp): the parameter is built by RVV_PARAM()
 void liftVectorInteger(RiscvLiftContext& context);
+/*
+ * The vector cryptography (RiscvSemanticLiftVectorCrypto.cpp): the parameter of
+ * the entries is the operation
+ */
+enum RvvCryptoOp {
+    RVK_AESEF_VV, RVK_AESEF_VS, RVK_AESEM_VV, RVK_AESEM_VS, RVK_AESDF_VV,
+    RVK_AESDF_VS, RVK_AESDM_VV, RVK_AESDM_VS, RVK_AESZ_VS, RVK_AESKF1,
+    RVK_AESKF2, RVK_GHSH, RVK_GMUL, RVK_SHA2MS, RVK_SHA2CH, RVK_SHA2CL,
+    RVK_SM3ME, RVK_SM3C, RVK_SM4K, RVK_SM4R_VV, RVK_SM4R_VS
+};
+void liftVectorCrypto(RiscvLiftContext& context);
+
+/*
+ * The vector bit manipulation of Zvbb, Zvkb and Zvbc
+ * (RiscvSemanticLiftVectorBits.cpp): the operations of the entries, whose
+ * parameter is built by RVV_PARAM()
+ */
+enum RvvBitsOp {
+    RVB_OP_ANDN, RVB_OP_BREV, RVB_OP_BREV8, RVB_OP_REV8, RVB_OP_CLZ,
+    RVB_OP_CTZ, RVB_OP_CPOP, RVB_OP_ROL, RVB_OP_ROR, RVB_OP_WSLL,
+    RVB_OP_CLMUL, RVB_OP_CLMULH
+};
+void liftVectorBits(RiscvLiftContext& context);
+
+/*
+ * The vector floating point (RiscvSemanticLiftVectorFloat.cpp): the element
+ * operations of the chunk engine, the parameter of the entries is built by
+ * RVF_PARAM(): the operation, the shape (RvvPlan::Shape), the mask mode
+ * (RvvPlan::MaskMode) and the flags
+ */
+enum RvvFloatOp {
+    RVF_OP_ADD, RVF_OP_SUB, RVF_OP_RSUB, RVF_OP_MUL, RVF_OP_DIV, RVF_OP_RDIV,
+    // vfmin, vfmax (the minimumNumber / maximumNumber of IEEE 754-2019) and
+    // the sign injection
+    RVF_OP_MIN, RVF_OP_MAX, RVF_OP_SGNJ, RVF_OP_SGNJN, RVF_OP_SGNJX,
+    // The multiply-add family (the flags tell the member), the square root,
+    // the estimates and the class
+    RVF_OP_MACC, RVF_OP_SQRT, RVF_OP_REC7, RVF_OP_RSQRT7, RVF_OP_CLASS,
+    RVF_OP_MERGE, RVF_OP_MOVE,
+    // The compares into a mask: ==, !=, <, <=, >, >=
+    RVF_OP_EQ, RVF_OP_NE, RVF_OP_LT, RVF_OP_LE, RVF_OP_GT, RVF_OP_GE,
+    // The conversions: float to integer, integer to float, float to float
+    RVF_OP_TO_INTEGER, RVF_OP_FROM_INTEGER, RVF_OP_CONVERT
+};
+enum {
+    // The integer of the conversion is unsigned
+    RVF_FLAG_UNSIGNED = 1,
+    // The conversion rounds toward zero / to odd (static modes)
+    RVF_FLAG_RTZ = 2,
+    RVF_FLAG_ROD = 4,
+    // The 16 bit float of the instruction is BFloat16 (Zvfbfmin, Zvfbfwma)
+    RVF_FLAG_BFLOAT16 = 8,
+    // The instruction doesn't depend on frm: a reserved value of it is not
+    // an illegal instruction
+    RVF_FLAG_NO_FRM = 16,
+    // The multiply-add family: the product / the addend is negated, and
+    // the multiplicand is vd (vfmadd) instead of vs2 (vfmacc)
+    RVF_FLAG_NEGATE_PRODUCT = 32,
+    RVF_FLAG_NEGATE_ADDEND = 64,
+    RVF_FLAG_MULTIPLY_DESTINATION = 128
+};
+#define RVF_PARAM(operation, shape, mask, flags) \
+    ((uint64)(operation) | ((uint64)(shape) << 8) | ((uint64)(mask) << 12) | \
+     ((uint64)(flags) << 16))
+// The vector floating point instructions; the reductions
+// (RiscvSemanticLiftVectorFloat.cpp): the parameter is RVF_REDUCE_* |
+// (isWide << 8)
+void liftVectorFloat(RiscvLiftContext& context);
+enum { RVF_REDUCE_SUM_ORDERED, RVF_REDUCE_SUM_UNORDERED, RVF_REDUCE_MIN,
+       RVF_REDUCE_MAX };
+void liftVectorFloatReduce(RiscvLiftContext& context);
+
 /*
  * The parameter of a memory entry: the kind (RVV_MEM_*), store, fault only
  * first, the number of fields - 1 and log2(element width / 8). For an indexed
@@ -697,6 +779,9 @@ enum RvvPermuteOp {
     // The whole register moves; the number of registers is the field
     // (RVV_PERMUTE_MOVE | (registers << 8))
     RVV_PERMUTE_MOVE,
+    // (vfmv.f.s, vfmv.s.f, vfslide1up.vf and vfslide1down.vf are the
+    // RVV_PERMUTE_MV_X_S, MV_S_X, SLIDE1UP and SLIDE1DOWN with the scalar in
+    // an f register: | (1 << 8))
     // The reductions: RVV_PERMUTE_REDUCE | (RVV_REDUCE_* << 8) | (isWide <<
     // 16) | (isSigned << 17)
     RVV_PERMUTE_REDUCE

@@ -114,6 +114,55 @@ def draw_fp(rng, width):
     return rng.getrandbits(width)
 
 
+def draw_fp_kind(rng, width, bf16=False):
+    """draw_fp, or a BFloat16 value (the 16 bit format with 8 exponent bits)"""
+    if bf16 and width == 16:
+        return rng.choice(BF16) if rng.random() < 0.6 else rng.getrandbits(16)
+    return draw_fp(rng, width)
+
+
+def float_roles(mn, ops, sew):
+    """The element width and kind ('f', 'bf16', 'i') of the vector registers an OPFVV / OPFVF instruction reads, by
+    its operand order: the widening and narrowing forms have wide operands. {register: (bits, kind)}"""
+    regs = [reg_v(o) for o in ops if o.strip() != 'v0.t']
+    roles = {}
+    wide = sew * 2
+
+    def put(i, bits, kind):
+        if i < len(regs) and regs[i] is not None:
+            roles[regs[i]] = (bits, kind)
+
+    is_bf = 'bf16' in mn
+    base = 'bf16' if is_bf else 'f'
+    int_source = bool(re.search(r'\.f\.xu?\.[vw]$', mn))
+    if mn.startswith('vfwcvt'):
+        put(0, wide, 'f')
+        put(1, sew, 'i' if int_source else base)
+    elif mn.startswith('vfncvt'):
+        put(0, sew, 'f')
+        put(1, wide, 'i' if int_source else 'f')
+    elif mn.startswith('vfcvt'):
+        put(0, sew, 'f')
+        put(1, sew, 'i' if int_source else 'f')
+    elif mn.startswith(('vfwmacc', 'vfwnmacc', 'vfwmsac', 'vfwnmsac')):
+        put(0, wide, 'f')
+        put(1, sew, base)
+        put(2, sew, base)
+    elif mn.startswith(('vfwredosum', 'vfwredusum')):
+        put(0, wide, 'f')
+        put(1, sew, 'f')
+        put(2, wide, 'f')
+    elif mn.startswith('vfw') and re.search(r'\.w[vf]$', mn):
+        put(0, wide, 'f')
+        put(1, wide, 'f')
+        put(2, sew, 'f')
+    elif mn.startswith('vfw'):
+        put(0, wide, 'f')
+        put(1, sew, 'f')
+        put(2, sew, 'f')
+    return roles
+
+
 def box(rng, value, width, always=False):
     """A 64 bit f register holding `value` of `width` bits: NaN boxed (80% of the draws, always if
     asked), else with the upper bits random or zero."""
@@ -298,11 +347,27 @@ def vtype_is_valid(vtype, xlen):
     return vsew <= 3 + min(lmul_log, 0)
 
 
+def crypto_group_size(mnemonic):
+    """EGS of a vector cryptography instruction (0 for the others)"""
+    if mnemonic.startswith(('vsm3',)):
+        return 8
+    if mnemonic.startswith(('vaes', 'vsha2', 'vsm4', 'vghsh', 'vgmul')):
+        return 4
+    return 0
+
+
 def draw_vector_state(rng, st, info, xlen, is_float, mn_first, n=0, offset=0, force=None):
     vlen = st['vlen']
     r = rng.random()
     # the SEWs a floating point instruction can have: 16, 32, 64
     sews = [16, 32, 64] if is_float else [8, 16, 32, 64]
+    egs = crypto_group_size(mn_first)
+    if egs:
+        # the cryptography works on SEW 32 (64 for SHA-512); a few states have another one
+        sews = [32, 32, 32, 64, 64, 64, 16, 8] if mn_first.startswith('vsha2') else [32, 32, 32, 32, 32, 32, 64, 16, 8]
+    if is_float and re.match(r'vf[wn]?cvt', mn_first) and 'bf16' not in mn_first:
+        # (the integer side of the conversions has 8 bit elements)
+        sews = [8, 16, 32, 64]
     force = force or {}
     # (the states of a line cycle through the SEWs and the LMULs; the offset is drawn once for the line)
     sew = force['sew'] if 'sew' in force else sews[(n + offset) % len(sews)]
@@ -362,13 +427,20 @@ def draw_vector_state(rng, st, info, xlen, is_float, mn_first, n=0, offset=0, fo
     if st['vl'] and rng.random() < 0.2:
         st['vstart'] = rng.randrange(0, min(st['vl'], vlen - 1) + 1) if rng.random() < 0.9 else rng.randrange(0, min(vlmax * 2 + 2, vlen))
         # (the vstart CSR holds log2(VLEN) bits: a write of a larger value is truncated, so the states stay below VLEN)
+    if egs and 'vl' not in force and st['vtype'] >> (xlen - 1) == 0 and rng.random() < 0.85:
+        # (the element groups need a vl and a vstart that are multiples of EGS)
+        st['vl'] = st['vl'] // egs * egs
+        if rng.random() < 0.85:
+            st['vstart'] = st['vstart'] // egs * egs
     st['vxrm'] = rng.randrange(4)
     st['vxsat'] = rng.randrange(2)
     st['vector'] = True
     return sew, vlmax
 
 
-def draw_v_register(rng, vlen, sew, is_float, indexed, mask_like):
+def draw_v_register(rng, vlen, sew, is_float, indexed, mask_like, bf16=False):
+    if is_float and sew not in (16, 32, 64):
+        is_float = False
     if mask_like:
         r = rng.random()
         if r < 0.1:
@@ -394,12 +466,12 @@ def draw_v_register(rng, vlen, sew, is_float, indexed, mask_like):
     v = 0
     same = None
     if is_float:
-        same = draw_fp(rng, sew) if rng.random() < 0.25 else None
+        same = draw_fp_kind(rng, sew, bf16) if rng.random() < 0.25 else None
     elif rng.random() < 0.25:
         same = draw_int(rng, min(sew, 64)) & ((1 << sew) - 1)
     for i in range(n):
         if is_float:
-            e = same if same is not None and rng.random() < 0.5 else draw_fp(rng, sew)
+            e = same if same is not None and rng.random() < 0.5 else draw_fp_kind(rng, sew, bf16)
         else:
             e = same if same is not None and rng.random() < 0.5 else draw_int(rng, 64) & ((1 << sew) - 1)
             if rng.random() < 0.3:
@@ -500,8 +572,18 @@ def make_states(xlen, vlen, text, count, overrides=None, mode=None, fixed=(), se
         # the vector state
         if is_vec or is_setvl or mode == 'vector':
             sew, vlmax = draw_vector_state(rng, st, info, xlen, is_float_vec, first, n, line_offset, force)
+            roles = float_roles(first, info['insns'][0][1], sew) if is_float_vec else {}
             for i in range(32):
-                st['v'][i] = draw_v_register(rng, vlen, sew, is_float_vec, False, False)
+                if i in roles:
+                    bits, kind = roles[i]
+                    st['v'][i] = draw_v_register(rng, vlen, bits, kind != 'i', False, False, kind == 'bf16')
+                else:
+                    st['v'][i] = draw_v_register(rng, vlen, sew, is_float_vec, False, False)
+            if is_float_vec:
+                # the scalar of the .vf forms is a float of SEW bits (BFloat16 for vfwmaccbf16), boxed 80% of the time
+                for i in info['f']:
+                    w = 16 if 'bf16' in first else (sew if sew in (16, 32, 64) else 32)
+                    st['f'][i] = box(rng, draw_fp_kind(rng, w, 'bf16' in first), w, boxed)
             if mode != 'noindex' and is_indexed:
                 for i in info['v']:
                     st['v'][i] = draw_v_register(rng, vlen, sew, False, True, False)

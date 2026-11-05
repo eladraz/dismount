@@ -63,6 +63,9 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/riscv/RiscvSemanticLiftVectorMemory.cpp \
                          Source/dismount/proc/riscv/RiscvSemanticLiftVectorInteger.cpp \
                          Source/dismount/proc/riscv/RiscvSemanticLiftVectorFixed.cpp \
+                         Source/dismount/proc/riscv/RiscvSemanticLiftVectorFloat.cpp \
+                         Source/dismount/proc/riscv/RiscvSemanticLiftVectorBits.cpp \
+                         Source/dismount/proc/riscv/RiscvSemanticLiftVectorCrypto.cpp \
                          Source/dismount/proc/riscv/RiscvSemanticLiftVectorMask.cpp \
                          Source/dismount/proc/riscv/RiscvSemanticLiftVectorPermute.cpp \
                          Source/dismount/proc/riscv/RiscvSemanticTablePrivileged.cpp \

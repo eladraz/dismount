@@ -117,6 +117,15 @@ bool RiscvHelpers::execute(SemanticInterpreter& interpreter, uint xlen,
     case RISCV_HELPER_INSTRUCTION:
         return executeSm4(interpreter, xlen,
                 (uint32)interpreter.getHelperArgument(0).getWord(0));
+    case RISCV_HELPER_SM4_SBOX:
+    {
+        const uint32 word = (uint32)interpreter.getHelperArgument(0).getWord(0);
+        uint32 substituted = 0;
+        for (uint i = 0; i < 4; i++)
+            substituted |= (uint32)getSm4Sbox((uint8)(word >> (8 * i))) << (8 * i);
+        result = SemanticValue(substituted);
+        return true;
+    }
     default:
         return false;
     }

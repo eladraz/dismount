@@ -40,6 +40,7 @@
 #include "dismount/proc/riscv/RiscvStreamDisassembler.h"
 #include "dismount/proc/riscv/RiscvArchitecture.h"
 #include "dismount/proc/riscv/RiscvSemantics.h"
+#include "dismount/proc/riscv/RiscvHelpers.h"
 
 using namespace riscvdis;
 
@@ -279,10 +280,14 @@ private:
                   m_vxsat(0)
         {
             memset(m_x, 0, sizeof(m_x));
+            memset(m_f, 0, sizeof(m_f));
+            m_fcsr = 0;
         }
 
         uint m_vlen;
         uint64 m_x[32];
+        uint64 m_f[32];
+        uint64 m_fcsr;
         SemanticValue m_v[32];
         uint64 m_vl;
         uint64 m_vtype;
@@ -334,6 +339,10 @@ private:
                 start.m_vxrm = parseHex(t.m_value, t.m_end);
             else if (strcmp(t.m_name, "vxsat") == 0)
                 start.m_vxsat = parseHex(t.m_value, t.m_end);
+            else if (strcmp(t.m_name, "fcsr") == 0)
+                start.m_fcsr = parseHex(t.m_value, t.m_end);
+            else if (numbered(t.m_name, 'f') >= 0)
+                start.m_f[numbered(t.m_name, 'f')] = parseHex(t.m_value, t.m_end);
             else if (numbered(t.m_name, 'x') >= 0)
                 start.m_x[numbered(t.m_name, 'x')] = parseHex(t.m_value, t.m_end) & addressMask;
             else if (numbered(t.m_name, 'v') >= 0)
@@ -381,13 +390,24 @@ private:
             interpreter.setRegister(RISCV_REG_X0 + i, SemanticValue(start.m_x[i]));
         interpreter.setRegister(RISCV_REG_PC, SemanticValue(pc));
         for (uint i = 0; i < 32; i++)
+            interpreter.setRegister(RISCV_REG_F0 + i, SemanticValue(start.m_f[i]));
+        interpreter.setRegister(RISCV_REG_FCSR, SemanticValue(start.m_fcsr));
+        for (uint i = 0; i < 32; i++)
             interpreter.setRegister(RISCV_REG_V0 + i, start.m_v[i]);
         interpreter.setRegister(RISCV_REG_VL, SemanticValue(start.m_vl));
         interpreter.setRegister(RISCV_REG_VTYPE, SemanticValue(start.m_vtype));
         interpreter.setRegister(RISCV_REG_VSTART, SemanticValue(start.m_vstart));
         interpreter.setRegister(RISCV_REG_VCSR,
                                 SemanticValue(start.m_vxsat | (start.m_vxrm << 1)));
-        const SemanticInterpreter::ExitReason reason = interpreter.run(block);
+        SemanticInterpreter::ExitReason reason = interpreter.run(block);
+        // The helpers of the reference implementation (the SM4 S-box)
+        while (reason == SemanticInterpreter::EXIT_HELPER)
+        {
+            SemanticValue helperResult;
+            if (!RiscvHelpers::execute(interpreter, is64 ? 64 : 32, helperResult))
+                break;
+            reason = interpreter.resume(helperResult);
+        }
 
         // The expected state
         State wanted = start;
@@ -411,6 +431,10 @@ private:
                 wanted.m_vstart = parseHex(t.m_value, t.m_end);
             else if (strcmp(t.m_name, "vxsat") == 0)
                 wanted.m_vxsat = parseHex(t.m_value, t.m_end);
+            else if (strcmp(t.m_name, "fcsr") == 0)
+                wanted.m_fcsr = parseHex(t.m_value, t.m_end);
+            else if (numbered(t.m_name, 'f') >= 0)
+                wanted.m_f[numbered(t.m_name, 'f')] = parseHex(t.m_value, t.m_end);
             else if (numbered(t.m_name, 'x') >= 0)
                 wanted.m_x[numbered(t.m_name, 'x')] = parseHex(t.m_value, t.m_end);
             else if (numbered(t.m_name, 'v') >= 0)
@@ -453,6 +477,27 @@ private:
                 char message[256];
                 snprintf(message, sizeof(message), "x%u = %llx, expected %llx", (unsigned int)i,
                          (unsigned long long)actual, (unsigned long long)wanted.m_x[i]);
+                RISCV_VECTOR_FAIL(row.m_text, message);
+            }
+        }
+        for (uint i = 0; i < 32; i++)
+        {
+            const uint64 actual = interpreter.getRegister(RISCV_REG_F0 + i).getWord(0);
+            if (actual != wanted.m_f[i])
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "f%u = %llx, expected %llx", (unsigned int)i,
+                         (unsigned long long)actual, (unsigned long long)wanted.m_f[i]);
+                RISCV_VECTOR_FAIL(row.m_text, message);
+            }
+        }
+        {
+            const uint64 actual = interpreter.getRegister(RISCV_REG_FCSR).getWord(0);
+            if (actual != wanted.m_fcsr)
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "fcsr = %llx, expected %llx",
+                         (unsigned long long)actual, (unsigned long long)wanted.m_fcsr);
                 RISCV_VECTOR_FAIL(row.m_text, message);
             }
         }
@@ -636,23 +681,20 @@ private:
         }
     }
 
-    // The instructions of the floating point half (and of the vector bit
-    // manipulation and cryptography) are not lifted yet: OP_UNDEFINED, and
-    // their features carry no lift mark
-    void testNotLifted()
+    // The floating point instructions are lifted: vfadd.vv is a lifted block
+    // and its features carry the lift mark
+    void testFloatLifted()
     {
         RiscvSemanticLifter lifter(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
         RiscvOpcodePtr opcode = decodeWord(RiscvInstructionSet::RISCV_RV64,
                                            0x02c59557);     // vfadd.vv v10, v12, v11
         TESTS_ASSERT(opcode.getPointer() != NULL);
         SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
-        TESTS_ASSERT(!lifter.lift(asVectorOpcode(opcode), block));
+        TESTS_ASSERT(lifter.lift(asVectorOpcode(opcode), block));
         TESTS_ASSERT((RiscvFeatures::getSupport(RiscvFeatures::FEAT_ZVE32F) &
-                      RiscvFeatures::SUPPORT_LIFT) == 0);
+                      RiscvFeatures::SUPPORT_LIFT) != 0);
         TESTS_ASSERT((RiscvFeatures::getSupport(RiscvFeatures::FEAT_ZVE32X) &
                       RiscvFeatures::SUPPORT_LIFT) != 0);
-        TESTS_ASSERT((RiscvFeatures::getSupport(RiscvFeatures::FEAT_V) &
-                      RiscvFeatures::SUPPORT_PARTIAL_LIFT) != 0);
     }
 
     virtual void test()
@@ -660,7 +702,7 @@ private:
         testCoverage();
         testRows();
         testClassification();
-        testNotLifted();
+        testFloatLifted();
         cout << "RISC-V vector semantics tests passed" << endl;
     }
 
