@@ -140,8 +140,15 @@ jobs:
       - name: Build dismount
         working-directory: dismount
         run: |
+          set -o pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DDISMOUNT_BUILD_TESTS=ON
-          cmake --build build -j 4
+          cmake --build build -j 4 2>&1 | tee build.log
+
+      # Show the compiler and linker errors as annotations of the run
+      - name: Show build errors
+        if: failure()
+        working-directory: dismount
+        run: grep -E "error|undefined reference|cannot find" build.log | head -20 | sed 's/^/::error::/' || true
 
       - name: Run unit tests
         working-directory: dismount
