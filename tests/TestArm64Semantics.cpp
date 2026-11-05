@@ -430,7 +430,7 @@ public:
             if (actual != wanted)
             {
                 char message[256];
-                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", i,
+                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", (unsigned)i,
                          (unsigned long long)actual, (unsigned long long)wanted);
                 ARM_SEMANTIC_FAIL(row.m_text, message);
             }
@@ -446,8 +446,8 @@ public:
         if (nzcv != (hasNzcv ? expectedNzcv : initialNzcv))
         {
             char message[256];
-            snprintf(message, sizeof(message), "nzcv = %x, expected %x", nzcv,
-                     hasNzcv ? expectedNzcv : initialNzcv);
+            snprintf(message, sizeof(message), "nzcv = %x, expected %x", (unsigned)nzcv,
+                     (unsigned)(hasNzcv ? expectedNzcv : initialNzcv));
             ARM_SEMANTIC_FAIL(row.m_text, message);
         }
         if (interpreter.getRegister(ARM64_REG_FPCR).getWord(0) !=
@@ -463,7 +463,7 @@ public:
             if (actual != wanted)
             {
                 char message[256];
-                snprintf(message, sizeof(message), "v%u", i);
+                snprintf(message, sizeof(message), "v%u", (unsigned)i);
                 ARM_SEMANTIC_FAIL(row.m_text, message);
             }
             // The rest of z is zero (a write zeroes it)

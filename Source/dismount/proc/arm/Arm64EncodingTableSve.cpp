@@ -34,14 +34,6 @@ namespace {
 #define E(mnemonic, mask, value, feature, flags, flow, condition, ...) \
     { mnemonic, mask, value, { __VA_ARGS__ }, ArmFeatures::feature, flags, flow, condition }
 
-// True if the logical immediate field (N:immr:imms, bits 5-17) of dupm / and /
-// orr / eor is valid
-bool isValidLogicalImmediate(uint32 e)
-{
-    uint64 value;
-    return decodeLogicalImmediateValue(BITS(17, 17), BITS(16, 11), BITS(10, 5), 64, value);
-}
-
 // True if a value of 'bits' bit elements can be made by dup / cpy: an 8 bit
 // signed number, shifted left by 8 or not (not for the byte elements)
 bool isCpyDupImmediate(uint bits, uint64 value)

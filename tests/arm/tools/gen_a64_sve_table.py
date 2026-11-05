@@ -27,15 +27,7 @@ import a64dsl_sve
 REPO = a64dsl_sve.REPO
 OUTPUT = os.path.join(REPO, 'Source', 'dismount', 'proc', 'arm', 'Arm64EncodingTableSve.cpp')
 
-HELPERS = r'''// True if the logical immediate field (N:immr:imms, bits 5-17) of dupm / and /
-// orr / eor is valid
-bool isValidLogicalImmediate(uint32 e)
-{
-    uint64 value;
-    return decodeLogicalImmediateValue(BITS(17, 17), BITS(16, 11), BITS(10, 5), 64, value);
-}
-
-// True if a value of 'bits' bit elements can be made by dup / cpy: an 8 bit
+HELPERS = r'''// True if a value of 'bits' bit elements can be made by dup / cpy: an 8 bit
 // signed number, shifted left by 8 or not (not for the byte elements)
 bool isCpyDupImmediate(uint bits, uint64 value)
 {

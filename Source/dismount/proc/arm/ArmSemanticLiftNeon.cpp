@@ -913,7 +913,6 @@ void liftNeonNarrowMove(ArmLiftContext& c)
     // Narrowing: q -> d
     const uint r = s / 2;
     const uint lanes = 128 / s;
-    const bool isSigned = n.isSigned();
     const Val source = b.reg(1);
     Val result[8];
     const bool isShift = c.getOperandsCount() > 2;

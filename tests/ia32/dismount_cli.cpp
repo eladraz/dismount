@@ -1391,7 +1391,7 @@ static void printEntry(const armdis::ArmEncodingEntry& entry, uint size, void*)
 {
     char text[256];
     snprintf(text, sizeof(text), "%08x %08x %u %x %u %s", entry.m_mask, entry.m_value,
-             (unsigned)entry.m_feature, (unsigned)entry.m_flags, size, entry.m_mnemonic);
+             (unsigned)entry.m_feature, (unsigned)entry.m_flags, (unsigned)size, entry.m_mnemonic);
     writeLine(cString(text));
 }
 
@@ -1411,11 +1411,11 @@ static int runArmFeatures(ArmInstructionSet::DisassemblerTypes type)
         if (!listed)
             continue;
         char text[256];
-        snprintf(text, sizeof(text), "%u %s %s %x %u", i,
+        snprintf(text, sizeof(text), "%u %s %s %x %u", (unsigned)i,
                  (ArmFeatures::getName(feature)[0] == 0) ? "-" : ArmFeatures::getName(feature),
                  (set == ArmInstructionSet::ARM_A64) ? "a64" :
                  (set == ArmInstructionSet::ARM_T32) ? "t32" : "a32",
-                 ArmFeatures::getSupport(feature), counts[i]);
+                 (unsigned)ArmFeatures::getSupport(feature), (unsigned)counts[i]);
         writeLine(cString(text));
     }
     return 0;

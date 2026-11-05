@@ -112,8 +112,8 @@ public:
     void fail(uint index, const ArmFloatVector& v, const char* what, uint64 got, uint64 want)
     {
         fprintf(stderr, "TestSemanticFloatArm: vector %u (op %u, format %u/%u, control %x, rounding %u, "
-                "a=%llx b=%llx c=%llx): %s = %llx, expected %llx\n", index, (uint)v.m_operation,
-                (uint)v.m_format, (uint)v.m_format2, (uint)v.m_control, (uint)v.m_rounding,
+                "a=%llx b=%llx c=%llx): %s = %llx, expected %llx\n", (unsigned)index, (unsigned)v.m_operation,
+                (unsigned)v.m_format, (unsigned)v.m_format2, (unsigned)v.m_control, (unsigned)v.m_rounding,
                 (unsigned long long)v.m_a, (unsigned long long)v.m_b, (unsigned long long)v.m_c, what,
                 (unsigned long long)got, (unsigned long long)want);
         m_failures++;

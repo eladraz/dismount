@@ -388,7 +388,7 @@ public:
         if (actual != wanted)
         {
             char message[128];
-            snprintf(message, sizeof(message), "%s%u differs", name, index);
+            snprintf(message, sizeof(message), "%s%u differs", name, (unsigned)index);
             SME_FAIL(label, message);
         }
     }
@@ -514,7 +514,7 @@ public:
             if (actual != expected.m_x[i])
             {
                 char message[128];
-                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", i,
+                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", (unsigned)i,
                          (unsigned long long)actual, (unsigned long long)expected.m_x[i]);
                 SME_FAIL(label, message);
             }

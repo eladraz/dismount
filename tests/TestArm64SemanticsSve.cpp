@@ -409,7 +409,7 @@ public:
             if (actual != wanted)
             {
                 char message[256];
-                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", i,
+                snprintf(message, sizeof(message), "x%u = %llx, expected %llx", (unsigned)i,
                          (unsigned long long)actual, (unsigned long long)wanted);
                 fail(row, message);
             }
@@ -424,8 +424,8 @@ public:
         if (nzcv != (hasNzcv ? expectedNzcv : initialNzcv))
         {
             char message[256];
-            snprintf(message, sizeof(message), "nzcv = %x, expected %x", nzcv,
-                     hasNzcv ? expectedNzcv : initialNzcv);
+            snprintf(message, sizeof(message), "nzcv = %x, expected %x", (unsigned)nzcv,
+                     (unsigned)(hasNzcv ? expectedNzcv : initialNzcv));
             fail(row, message);
         }
         if (interpreter.getRegister(ARM64_REG_FPCR).getWord(0) != initialFpcr)
@@ -446,7 +446,7 @@ public:
             if (actual != wanted)
             {
                 char name[16];
-                snprintf(name, sizeof(name), "z%u", i);
+                snprintf(name, sizeof(name), "z%u", (unsigned)i);
                 failValue(row, name, actual, wanted, vl);
             }
         }
@@ -458,7 +458,7 @@ public:
             if (actual != wanted)
             {
                 char name[16];
-                snprintf(name, sizeof(name), "p%u", i);
+                snprintf(name, sizeof(name), "p%u", (unsigned)i);
                 failValue(row, name, actual, wanted, vl / 8 < 64 ? 64 : vl / 8);
             }
         }

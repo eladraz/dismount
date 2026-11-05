@@ -490,7 +490,7 @@ private:
         for (uint i = 0; i < 13; i++)
         {
             char name[8];
-            snprintf(name, sizeof(name), "r%u", i);
+            snprintf(name, sizeof(name), "r%u", (unsigned)i);
             checkRegister(row, interpreter, name, ARM_REG_R0 + i,
                           isExpected[ARM_REG_R0 + i] ? expected[ARM_REG_R0 + i] :
                           initial[ARM_REG_R0 + i]);
@@ -526,7 +526,7 @@ private:
                     wanted = setBitsOf(wanted, 32 * quarter, 32,
                                        expected[ARM_REG_S0 + 4 * i + quarter]);
             char name[8];
-            snprintf(name, sizeof(name), "q%u", i);
+            snprintf(name, sizeof(name), "q%u", (unsigned)i);
             checkRegister(row, interpreter, name, ARM_REG_Q0 + i, wanted);
         }
         const uint32 wantedApsr = hasApsr ? expectedApsr : initialApsr;
