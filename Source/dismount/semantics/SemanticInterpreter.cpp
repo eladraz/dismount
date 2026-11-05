@@ -1012,6 +1012,26 @@ EvalStatus evaluateFloat(const SemanticInstruction& instruction,
         const bool isSqrt = operation ==
                     SemanticOperation::OP_FLOAT_RECIPROCAL_SQRT_ESTIMATE;
         const SemanticOperation::Behavior behavior = instruction.getBehavior();
+        if (behavior == SemanticOperation::BEHAVIOR_ESTIMATE_RISCV)
+        {
+            // vfrec7 and vfrsqrt7
+            const SemanticType riscvType = instruction.getType();
+            if (!isFloatType(riscvType) ||
+                (riscvType.getElementBits() < 16) ||
+                (riscvType.getElementBits() > 64) ||
+                (riscvType.getFloatFormat() == SemanticType::FLOAT_BFLOAT16))
+                return EVAL_UNDEFINED;
+            for (uint lane = 0; lane < riscvType.getLanes(); lane++)
+            {
+                const uint offset = lane * riscvType.getElementBits();
+                storeFloat(value, offset, riscvType.getFloatFormat(),
+                    SF::riscvEstimate(riscvType.getFloatFormat(), env,
+                        loadFloat(sources[0], offset,
+                                  riscvType.getFloatFormat()), isSqrt, flags));
+            }
+            result = value;
+            return EVAL_OK;
+        }
         if ((behavior != SemanticOperation::BEHAVIOR_ESTIMATE_ARM) &&
             (behavior != SemanticOperation::BEHAVIOR_ESTIMATE_ARM_EXPONENT))
             return EVAL_UNDEFINED;

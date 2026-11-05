@@ -322,6 +322,15 @@ public:
                              const Bits& b0, const Bits& b1);
     // URECPE / URSQRTE: the estimate of an unsigned 32 bit fixed point number
     static uint32 unsignedEstimate(uint32 value, bool isSqrt);
+    /*
+     * The estimates of the RISC-V vfrec7 and vfrsqrt7 (the V specification,
+     * 13.9 and 13.10: 7 bits of accuracy by the tables of the specification,
+     * for the 16, 32 and 64 bit formats). The rounding mode of the
+     * environment decides the overflow of the reciprocal of a subnormal
+     * number
+     */
+    static Bits riscvEstimate(Format format, const Environment& environment,
+                              const Bits& a, bool isSqrt, uint32& flags);
     // a * 2^b where b is a signed integer of 'integerBits' bits (FSCALE)
     static Bits scaleByInteger(Format format, const Environment& environment,
                                const Bits& a, uint64 b, uint integerBits,

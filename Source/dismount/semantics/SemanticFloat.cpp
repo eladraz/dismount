@@ -1878,6 +1878,136 @@ Bits SemanticFloat::reciprocalSqrtEstimate(Format format,
     return packEstimate(fi, false, resultExponent, fraction);
 }
 
+namespace {
+
+// The 7 bit estimate tables of the RISC-V vfrec7 and vfrsqrt7 (the V
+// specification, 13.9 and 13.10), by the top 7 bits of the significand (and,
+// for the square root, the lowest bit of the exponent)
+const uint8 gRiscvRecipTable[128] = {
+    127, 125, 123, 121, 119, 117, 116, 114, 112, 110, 109, 107, 105, 104, 102, 100,
+    99, 97, 96, 94, 93, 91, 90, 88, 87, 85, 84, 83, 81, 80, 79, 77,
+    76, 75, 74, 72, 71, 70, 69, 68, 66, 65, 64, 63, 62, 61, 60, 59,
+    58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43,
+    42, 41, 40, 40, 39, 38, 37, 36, 35, 35, 34, 33, 32, 31, 31, 30,
+    29, 28, 28, 27, 26, 25, 25, 24, 23, 23, 22, 21, 21, 20, 19, 19,
+    18, 17, 17, 16, 15, 15, 14, 14, 13, 12, 12, 11, 11, 10, 9, 9,
+    8, 8, 7, 7, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0
+};
+const uint8 gRiscvRecipSqrtTable[128] = {
+    52, 51, 50, 48, 47, 46, 44, 43, 42, 41, 40, 39, 38, 36, 35, 34,
+    33, 32, 31, 30, 30, 29, 28, 27, 26, 25, 24, 23, 23, 22, 21, 20,
+    19, 19, 18, 17, 16, 16, 15, 14, 14, 13, 12, 12, 11, 10, 10, 9,
+    9, 8, 7, 7, 6, 6, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0,
+    127, 125, 123, 121, 119, 118, 116, 114, 113, 111, 109, 108, 106, 105, 103, 102,
+    100, 99, 97, 96, 95, 93, 92, 91, 90, 88, 87, 86, 85, 84, 83, 82,
+    80, 79, 78, 77, 76, 75, 74, 73, 72, 71, 70, 70, 69, 68, 67, 66,
+    65, 64, 63, 63, 62, 61, 60, 59, 59, 58, 57, 56, 56, 55, 54, 53
+};
+
+} // namespace
+
+Bits SemanticFloat::riscvEstimate(Format format, const Environment& env,
+                                  const Bits& a, bool isSqrt, uint32& flags)
+{
+    const FormatInfo fi = infoOf(format);
+    CHECK((fi.m_total == 16) || (fi.m_total == 32) || (fi.m_total == 64));
+    const uint exponentBits = fi.m_expBits;
+    const uint fractionBits = fi.m_fracBits;
+    const uint64 exponentMask = ((uint64)1 << exponentBits) - 1;
+    const uint64 fractionMask = ((uint64)1 << fractionBits) - 1;
+    const uint64 sign = (a.m_low >> (exponentBits + fractionBits)) & 1;
+    uint64 exponent = (a.m_low >> fractionBits) & exponentMask;
+    uint64 fraction = a.m_low & fractionMask;
+    const uint64 quietBit = (uint64)1 << (fractionBits - 1);
+    const uint64 canonicalNan = (exponentMask << fractionBits) | quietBit;
+    const uint64 infinity = exponentMask << fractionBits;
+    const uint64 signBit = sign << (exponentBits + fractionBits);
+    const bool isZero = (exponent == 0) && (fraction == 0);
+    const bool isInfinite = (exponent == exponentMask) && (fraction == 0);
+    const bool isNan = (exponent == exponentMask) && (fraction != 0);
+    const bool isSignaling = isNan && ((fraction & quietBit) == 0);
+    const bool isSubnormal = (exponent == 0) && (fraction != 0);
+
+    if (isNan)
+    {
+        if (isSignaling)
+            flags |= FF::FLOAT_INVALID;
+        return Bits(canonicalNan);
+    }
+    if (isZero)
+    {
+        flags |= FF::FLOAT_DIVIDE_BY_ZERO;
+        return Bits(signBit | infinity);
+    }
+    if (isSqrt)
+    {
+        // The negative numbers (and -infinity) have no square root
+        if (sign != 0)
+        {
+            flags |= FF::FLOAT_INVALID;
+            return Bits(canonicalNan);
+        }
+        if (isInfinite)
+            return Bits(0);
+    } else
+    {
+        if (isInfinite)
+            return Bits(signBit);
+    }
+
+    // A subnormal number is normalized: the exponent goes below 0
+    const uint p = 7;
+    if (isSubnormal)
+    {
+        while (((fraction >> (fractionBits - 1)) & 1) == 0)
+        {
+            exponent--;
+            fraction <<= 1;
+        }
+        fraction = (fraction << 1) & fractionMask;
+        if (!isSqrt && (exponent != 0) && (exponent != ~(uint64)0))
+        {
+            // The reciprocal of a subnormal number overflows: infinity, or
+            // the largest finite number, by the rounding mode
+            flags |= FF::FLOAT_OVERFLOW | FF::FLOAT_INEXACT;
+            const Op::RoundingMode mode = modeOf(env);
+            const bool isToZero = (mode == Op::ROUND_TOWARD_ZERO) ||
+                    ((mode == Op::ROUND_TOWARD_POSITIVE) && (sign != 0)) ||
+                    ((mode == Op::ROUND_TOWARD_NEGATIVE) && (sign == 0));
+            const uint64 result = signBit | (exponentMask << fractionBits);
+            return Bits(isToZero ? (result - 1) : result);
+        }
+    }
+
+    const uint64 bias = exponentMask >> 1;
+    uint64 resultExponent;
+    uint64 resultFraction;
+    if (isSqrt)
+    {
+        const uint index = (uint)(((exponent & 1) << (p - 1)) |
+                                  (fraction >> (fractionBits - p + 1)));
+        resultFraction = (uint64)gRiscvRecipSqrtTable[index] << (fractionBits - p);
+        resultExponent = (3 * bias + ~exponent) / 2;
+    } else
+    {
+        const uint index = (uint)(fraction >> (fractionBits - p));
+        resultFraction = (uint64)gRiscvRecipTable[index] << (fractionBits - p);
+        resultExponent = 2 * bias + ~exponent;
+        if ((resultExponent == 0) || (resultExponent == ~(uint64)0))
+        {
+            // The result is subnormal: the significand shifts right
+            resultFraction = (resultFraction >> 1) | quietBit;
+            if (resultExponent == ~(uint64)0)
+            {
+                resultFraction >>= 1;
+                resultExponent = 0;
+            }
+        }
+    }
+    return Bits(signBit | ((resultExponent & exponentMask) << fractionBits) |
+                resultFraction);
+}
+
 Bits SemanticFloat::reciprocalStep(Format format, const Environment& env,
                                    const Bits& a, const Bits& b, bool isSqrt,
                                    bool isFused, uint32& flags)
