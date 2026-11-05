@@ -74,9 +74,12 @@ private:
  *   When the destructor is called all the source code will be assemble and
  *   append to the binary code.
  *
- * When the compiler seeing a label he don't even trying to resolve it. The name
- * of the label is added into the dependency tree and will be resolved later;
- * The binary will contains an empty reference.
+ * A label (an identifier such as 'B_1' or '.loop') is accepted as the target
+ * of jmp, jcc and call only. It is never resolved here: the label is added
+ * into the dependency tree of the binary (DEP_RELATIVE, 32 bits) and its rel32
+ * field is left 0 for the resolver. The encoding is always the 32 bit one (e9,
+ * 0f 8x, e8), the short forms are not chosen for a label. Any other instruction
+ * which gets a label operand is rejected.
  *
  * Opcodes such as 'call eax' will not be appended to the relocation assuming
  * that the 'mov' opcode causes the relocation.
@@ -125,7 +128,10 @@ private:
             // A far pointer 'segment:offset', see getValue() and getSegmentValue()
             FAR_POINTER,
             // A memory reference, see getBase(), getIndex(), ...
-            MEMORY
+            MEMORY,
+            // A label: an identifier which is not a register (see getName()).
+            // Only the target of jmp, jcc and call can be a label
+            LABEL
         };
 
         // The class of a register operand
@@ -168,7 +174,12 @@ private:
          * line, at a ';' comment or at a ',' (the separator of the next
          * operand, which is not read). Throws if the operand is invalid.
          *
-         * The text is lowercase (see IA32AssemblerStream::assemble()).
+         * The parser reads the lowercase text (see IA32AssemblerStream::
+         * assemble()). 'source' is the same text in its original case, at the
+         * same offsets: a label keeps its case (see getName()).
+         *
+         * A label is an identifier ([A-Za-z_.][A-Za-z0-9_.]*) which is not a
+         * register or a keyword, e.g. 'B_1' or '.loop'.
          *
          * Supported forms:
          *   eax, al, mm0, xmm1, es, cr0, dr0           registers
@@ -200,7 +211,7 @@ private:
          * the end of the instruction). The encoding (rel8 or rel32) is chosen
          * during matching, see IA32AssemblerStream::writeOpcode().
          */
-        void readOperand(Parser& parser);
+        void readOperand(Parser& parser, const char* source);
 
         /*
          * Return the operand which is written in 'text' (a fixed operand such
@@ -262,9 +273,13 @@ private:
         // Return the displacement of a memory reference
         int64 getDisplacement() const;
 
+        // Return the name of a label, in its original case (LABEL only)
+        const cString& getName() const;
+
     private:
         // Read a memory reference, after the opening '['
         void readAddress(Parser& parser);
+
 
         // Add a register term into the address
         void addAddressRegister(RegisterClass regClass, uint index, uint scale, int sign);
@@ -280,6 +295,9 @@ private:
         // Operand kind and explicit size (the size keyword)
         Kind m_kind;
         uint m_size;
+
+        // LABEL: the name of the label (original case)
+        cString m_name;
 
         // REGISTER: the register class and index
         RegisterClass m_regClass;
@@ -377,8 +395,9 @@ private:
     /*
      * Read one instruction from the parser (up to the end of the line or a ';'
      * comment), split into prefixes, name and operands, and write it.
+     * 'source' is the text in its original case (see Operand::readOperand()).
      */
-    void assembleInstruction(Parser& parser);
+    void assembleInstruction(Parser& parser, const char* source);
 
     /*
      * Try to find opcode according to it's name and it's parameters and

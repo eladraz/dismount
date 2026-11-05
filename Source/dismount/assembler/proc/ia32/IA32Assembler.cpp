@@ -72,6 +72,31 @@ bool isDecimalAhead(Parser& parser)
     return !parser.isEOS() && cChar::isDigit(parser.peekChar());
 }
 
+// True if a name starts at the parser: a register, a keyword or a label, which
+// is [A-Za-z_.][A-Za-z0-9_.]*
+bool isNameAhead(Parser& parser)
+{
+    if (parser.isEOS())
+        return false;
+    char c = parser.peekChar();
+    return cChar::isLetter(c) || (c == '_') || (c == '.');
+}
+
+// Read a name (see isNameAhead()) from the parser. The text is the lowercase
+// text of the parser
+cString readName(Parser& parser)
+{
+    cString ret;
+    while (!parser.isEOS())
+    {
+        char c = parser.peekChar();
+        if (!isIdentifierChar(c) && (c != '.'))
+            break;
+        ret += (character)parser.readChar();
+    }
+    return ret;
+}
+
 // Return the word at the parser without reading it. Empty if there is no word.
 cString peekWord(Parser& parser)
 {
@@ -156,6 +181,20 @@ uint readSizeKeyword(Parser& parser)
     return 0;
 }
 
+// True if the word is a keyword of an operand, which can't be a label
+bool isOperandKeyword(const cString& word)
+{
+    static const char* keywords[] = {"ptr", "rel", "abs", "rip",
+                                     "short", "near", "far"};
+    for (uint i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++)
+        if (word == keywords[i])
+            return true;
+    for (uint i = 0; i < sizeof(gSizeKeywords) / sizeof(gSizeKeywords[0]); i++)
+        if (word == gSizeKeywords[i].m_name)
+            return true;
+    return false;
+}
+
 // Return the segment register index of a segment name, -1 if it's not one
 int segmentIndex(const cString& name)
 {
@@ -227,8 +266,10 @@ void IA32AssemblerStream::assemble()
     if (getData().length() == 0)
         return;
 
-    // The syntax is case insensitive, so the text is lowercased before parsing
+    // The syntax is case insensitive, so the text is lowercased before parsing.
+    // The labels keep their case, the original text is kept at the same offsets
     cString text = getData();
+    cSArray<char> source = text.getASCIIstring();
     text.makeLower();
     cSArray<char> ascii = text.getASCIIstring();
     Parser parser(ascii.getBuffer(),
@@ -242,7 +283,7 @@ void IA32AssemblerStream::assemble()
     while (!parser.isEOS())
     {
         if (!isNextChar(parser, ';'))
-            assembleInstruction(parser);
+            assembleInstruction(parser, source.getBuffer());
         skipLine(parser);
         parser.readBlanks();
     }
@@ -251,7 +292,7 @@ void IA32AssemblerStream::assemble()
     clean();
 }
 
-void IA32AssemblerStream::assembleInstruction(Parser& parser)
+void IA32AssemblerStream::assembleInstruction(Parser& parser, const char* source)
 {
     Prefixes prefixes;
     prefixes.m_segment = -1;
@@ -312,7 +353,7 @@ void IA32AssemblerStream::assembleInstruction(Parser& parser)
     while (!isEndOfInstruction(parser))
     {
         ASM_CHECK(count < 3, "too many operands");
-        operands[count++].readOperand(parser);
+        operands[count++].readOperand(parser, source);
         if (isNextChar(parser, ','))
         {
             // A comma must be followed by another operand
@@ -373,6 +414,17 @@ void IA32AssemblerStream::writeOpcode(const cString& name,
     uint addressWidth = prefixes.m_addressWidth;
     bool hasB = (b.getKind() != Operand::NO_OPERAND);
     bool hasC = (c.getKind() != Operand::NO_OPERAND);
+
+    // A label is the target of jmp, jcc and call only (the jcxz family has no
+    // 32 bit form, so it is rejected by the table)
+    bool hasLabel = (a.getKind() == Operand::LABEL) ||
+                    (b.getKind() == Operand::LABEL) ||
+                    (c.getKind() == Operand::LABEL);
+    bool isBranch = (name == "jmp") || (name == "call") ||
+                    ((name.length() >= 2) && (name[0] == 'j') &&
+                     (name != "jcxz") && (name != "jecxz") && (name != "jrcxz"));
+    ASM_CHECK(!hasLabel || isBranch,
+              "a label is allowed as the target of jmp, jcc and call only");
 
     // nasm spellings: 'movsx eax, ax' is cwde and 'movsx ax, al' is cbw
     if ((name == "movsx") && hasB && !hasC)
@@ -1310,6 +1362,18 @@ bool IA32AssemblerStream::matchOperand(ia32dis::OperandType ia32disType,
 
     case Operand::MEMORY:
         return matchMemory(ia32disType, compilerOperand, enc);
+
+    case Operand::LABEL:
+        // A label is always a 32 bit relative target (e9, 0f 8x, e8): the
+        // short form is never chosen, and the 16 bit operand size is not
+        // supported (the dependency is 4 bytes)
+        if (compilerOperand.isFar() ||
+            (compilerOperand.getBranchHint() == Operand::HINT_SHORT))
+            return false;
+        if (getEncodingWidth(enc) < 32)
+            return false;
+        return (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_LONG_32) ||
+               (ia32disType == ia32dis::OPND_IMMEDIATE_OFFSET_DS);
     }
 
     return false;
@@ -1963,6 +2027,18 @@ void IA32AssemblerStream::writeImmediate(ia32dis::OperandType ia32disType,
                                          const Encoding& enc)
 {
     uint size = getImmediateSize(ia32disType, enc);
+    if (compilerOperand.getKind() == Operand::LABEL)
+    {
+        // The rel32 of a label is left 0 and the label is a dependency of the
+        // binary. The position is the offset of the field inside the block
+        m_binary.getCurrentDependecies().addDependency(
+            compilerOperand.getName(),
+            m_binary.getCurrentBlockData().getSize(),
+            size,
+            BinaryDependencies::DEP_RELATIVE);
+        writeValue(0, size);
+        return;
+    }
     int64 value = compilerOperand.getValue();
     switch (ia32disType)
     {
@@ -2092,11 +2168,11 @@ IA32AssemblerStream::Operand IA32AssemblerStream::Operand::fromText(const cStrin
                   ascii.getSize() - 1, // Reduce the null terminate character!
                   1);
     Operand operand;
-    operand.readOperand(parser);
+    operand.readOperand(parser, ascii.getBuffer());
     return operand;
 }
 
-void IA32AssemblerStream::Operand::readOperand(Parser& parser)
+void IA32AssemblerStream::Operand::readOperand(Parser& parser, const char* source)
 {
     parser.readBlanksUntilEOL();
 
@@ -2119,12 +2195,17 @@ void IA32AssemblerStream::Operand::readOperand(Parser& parser)
     m_size = readSizeKeyword(parser);
 
     // A word which starts with a letter is a register name, or a segment
-    // override when it is followed by ':' ('fs:[eax]')
+    // override when it is followed by ':' ('fs:[eax]'). A word which is not a
+    // register is a label
     int segment = -1;
     cString name;
-    if (isLetterAhead(parser))
+    uint nameStart = 0;
+    uint nameEnd = 0;
+    if (isNameAhead(parser))
     {
-        cString token = parser.readCString(false);
+        nameStart = parser.getIterator();
+        cString token = readName(parser);
+        nameEnd = parser.getIterator();
         if ((segmentIndex(token) >= 0) && isNextChar(parser, ':'))
         {
             segment = segmentIndex(token);
@@ -2138,12 +2219,21 @@ void IA32AssemblerStream::Operand::readOperand(Parser& parser)
 
     if (name.length() != 0)
     {
-        ASM_CHECK(checkRegister(name, m_regClass, m_reference),
-                  "unknown register or operand");
-        // 'push qword fs': the size of a segment register is the operand size
-        ASM_CHECK((m_size == 0) || (m_regClass == REG_SEGMENT),
-                  "size keyword can't be used with a register");
-        m_kind = REGISTER;
+        if (checkRegister(name, m_regClass, m_reference))
+        {
+            // 'push qword fs': the size of a segment register is the operand size
+            ASM_CHECK((m_size == 0) || (m_regClass == REG_SEGMENT),
+                      "size keyword can't be used with a register");
+            m_kind = REGISTER;
+        } else
+        {
+            // Not a register: a label, which is kept in its original case
+            ASM_CHECK(!isOperandKeyword(name), "unknown register or operand");
+            ASM_CHECK(m_size == 0, "size keyword can't be used with a label");
+            m_kind = LABEL;
+            for (uint i = nameStart; i < nameEnd; i++)
+                m_name += (character)source[i];
+        }
     } else if (isNextChar(parser, '['))
     {
         parser.readChar();
@@ -2516,6 +2606,11 @@ bool IA32AssemblerStream::Operand::isRelativeToInstruction() const
 int64 IA32AssemblerStream::Operand::getDisplacement() const
 {
     return m_value;
+}
+
+const cString& IA32AssemblerStream::Operand::getName() const
+{
+    return m_name;
 }
 
 bool IA32AssemblerStream::Operand::checkRegister(const cString& regname,

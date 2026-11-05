@@ -77,6 +77,50 @@ public:
         return main->getCurrentBlockData();
     }
 
+    // A label operand of jmp, jcc or call: the bytes (the rel32 is 0), and the
+    // single dependency of the label (its name, the offset of the rel32 field)
+    struct LabelTest {
+        const char* instructionText;
+        const byte opcode[MAX_AMD64_ASM_OPCODE];
+        uint opcodeSize;
+        const char* labelName;
+        uint labelPosition;
+    };
+
+    // Assemble a label instruction and check its bytes and its dependency
+    void testLabel(const LabelTest& test, IA32eInstructionSet::DisassemblerTypes mode)
+    {
+        FirstPassBinaryPtr main(new FirstPassBinary(
+                    OpcodeSubsystems::DISASSEMBLER_AMD_64, false));
+        main->createNewBlockWithoutChange(0,
+            StackInterfacePtr(new TempClassInterface(main)));
+        main->changeBasicBlock(0);
+        {
+            IA32AssemblerStream stream(*main, mode);
+            stream << test.instructionText << endl;
+            stream.assemble();
+        }
+
+        cBuffer instruction = main->getCurrentBlockData();
+        cout << test.instructionText << " -> ";
+        for (uint i = 0; i < instruction.getSize(); i++)
+            cout << HEXBYTE(instruction[i]) << ' ';
+        cout << endl;
+        TESTS_ASSERT_EQUAL(instruction.getSize(), test.opcodeSize);
+        for (uint i = 0; i < test.opcodeSize; i++)
+            TESTS_ASSERT_EQUAL(instruction[i], test.opcode[i]);
+
+        // The label is one dependency, relative, 32 bits, at the rel32 field
+        const BinaryDependencies::DependencyObjectList& deps =
+            main->getCurrentDependecies().getList();
+        TESTS_ASSERT_EQUAL(deps.length(), 1);
+        const BinaryDependencies::DependencyObject& dep = *deps.begin();
+        TESTS_ASSERT_EQUAL(dep.m_name, test.labelName);
+        TESTS_ASSERT_EQUAL(dep.m_position, test.labelPosition);
+        TESTS_ASSERT_EQUAL(dep.m_length, (uint)BinaryDependencies::DEP_32BIT);
+        TESTS_ASSERT_EQUAL((int)dep.m_type, (int)BinaryDependencies::DEP_RELATIVE);
+    }
+
     /*
      * Test a single instruction by assembling it and disassembling the bytes
      */
@@ -509,6 +553,45 @@ public:
         };
         for (const char** text = gRejected32; *text != NULL; text++)
             testRejected(*text, IA32eInstructionSet::INTEL_32);
+
+        // The label operands of jmp, jcc and call are always the 32 bit
+        // relative forms (e9, 0f 8x, e8) with a dependency on the label. The
+        // same bytes in 64 bit mode and in 32 bit mode.
+        static const LabelTest gLabels[] = {
+            {"jmp B_1", {0xE9, 0x00, 0x00, 0x00, 0x00}, 5, "B_1", 1},
+            {"jmp near Lnear", {0xE9, 0x00, 0x00, 0x00, 0x00}, 5, "Lnear", 1},
+            {"jne L", {0x0F, 0x85, 0x00, 0x00, 0x00, 0x00}, 6, "L", 2},
+            {"je .loop", {0x0F, 0x84, 0x00, 0x00, 0x00, 0x00}, 6, ".loop", 2},
+            {"jg _Exit_9", {0x0F, 0x8F, 0x00, 0x00, 0x00, 0x00}, 6, "_Exit_9", 2},
+            {"call f", {0xE8, 0x00, 0x00, 0x00, 0x00}, 5, "f", 1},
+            {"call Func.Name", {0xE8, 0x00, 0x00, 0x00, 0x00}, 5, "Func.Name", 1},
+            {"JNE Mixed_Case", {0x0F, 0x85, 0x00, 0x00, 0x00, 0x00}, 6, "Mixed_Case", 2},
+        };
+        for (uint i = 0; i < sizeof(gLabels) / sizeof(gLabels[0]); i++)
+        {
+            testLabel(gLabels[i], IA32eInstructionSet::AMD_64);
+            testLabel(gLabels[i], IA32eInstructionSet::INTEL_32);
+        }
+
+        // A label is accepted by jmp, jcc and call only, and the short form is
+        // never used for a label
+        static const char* gRejectedLabels[] = {
+            "mov eax, L",
+            "push L",
+            "loop L",
+            "jcxz L",
+            "add eax, B_1",
+            "mov eax, [B_1]",
+            "jmp short L",
+            "jmp fs:L",
+            "jmp dword L",
+            NULL
+        };
+        for (const char** text = gRejectedLabels; *text != NULL; text++)
+        {
+            testRejected(*text, IA32eInstructionSet::AMD_64);
+            testRejected(*text, IA32eInstructionSet::INTEL_32);
+        }
     }
 
     // Return the name of the module
