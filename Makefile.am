@@ -43,6 +43,7 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/semantics/SemanticFloat.cpp            \
                          Source/dismount/semantics/SemanticInterpreter.cpp      \
                          Source/dismount/semantics/SemanticLifter.cpp           \
+                         Source/dismount/semantics/SemanticLegalizer.cpp        \
                          Source/dismount/proc/ia32/IA32Architecture.cpp         \
                          Source/dismount/proc/ia32/AMD64Architecture.cpp        \
                          Source/dismount/proc/ia32/IA32OperandDecoder.cpp       \
