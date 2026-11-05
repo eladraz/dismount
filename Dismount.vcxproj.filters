@@ -181,6 +181,8 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticTableSve.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\Arm64SemanticLiftSimd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -526,6 +528,8 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSve.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\Arm64SemanticSimd.h">
       <Filter>Header Files</Filter>
     </ClInclude>
