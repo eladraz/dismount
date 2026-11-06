@@ -80,6 +80,34 @@ public:
      * Return the id of the target register which points to the guest state
      */
     virtual uint getStateRegister() const = 0;
+
+    /*
+     * Return the offset in the guest state of the slot of a temporary value
+     * of the block (SemanticBlock::newTemporary()), in bytes. Each temporary
+     * has its own slot of at least 8 bytes: the value lives in its low bytes
+     */
+    virtual uint getTemporaryOffset(uint temporary) const = 0;
+
+    /*
+     * Return the id of the target register which holds the bias of the guest
+     * memory: the guest memory accesses of the block are made at the guest
+     * address plus this register (AMD64: r14)
+     */
+    virtual uint getMemoryBaseRegister() const = 0;
+
+    /*
+     * Return the offset in the guest state of the slot (8 bytes) which
+     * receives the guest address of a branch whose target is not known when
+     * the block is lowered, and of a trap
+     */
+    virtual uint getProgramCounterOffset() const = 0;
+
+    /*
+     * Return the offset in the guest state of the slot (8 bytes) which
+     * receives the reason the translated code returns to its runtime (see
+     * AMD64Lowering::ExitReason)
+     */
+    virtual uint getExitReasonOffset() const = 0;
 };
 
 // The reference countable object
