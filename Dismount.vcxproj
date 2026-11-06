@@ -44,6 +44,7 @@
     <ClCompile Include="Source\dismount\ProcessorAddress.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\IA32Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Architecture.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64Lowering.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmArchitecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvArchitecture.cpp" />
@@ -171,6 +172,9 @@
     <ClCompile Include="Source\dismount\semantics\SemanticFloat.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticInterpreter.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticLifter.cpp" />
+    <ClCompile Include="Source\dismount\semantics\SemanticLegalizer.cpp" />
+    <ClCompile Include="Source\dismount\semantics\SemanticPrinter.cpp" />
+    <ClCompile Include="Source\dismount\semantics\SemanticLowering.cpp" />
     <ClCompile Include="Source\dismount\SectionMemoryInterface.cpp" />
     <ClCompile Include="Source\dismount\StreamDisassemblerFactory.cpp" />
   </ItemGroup>
@@ -227,6 +231,7 @@
     <ClInclude Include="Include\dismount\ProcessorAddress.h" />
     <ClInclude Include="Include\dismount\proc\ia32\IA32Architecture.h" />
     <ClInclude Include="Include\dismount\proc\ia32\AMD64Architecture.h" />
+    <ClInclude Include="Include\dismount\proc\ia32\AMD64Lowering.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemantics.h" />
@@ -261,6 +266,7 @@
     <ClInclude Include="Include\dismount\semantics\SemanticLowering.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticOperand.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticOperation.h" />
+    <ClInclude Include="Include\dismount\semantics\SemanticPrinter.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticTemplate.h" />
     <ClInclude Include="Include\dismount\semantics\SemanticType.h" />
     <ClInclude Include="Include\dismount\semantics\Semantics.h" />

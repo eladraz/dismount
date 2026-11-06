@@ -66,6 +66,12 @@
     <ClCompile Include="TestRiscvSemanticsVector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestSemanticPrinter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSemanticLowering.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemanticFloatRiscv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
