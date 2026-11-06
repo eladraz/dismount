@@ -20,6 +20,15 @@
  *               of synthetic IR is run natively and compared with the
  *               SemanticInterpreter on the same random guest state.
  *
+ *   Part 3  The differential test (WP9). For each of the 230 RV64I rows:
+ *           lift, legalize, AMD64Lowering::lowerBlock, link the label
+ *           dependencies to stubs, decode the bytes back with the AMD64
+ *           disassembler, lift them with the AMD64 lifter, run them in the
+ *           SemanticInterpreter (state at r15, the guest memory at the guest
+ *           address + r14, state and memory preset from the row) and compare
+ *           the guest registers, the memory and the next address / exit with
+ *           the expectation of the row.
+ *
  * Author: Elad Raz <e@eladraz.com>
  */
 #include <stdio.h>
@@ -380,6 +389,8 @@ public:
         testRv64iLowering();
         testLoweredBytes();
         testNotLowered();
+        testDifferentialRows();
+        testLowerBlockApi();
 #ifdef LOWERING_TEST_NATIVE
         testNativeRows();
         testNativeSynthetic();
@@ -725,6 +736,765 @@ private:
         labels.append(SemanticInstruction(SemanticOperation::OP_LABEL,
                       SemanticType(), SemanticOperand(), label));
         TESTS_EXCEPTION(lowerBlock(labels));
+    }
+
+
+    // ------------------------------------------------------------------
+    // Part 3: the differential test of the rows (WP9)
+    // ------------------------------------------------------------------
+
+    // The tokens "name=value" of a setup or expected string
+    struct Token {
+        char m_name[16];
+        const char* m_value;
+        const char* m_end;
+    };
+    enum { MAX_TOKENS = 96 };
+
+    static uint split(const char* text, Token* tokens, uint maximum)
+    {
+        uint count = 0;
+        const char* p = text;
+        while ((*p != 0) && (count < maximum))
+        {
+            while (*p == ' ')
+                p++;
+            if (*p == 0)
+                break;
+            const char* end = p;
+            while ((*end != 0) && (*end != ' '))
+                end++;
+            const char* equals = (const char*)memchr(p, '=', (size_t)(end - p));
+            TESTS_ASSERT(equals != NULL);
+            const uint length = (uint)(equals - p);
+            TESTS_ASSERT(length < sizeof(tokens[count].m_name));
+            memcpy(tokens[count].m_name, p, length);
+            tokens[count].m_name[length] = 0;
+            tokens[count].m_value = equals + 1;
+            tokens[count].m_end = end;
+            count++;
+            p = end;
+        }
+        return count;
+    }
+
+    static uint64 parseHex(const char* text, const char* end)
+    {
+        uint64 value = 0;
+        for (const char* p = text; p < end; p++)
+            value = (value << 4) | digit(*p);
+        return value;
+    }
+
+    // The number after 'prefix' in a name ("x11" -> 11), or -1
+    static int numbered(const char* name, char prefix)
+    {
+        if ((name[0] != prefix) || (name[1] == 0))
+            return -1;
+        int value = 0;
+        for (const char* p = name + 1; *p != 0; p++)
+        {
+            if ((*p < '0') || (*p > '9'))
+                return -1;
+            value = value * 10 + (*p - '0');
+        }
+        return (value < 32) ? value : -1;
+    }
+
+    // The guest memory of the rows (the same model as TestRiscvSemantics):
+    // the data window [0x80100000, + 0x4000) holds the pattern
+    // ((uint32)(address * 2654435761) >> 24) unless the row sets bytes, the
+    // code region is the 3 pages around the page of the pc, zeros but the
+    // code, with the shadow stack page 0x80200000 when cfi is on. Other
+    // addresses fault
+    class RowMemory {
+    public:
+        RowMemory(const cBuffer& code, uint64 pc, bool isShadowStack) :
+            m_code(code), m_pc(pc), m_isShadowStack(isShadowStack) {}
+
+        bool read(uint64 address, uint8* buffer, uint size)
+        {
+            for (uint i = 0; i < size; i++)
+                if (!isMapped(address + i))
+                    return false;
+            for (uint i = 0; i < size; i++)
+                buffer[i] = getByte(address + i);
+            return true;
+        }
+
+        bool write(uint64 address, const uint8* buffer, uint size)
+        {
+            for (uint i = 0; i < size; i++)
+                if (!isMapped(address + i))
+                    return false;
+            for (uint i = 0; i < size; i++)
+            {
+                if (m_written.hasKey(address + i))
+                    m_written[address + i] = buffer[i];
+                else
+                    m_written.append(address + i, buffer[i]);
+            }
+            return true;
+        }
+
+        void setInitial(uint64 address, uint8 value)
+        {
+            if (m_initial.hasKey(address))
+                m_initial[address] = value;
+            else
+                m_initial.append(address, value);
+        }
+
+        uint8 getByte(uint64 address) const
+        {
+            if (m_written.hasKey(address))
+                return m_written[address];
+            return getInitial(address);
+        }
+
+        uint8 getInitial(uint64 address) const
+        {
+            if ((address - m_pc) < m_code.getSize())
+                return m_code[(uint)(address - m_pc)];
+            if (m_initial.hasKey(address))
+                return m_initial[address];
+            if (isWindow(address))
+                return (uint8)((uint32)(address * 2654435761u) >> 24);
+            return 0;
+        }
+
+        cList<uint64> getWritten() const { return m_written.keys(); }
+
+        bool isWindow(uint64 address) const
+        {
+            return ((address - 0x80100000ULL) < 0x4000) ||
+                   (m_isShadowStack && ((address - 0x80200000ULL) < 0x1000));
+        }
+
+    private:
+        bool isMapped(uint64 address) const
+        {
+            const uint64 regionBase = (m_pc & ~(uint64)0xFFF) - 0x1000;
+            return isWindow(address) || ((address - regionBase) < 0x3000);
+        }
+
+        cBuffer m_code;
+        uint64 m_pc;
+        bool m_isShadowStack;
+        cHash<uint64, uint8> m_initial;
+        cHash<uint64, uint8> m_written;
+    };
+
+    // The memory of the lowered code: the guest state at STATE_BASE (r15) and
+    // the guest memory at the guest address + the bias (r14)
+    enum { STATE_SIZE = 0x10000 };
+    static const uint64 STATE_BASE = 0x70000000ULL;
+    static const uint64 MEMORY_BIAS = 0x300000000000ULL;
+    static const uint64 CODE_BASE = 0x60000000ULL;
+
+    class LoweredMemory : public SemanticMemory {
+    public:
+        LoweredMemory(RowMemory& guest) : m_guest(guest), m_state(STATE_SIZE)
+        {
+            memset(m_state.getBuffer(), 0, STATE_SIZE);
+        }
+
+        virtual bool read(uint64 address, uint8* buffer, uint size)
+        {
+            if ((address - STATE_BASE) < STATE_SIZE - size + 1)
+            {
+                memcpy(buffer, &m_state[(uint)(address - STATE_BASE)], size);
+                return true;
+            }
+            return m_guest.read(address - MEMORY_BIAS, buffer, size);
+        }
+
+        virtual bool write(uint64 address, const uint8* buffer, uint size)
+        {
+            if ((address - STATE_BASE) < STATE_SIZE - size + 1)
+            {
+                memcpy(&m_state[(uint)(address - STATE_BASE)], buffer, size);
+                return true;
+            }
+            return m_guest.write(address - MEMORY_BIAS, buffer, size);
+        }
+
+        uint64 getState(uint offset) const
+        {
+            uint64 value = 0;
+            memcpy(&value, &m_state[offset], 8);
+            return value;
+        }
+
+        void setState(uint offset, uint64 value)
+        {
+            memcpy(&m_state[offset], &value, 8);
+        }
+
+    private:
+        RowMemory& m_guest;
+        cBuffer m_state;
+    };
+
+    // The stubs the labels of a lowered block are linked to
+    struct Stub {
+        cString m_name;
+        uint64 m_address;
+    };
+
+    // The result of running lowered code
+    struct LoweredRun {
+        LoweredRun() : m_stub(-1), m_fault(false), m_error(NULL) {}
+        // The stub the code jumped to, as an index of the stubs, or -1
+        int m_stub;
+        // The code accessed memory that is not mapped
+        bool m_fault;
+        // A failure of the harness (the bytes don't decode, lift or run)
+        const char* m_error;
+    };
+
+    // Link the lowered block with stubs: after the code, a 16 byte slot of
+    // int3 for each label the code refers to and one for __reforge_exit. The
+    // stub label B_<va> stands for "the guest block at <va>" and the harness
+    // stops when the code jumps to a slot
+    static bool linkWithStubs(AMD64Lowering::LoweredBlock& lowered,
+                              cBuffer& image, cList<Stub>& stubs)
+    {
+        cList<cString> names;
+        for (cList<AMD64Lowering::LabelDependency>::iterator d =
+                lowered.m_dependencies.begin();
+             d != lowered.m_dependencies.end(); d++)
+        {
+            bool isKnown = false;
+            for (cList<cString>::iterator n = names.begin(); n != names.end(); n++)
+                isKnown = isKnown || (*n == (*d).m_name);
+            if (!isKnown)
+                names.append((*d).m_name);
+        }
+        const uint codeSize = lowered.m_code.getSize();
+        const uint slots = (uint)names.length();
+        const uint stubBase = (codeSize + 15) & ~15u;
+        image = cBuffer(stubBase + 16 * (slots + 1));
+        for (uint i = 0; i < image.getSize(); i++)
+            image[i] = (i < codeSize) ? lowered.m_code[i] : 0xCC;
+        uint slot = 0;
+        for (cList<cString>::iterator n = names.begin(); n != names.end(); n++, slot++)
+        {
+            Stub stub;
+            stub.m_name = *n;
+            stub.m_address = CODE_BASE + stubBase + 16 * slot;
+            stubs.append(stub);
+        }
+        for (cList<AMD64Lowering::LabelDependency>::iterator d =
+                lowered.m_dependencies.begin();
+             d != lowered.m_dependencies.end(); d++)
+        {
+            if (((*d).m_size != 4) ||
+                ((*d).m_kind != BinaryDependencies::DEP_RELATIVE))
+                return false;
+            for (cList<Stub>::iterator st = stubs.begin(); st != stubs.end(); st++)
+            {
+                if ((*st).m_name == (*d).m_name)
+                {
+                    AMD64Lowering::patchRelative32(image, (*d).m_offset,
+                        (int64)((*st).m_address - CODE_BASE) -
+                        (int64)((*d).m_offset + 4));
+                }
+            }
+        }
+        return true;
+    }
+
+    // Decode, lift and run the bytes of the image from CODE_BASE until the
+    // code reaches a stub (or faults, or the harness fails)
+    static LoweredRun runLowered(const cBuffer& image, uint codeSize,
+                                 const cList<Stub>& stubs,
+                                 SemanticInterpreter& interpreter)
+    {
+        LoweredRun run;
+        SemanticLifterPtr lifter = SemanticLifterFactory::getLifter(
+                                    OpcodeSubsystems::DISASSEMBLER_AMD_64);
+        uint64 pc = CODE_BASE;
+        for (uint step = 0; step < 4096; step++)
+        {
+            int index = 0;
+            for (cList<Stub>::iterator st = stubs.begin(); st != stubs.end();
+                 st++, index++)
+            {
+                if ((*st).m_address == pc)
+                {
+                    run.m_stub = index;
+                    return run;
+                }
+            }
+            if ((pc < CODE_BASE) || (pc >= CODE_BASE + codeSize))
+            {
+                run.m_error = "the code runs out of its bytes";
+                return run;
+            }
+            const uint offset = (uint)(pc - CODE_BASE);
+            const uint available = (codeSize - offset < 16) ? codeSize - offset : 16;
+            cBuffer bytes(available);
+            for (uint i = 0; i < available; i++)
+                bytes[i] = image[offset + i];
+            cMemoryStream stream(bytes);
+            StreamDisassemblerPtr disassembler = StreamDisassemblerFactory::disassemble(
+                OpcodeSubsystems::DISASSEMBLER_AMD_64,
+                BasicInputPtr(&stream, SMARTPTR_DESTRUCT_NONE), true,
+                ProcessorAddress(ProcessorAddress::PROCESSOR_64, pc));
+            OpcodePtr opcode;
+            XSTL_TRY
+            {
+                opcode = disassembler->next();
+            }
+            XSTL_CATCH(cException&)
+            {
+                run.m_error = "the bytes don't decode";
+                return run;
+            }
+            if (opcode.getPointer() == NULL)
+            {
+                run.m_error = "the bytes don't decode";
+                return run;
+            }
+            const uint size = opcode->getOpcodeSize();
+            SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_AMD_64);
+            if (!lifter->lift(opcode, block))
+            {
+                run.m_error = "the instruction isn't lifted";
+                return run;
+            }
+            block.setFallThroughAddress(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, pc + size));
+            const SemanticInterpreter::ExitReason reason = interpreter.run(block);
+            if (reason == SemanticInterpreter::EXIT_FALL_THROUGH)
+            {
+                pc = pc + size;
+            } else if (reason == SemanticInterpreter::EXIT_BRANCH)
+            {
+                pc = interpreter.getNextAddress();
+            } else if (reason == SemanticInterpreter::EXIT_MEMORY_FAULT)
+            {
+                run.m_fault = true;
+                return run;
+            } else
+            {
+                run.m_error = "the interpreter stops on the instruction";
+                return run;
+            }
+        }
+        run.m_error = "the code doesn't end";
+        return run;
+    }
+
+    // The stub 'index'
+    static Stub getStub(const cList<Stub>& stubs, int index)
+    {
+        cList<Stub>::iterator i = stubs.begin();
+        for (; index > 0; index--)
+            i++;
+        return *i;
+    }
+
+    // The guest address of a stub named B_<hex>
+    static uint64 getStubGuestAddress(const cString& name)
+    {
+        cSArray<char> ascii = name.getASCIIstring();
+        const char* text = ascii.getBuffer();
+        return parseHex(text + 2, text + strlen(text));
+    }
+
+    // Run a row through the whole chain and compare it with its expectation
+    void runDifferentialRow(const SemanticLoweringRow& row)
+    {
+        const uint64 pc = ROW_ADDRESS;
+        const char* name = row.m_text;
+        cBuffer code(4);
+        for (uint i = 0; i < 4; i++)
+            code[i] = (uint8)((digit(row.m_code[2 * i]) << 4) |
+                              digit(row.m_code[2 * i + 1]));
+
+        // The start state
+        Token tokens[MAX_TOKENS];
+        uint64 startX[32];
+        memset(startX, 0, sizeof(startX));
+        uint64 startFcsr = 0, startSsp = 0, startElp = 0;
+        bool isCfi = false;
+        const uint setupCount = split(row.m_setup, tokens, MAX_TOKENS);
+        for (uint i = 0; i < setupCount; i++)
+        {
+            const Token& t = tokens[i];
+            if (strcmp(t.m_name, "fcsr") == 0)
+                startFcsr = parseHex(t.m_value, t.m_end);
+            else if (strcmp(t.m_name, "ssp") == 0)
+                startSsp = parseHex(t.m_value, t.m_end);
+            else if (strcmp(t.m_name, "elp") == 0)
+                startElp = parseHex(t.m_value, t.m_end) & 1;
+            else if (strcmp(t.m_name, "cfi") == 0)
+                isCfi = true;
+            else if (strcmp(t.m_name, "mem") == 0)
+                continue;
+            else if (numbered(t.m_name, 'x') >= 0)
+                startX[numbered(t.m_name, 'x')] = parseHex(t.m_value, t.m_end);
+            else
+                TESTS_ASSERT(false);
+        }
+
+        // Lift, legalize, lower
+        ArchitectureDescriptionPtr guest(new RiscvArchitecture(
+                RiscvInstructionSet::RISCV_RV64, 128, isCfi));
+        RiscvSemanticLifter lifter(OpcodeSubsystems::DISASSEMBLER_RISCV_64, guest);
+        SemanticLegalizer legalizer(guest, getTarget());
+        SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+        {
+            uint32 encoding = 0;
+            for (uint i = 0; i < 4; i++)
+                encoding |= (uint32)code[i] << (8 * i);
+            RiscvOpcodePtr opcode = RiscvStreamDisassembler::decode(
+                RiscvInstructionSet::RISCV_RV64, encoding, 4, pc,
+                RiscvFeatureSet::all());
+            if ((opcode.getPointer() == NULL) ||
+                !lifter.lift(asOpcode(opcode), block))
+            {
+                LOWERING_ROW_FAIL(name, "the instruction isn't lifted");
+                return;
+            }
+        }
+        AMD64Lowering::LoweredBlock lowered;
+        try
+        {
+            legalizer.legalize(block);
+            AMD64Lowering lowering;
+            TestRegisterMap registerMap;
+            lowering.lowerBlock(block, registerMap, lowered);
+        } catch (cException& e)
+        {
+            cSArray<char> message = cString(e.getMessage()).getASCIIstring();
+            LOWERING_ROW_FAIL(name, message.getBuffer());
+            return;
+        }
+        // The block defines the label of its instruction, at its start
+        if ((lowered.m_labels.length() != 1) ||
+            !((*lowered.m_labels.begin()).m_name == AMD64Lowering::getBlockLabel(pc)) ||
+            ((*lowered.m_labels.begin()).m_offset != 0))
+        {
+            LOWERING_ROW_FAIL(name, "the label of the guest instruction is wrong");
+            return;
+        }
+        cBuffer image;
+        cList<Stub> stubs;
+        if (!linkWithStubs(lowered, image, stubs))
+        {
+            LOWERING_ROW_FAIL(name, "a dependency is not a rel32");
+            return;
+        }
+
+        // The memory and the registers of the lowered code
+        RowMemory guestMemory(code, pc, isCfi);
+        for (uint i = 0; i < setupCount; i++)
+            if (strcmp(tokens[i].m_name, "mem") == 0)
+                parseMemory(tokens[i].m_value, tokens[i].m_end, &guestMemory, NULL);
+        LoweredMemory memory(guestMemory);
+        TestRegisterMap registerMap;
+        for (uint i = 1; i < 32; i++)
+            memory.setState(registerMap.getStateOffset(RISCV_REG_X0 + i), startX[i]);
+        memory.setState(registerMap.getStateOffset(RISCV_REG_FCSR), startFcsr);
+        memory.setState(registerMap.getStateOffset(RISCV_REG_SSP), startSsp);
+        memory.setState(registerMap.getStateOffset(RISCV_REG_ELP), startElp);
+        // Poison the exit slots: an exit has to write them
+        memory.setState(registerMap.getProgramCounterOffset(), 0xDEADBEEFDEADBEEFULL);
+        memory.setState(registerMap.getExitReasonOffset(), 0);
+
+        ArchitectureDescriptionPtr target = getTarget();
+        SemanticInterpreter interpreter(target, memory);
+        interpreter.setRegister(registerMap.getStateRegister(), SemanticValue(STATE_BASE));
+        interpreter.setRegister(registerMap.getMemoryBaseRegister(), SemanticValue(MEMORY_BIAS));
+        interpreter.setRegister(ia32dis::AMD64_REG_RIP, SemanticValue(CODE_BASE));
+        const LoweredRun run = runLowered(image, lowered.m_code.getSize(), stubs,
+                                          interpreter);
+        if (run.m_error != NULL)
+        {
+            LOWERING_ROW_FAIL(name, run.m_error);
+            return;
+        }
+
+        // What the row expects
+        uint64 wantedX[32];
+        memcpy(wantedX, startX, sizeof(wantedX));
+        uint64 wantedElp = startElp;
+        uint64 wantedSsp = startSsp;
+        bool hasPc = false;
+        uint64 expectedPc = 0;
+        cString exitName = "fall";
+        cHash<uint64, uint8> expectedMemory;
+        const uint expectedCount = split(row.m_expected, tokens, MAX_TOKENS);
+        for (uint i = 0; i < expectedCount; i++)
+        {
+            const Token& t = tokens[i];
+            if (strcmp(t.m_name, "exit") == 0)
+                exitName = cString(cString(t.m_value).left((uint)(t.m_end - t.m_value)));
+            else if (strcmp(t.m_name, "mem") == 0)
+                parseMemory(t.m_value, t.m_end, NULL, &expectedMemory);
+            else if (strcmp(t.m_name, "pc") == 0)
+            {
+                hasPc = true;
+                expectedPc = parseHex(t.m_value, t.m_end);
+            } else if (strcmp(t.m_name, "elp") == 0)
+                wantedElp = parseHex(t.m_value, t.m_end) & 1;
+            else if (strcmp(t.m_name, "ssp") == 0)
+                wantedSsp = parseHex(t.m_value, t.m_end);
+            else if (numbered(t.m_name, 'x') >= 0)
+                wantedX[numbered(t.m_name, 'x')] = parseHex(t.m_value, t.m_end);
+            else
+                TESTS_ASSERT(false);
+        }
+
+        // The exit of the lowered code. Leaving to a B_ stub is a jump to a
+        // guest address; __reforge_exit has the address in the program
+        // counter slot and the reason in the exit reason slot
+        cString actualExit;
+        uint64 actualPc = pc;
+        if (run.m_fault)
+        {
+            actualExit = "trap:fault";
+        } else
+        {
+            const cString stubName = getStub(stubs, run.m_stub).m_name;
+            if (stubName == AMD64Lowering::getExitLabel())
+            {
+                const uint64 reason = memory.getState(registerMap.getExitReasonOffset());
+                actualPc = memory.getState(registerMap.getProgramCounterOffset());
+                const uint kind = (uint)(reason & 0xFF);
+                if (kind == AMD64Lowering::EXIT_TRAP)
+                {
+                    const uint64 number = reason >>
+                                    AMD64Lowering::EXIT_TRAP_NUMBER_SHIFT;
+                    if (number == RISCV_TRAP_SOFTWARE_CHECK)
+                        actualExit = "trap:swcheck";
+                    else
+                        actualExit = "trap:other";
+                } else if ((kind == AMD64Lowering::EXIT_BRANCH) ||
+                           (kind == AMD64Lowering::EXIT_CALL) ||
+                           (kind == AMD64Lowering::EXIT_RETURN))
+                {
+                    actualExit = "branch";
+                } else
+                {
+                    actualExit = "other";
+                }
+            } else
+            {
+                actualPc = getStubGuestAddress(stubName);
+                actualExit = "branch";
+            }
+            // (a branch which lands on the next instruction is a fall through)
+            if (actualExit == cString("branch") && (actualPc == pc + 4) &&
+                (exitName == cString("fall")))
+                actualExit = "fall";
+        }
+        if (!(actualExit == exitName))
+        {
+            char message[256];
+            snprintf(message, sizeof(message), "exit %s, expected %s",
+                     actualExit.getASCIIstring().getBuffer(),
+                     exitName.getASCIIstring().getBuffer());
+            LOWERING_ROW_FAIL(name, message);
+            return;
+        }
+        if (hasPc && (actualPc != expectedPc))
+        {
+            char message[256];
+            snprintf(message, sizeof(message), "next pc %llx, expected %llx",
+                     (unsigned long long)actualPc, (unsigned long long)expectedPc);
+            LOWERING_ROW_FAIL(name, message);
+        }
+        m_differentialChecks++;
+
+        // The registers (x0 is zero)
+        for (uint i = 0; i < 32; i++)
+        {
+            const uint64 actual = (i == 0) ? memory.getState(0) :
+                memory.getState(registerMap.getStateOffset(RISCV_REG_X0 + i));
+            if (actual != wantedX[i])
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "x%u = %llx, expected %llx",
+                         i, (unsigned long long)actual,
+                         (unsigned long long)wantedX[i]);
+                LOWERING_ROW_FAIL(name, message);
+            }
+            m_differentialChecks++;
+        }
+        if (memory.getState(registerMap.getStateOffset(RISCV_REG_FCSR)) != startFcsr)
+            LOWERING_ROW_FAIL(name, "fcsr changed");
+        if (memory.getState(registerMap.getStateOffset(RISCV_REG_ELP)) != wantedElp)
+            LOWERING_ROW_FAIL(name, "elp");
+        if (isCfi && (memory.getState(registerMap.getStateOffset(RISCV_REG_SSP)) != wantedSsp))
+            LOWERING_ROW_FAIL(name, "ssp");
+
+        // The memory: the expected bytes, and nothing else changed
+        cList<uint64> keys = expectedMemory.keys();
+        for (cList<uint64>::iterator i = keys.begin(); i != keys.end(); i++)
+        {
+            if (guestMemory.getByte(*i) != expectedMemory[*i])
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "mem[%llx] = %02x, expected %02x",
+                         (unsigned long long)*i, guestMemory.getByte(*i),
+                         expectedMemory[*i]);
+                LOWERING_ROW_FAIL(name, message);
+            }
+            m_differentialChecks++;
+        }
+        cList<uint64> written = guestMemory.getWritten();
+        for (cList<uint64>::iterator i = written.begin(); i != written.end(); i++)
+        {
+            if (!expectedMemory.hasKey(*i) && guestMemory.isWindow(*i) &&
+                (guestMemory.getByte(*i) != guestMemory.getInitial(*i)))
+            {
+                char message[256];
+                snprintf(message, sizeof(message), "mem[%llx] was written",
+                         (unsigned long long)*i);
+                LOWERING_ROW_FAIL(name, message);
+            }
+        }
+    }
+
+    // Parse "addr:hex,addr:hex" into the initial bytes or the expected bytes
+    static void parseMemory(const char* text, const char* end,
+                            RowMemory* memory, cHash<uint64, uint8>* expected)
+    {
+        const char* p = text;
+        while (p < end)
+        {
+            const char* colon = (const char*)memchr(p, ':', (size_t)(end - p));
+            TESTS_ASSERT(colon != NULL);
+            const uint64 address = parseHex(p, colon);
+            const char* q = colon + 1;
+            uint count = 0;
+            while ((q < end) && (*q != ','))
+            {
+                const uint8 byte = (uint8)parseHex(q, q + 2);
+                if (expected != NULL)
+                {
+                    if (expected->hasKey(address + count))
+                        (*expected)[address + count] = byte;
+                    else
+                        expected->append(address + count, byte);
+                } else
+                {
+                    memory->setInitial(address + count, byte);
+                }
+                q += 2;
+                count++;
+            }
+            p = (q < end) ? q + 1 : q;
+        }
+    }
+
+    // 3: the 230 RV64I rows
+    void testDifferentialRows()
+    {
+        uint rows = 0;
+        uint passed = 0;
+        for (const SemanticLoweringRow* row = gRv64SemanticRows; row->m_text != NULL; row++)
+        {
+            if (!isRv64iRow(*row))
+                continue;
+            rows++;
+            const uint before = m_failures;
+            runDifferentialRow(*row);
+            if (m_failures == before)
+                passed++;
+        }
+        cout << "differential: " << passed << "/" << rows << " RV64I rows pass ("
+             << m_differentialChecks << " comparisons)" << endl;
+        TESTS_ASSERT(rows == RV64I_ROWS_COUNT);
+        TESTS_ASSERT(passed == rows);
+    }
+
+    // 3b: lowerBlock() with a label of the block, and the dependencies
+    void testLowerBlockApi()
+    {
+        const SemanticType type = SemanticType::integer(64);
+        const SemanticType boolean = SemanticType::integer(1);
+        const SemanticOperand x1 = SemanticOperand::registerOperand(RISCV_REG_X0 + 1, type);
+        const SemanticOperand x2 = SemanticOperand::registerOperand(RISCV_REG_X0 + 2, type);
+
+        // x2 = 0; loop: x2 = x2 + x1 ... : a counted loop with a label
+        //   L: x2 = x2 + 3 ; flag = x2 <u 10 ; if flag goto L ;
+        //   then branch to the guest 0x2000 (taken when the flag is clear)
+        SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+        block.beginGuestInstruction(ProcessorAddress(
+                ProcessorAddress::PROCESSOR_64, 0x1000), 4);
+        block.append(SemanticInstruction(SemanticOperation::OP_MOVE, type, x2,
+                     SemanticOperand::immediate(0, type)));
+        const SemanticOperand label = block.newLabel();
+        block.append(SemanticInstruction(SemanticOperation::OP_LABEL,
+                     SemanticType(), SemanticOperand(), label));
+        block.append(SemanticInstruction(SemanticOperation::OP_ADD, type, x2, x2,
+                     SemanticOperand::immediate(3, type)));
+        block.beginGuestInstruction(ProcessorAddress(
+                ProcessorAddress::PROCESSOR_64, 0x1004), 4);
+        SemanticOperand flag = block.newTemporary(boolean);
+        SemanticInstruction compare(SemanticOperation::OP_COMPARE, type, flag,
+                                    x2, SemanticOperand::immediate(10, type));
+        compare.setCondition(SemanticOperation::COND_UNSIGNED_LESS);
+        block.append(compare);
+        block.append(SemanticInstruction(SemanticOperation::OP_BRANCH_CONDITIONAL,
+                     SemanticType(), SemanticOperand(), flag, label));
+        block.append(SemanticInstruction(SemanticOperation::OP_BRANCH,
+                     SemanticType(), SemanticOperand(),
+                     SemanticOperand::guestAddress(0x2000, type)));
+
+        AMD64Lowering lowering;
+        TestRegisterMap registerMap;
+        AMD64Lowering::LoweredBlock lowered;
+        lowering.lowerBlock(block, registerMap, lowered);
+        // The labels of the two guest instructions, the dependency of the
+        // branch only (the local label is resolved)
+        TESTS_ASSERT_EQUAL(lowered.m_labels.length(), 2);
+        TESTS_ASSERT((*lowered.m_labels.begin()).m_name == cString("B_1000"));
+        TESTS_ASSERT_EQUAL((*lowered.m_labels.begin()).m_offset, 0);
+        {
+            cList<AMD64Lowering::LabelDefinition>::iterator second = lowered.m_labels.begin();
+            second++;
+            TESTS_ASSERT((*second).m_name == cString("B_1004"));
+            TESTS_ASSERT((*second).m_offset > 0);
+        }
+        TESTS_ASSERT_EQUAL(lowered.m_dependencies.length(), 1);
+        TESTS_ASSERT((*lowered.m_dependencies.begin()).m_name == cString("B_2000"));
+        // lower() on the same block refuses: it can't resolve the label
+        TESTS_EXCEPTION(lowerBlock(block));
+
+        // Run it
+        cBuffer image;
+        cList<Stub> stubs;
+        TESTS_ASSERT(linkWithStubs(lowered, image, stubs));
+        cBuffer none(1);
+        RowMemory guestMemory(none, 0x1000, false);
+        LoweredMemory memory(guestMemory);
+        SemanticInterpreter interpreter(getTarget(), memory);
+        interpreter.setRegister(registerMap.getStateRegister(), SemanticValue(STATE_BASE));
+        interpreter.setRegister(registerMap.getMemoryBaseRegister(), SemanticValue(MEMORY_BIAS));
+        interpreter.setRegister(ia32dis::AMD64_REG_RIP, SemanticValue(CODE_BASE));
+        const LoweredRun run = runLowered(image, lowered.m_code.getSize(), stubs,
+                                          interpreter);
+        TESTS_ASSERT(run.m_error == NULL);
+        TESTS_ASSERT(!run.m_fault);
+        TESTS_ASSERT(getStub(stubs, run.m_stub).m_name == cString("B_2000"));
+        // 3, 6, 9, 12: stops when x2 >= 10
+        TESTS_ASSERT_EQUAL(memory.getState(registerMap.getStateOffset(RISCV_REG_X0 + 2)), 12);
+
+        // patchRelative32
+        cBuffer field(8);
+        for (uint i = 0; i < 8; i++)
+            field[i] = 0;
+        AMD64Lowering::patchRelative32(field, 2, -2);
+        TESTS_ASSERT(field[2] == 0xFE && field[3] == 0xFF && field[4] == 0xFF &&
+                     field[5] == 0xFF && field[6] == 0);
+        TESTS_EXCEPTION(AMD64Lowering::patchRelative32(field, 6, 0));
+        TESTS_EXCEPTION(AMD64Lowering::patchRelative32(field, 0, (int64)1 << 40));
     }
 
 
