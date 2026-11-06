@@ -393,6 +393,7 @@ public:
         testLowerBlockApi();
 #ifdef LOWERING_TEST_NATIVE
         testNativeRows();
+        testNativeEdgeEncodings();
         testNativeSynthetic();
 #endif
 
@@ -1715,6 +1716,112 @@ private:
         if (m_nativeSkipped != 0)
             cout << ", " << m_nativeSkipped << " skipped (no executable memory)";
         cout << endl;
+        TESTS_ASSERT(failures == 0);
+    }
+
+    // 2d: edge encodings the rows don't have (register aliasing rd == rs1,
+    // shifts by 31/63 and by their own register, W forms, odd jalr offsets,
+    // negative offsets, lui/auipc with the sign bit, comparisons against
+    // -1/x0), run natively against the interpreter on edge register values
+    void testNativeEdgeEncodings()
+    {
+        static const SemanticLoweringRow edgeRows[] = {
+        { "e7801000", "jalr 1(ra)", "", "" },
+        { "67053500", "jalr a0, 3(a0)", "", "" },
+        { "6785f5ff", "jalr a0, -1(a1)", "", "" },
+        { "67000500", "jr a0", "", "" },
+        { "3b95c500", "sllw a0, a1, a2", "", "" },
+        { "3bd5c500", "srlw a0, a1, a2", "", "" },
+        { "3bd5c540", "sraw a0, a1, a2", "", "" },
+        { "3315a500", "sll a0, a0, a0", "", "" },
+        { "33d5b540", "sra a0, a1, a1", "", "" },
+        { "13d5f503", "srli a0, a1, 63", "", "" },
+        { "13d5f543", "srai a0, a1, 63", "", "" },
+        { "1395f503", "slli a0, a1, 63", "", "" },
+        { "1bd5f501", "srliw a0, a1, 31", "", "" },
+        { "1bd5f541", "sraiw a0, a1, 31", "", "" },
+        { "1b95f501", "slliw a0, a1, 31", "", "" },
+        { "1b950500", "slliw a0, a1, 0", "", "" },
+        { "1b050580", "addiw a0, a0, -2048", "", "" },
+        { "3b05a500", "addw a0, a0, a0", "", "" },
+        { "3b85b540", "subw a0, a1, a1", "", "" },
+        { "3b05b040", "negw a0, a1", "", "" },
+        { "3305a040", "neg a0, a0", "", "" },
+        { "13b5f5ff", "sltiu a0, a1, -1", "", "" },
+        { "13b51500", "seqz a0, a1", "", "" },
+        { "13a50580", "slti a0, a1, -2048", "", "" },
+        { "3335b000", "snez a0, a1", "", "" },
+        { "33a5b500", "slt a0, a1, a1", "", "" },
+        { "33a50500", "sltz a0, a1", "", "" },
+        { "37050080", "lui a0, 524288", "", "" },
+        { "37f5ffff", "lui a0, 1048575", "", "" },
+        { "17050080", "auipc a0, 524288", "", "" },
+        { "17f5ffff", "auipc a0, 1048575", "", "" },
+        { "13805500", "addi zero, a1, 5", "", "" },
+        { "33050000", "add a0, zero, zero", "", "" },
+        { "03a5c5ff", "lw a0, -4(a1)", "", "" },
+        { "03e5c5ff", "lwu a0, -4(a1)", "", "" },
+        { "0395e5ff", "lh a0, -2(a1)", "", "" },
+        { "03d5e5ff", "lhu a0, -2(a1)", "", "" },
+        { "0385f5ff", "lb a0, -1(a1)", "", "" },
+        { "03c5f57f", "lbu a0, 2047(a1)", "", "" },
+        { "03b50580", "ld a0, -2048(a1)", "", "" },
+        { "83b50500", "ld a1, 0(a1)", "", "" },
+        { "03250500", "lw a0, 0(a0)", "", "" },
+        { "233ca5fe", "sd a0, -8(a0)", "", "" },
+        { "23bcb5fe", "sd a1, -8(a1)", "", "" },
+        { "2322a500", "sw a0, 4(a0)", "", "" },
+        { "239fb5fe", "sh a1, -2(a1)", "", "" },
+        { "a38fb5fe", "sb a1, -1(a1)", "", "" },
+        { "2300a500", "sb a0, 0(a0)", "", "" },
+        { "6304a500", "beq a0, a0, 8", "", "" },
+        { "6314a500", "bne a0, a0, 8", "", "" },
+        { "6344b500", "blt a0, a1, 8", "", "" },
+        { "6354b500", "bge a0, a1, 8", "", "" },
+        { "6364b500", "bltu a0, a1, 8", "", "" },
+        { "6374b500", "bgeu a0, a1, 8", "", "" },
+        { "e34ca5fe", "blt a0, a0, -8", "", "" },
+        { "63740500", "bgeu a0, zero, 8", "", "" },
+        { "6364a000", "bltu zero, a0, 8", "", "" },
+        { "6354a000", "blez a0, 8", "", "" },
+        { "6ff09fff", "j -8", "", "" },
+        { "ef008000", "jal 8", "", "" },
+        { "eff0ff7f", "jal 1048574", "", "" },
+        { "13f5f5ff", "andi a0, a1, -1", "", "" },
+        { "13c5f5ff", "not a0, a1", "", "" },
+        { "13e50580", "ori a0, a1, -2048", "", "" },
+        { "3345a500", "xor a0, a0, a0", "", "" },
+        { "13000000", "nop", "", "" },
+        { "0f00f00f", "fence", "", "" },
+        { NULL, NULL, NULL, NULL }
+        };
+        ArchitectureDescriptionPtr guest = getGuest();
+        RiscvSemanticLifter lifter(OpcodeSubsystems::DISASSEMBLER_RISCV_64, guest);
+        SemanticLegalizer legalizer(guest, getTarget());
+        uint failures = 0;
+        uint count = 0;
+        for (const SemanticLoweringRow* row = edgeRows; row->m_text != NULL; row++)
+        {
+            count++;
+            SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+            TESTS_ASSERT(liftRow(*row, lifter, block));
+            legalizer.legalize(block);
+            block.setFallThroughAddress(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, ROW_ADDRESS + 4));
+            bool isMemory = false;
+            const cList<SemanticInstruction>& instructions = block.getInstructions();
+            for (cList<SemanticInstruction>::iterator i = instructions.begin();
+                 i != instructions.end(); i++)
+            {
+                isMemory = isMemory ||
+                           ((*i).getOperation() == SemanticOperation::OP_LOAD) ||
+                           ((*i).getOperation() == SemanticOperation::OP_STORE);
+            }
+            if (!runNative(row->m_text, block, 60, isMemory))
+                failures++;
+        }
+        cout << count << " edge encodings run natively, " << failures
+             << " failures" << endl;
         TESTS_ASSERT(failures == 0);
     }
 
