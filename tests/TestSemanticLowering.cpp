@@ -391,6 +391,7 @@ public:
         testNotLowered();
         testDifferentialRows();
         testLowerBlockApi();
+        testEmptyBlock();
 #ifdef LOWERING_TEST_NATIVE
         testNativeRows();
         testNativeEdgeEncodings();
@@ -739,6 +740,19 @@ private:
         TESTS_EXCEPTION(lowerBlock(labels));
     }
 
+
+    // 3c: a block without IR still jumps to its fall-through address (R-L1)
+    void testEmptyBlock()
+    {
+        static const uint8 jump[] = { 0xE9, 0x00, 0x00, 0x00, 0x00 };
+        SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+        block.setFallThroughAddress(ProcessorAddress(
+                ProcessorAddress::PROCESSOR_64, 0x1004));
+        FirstPassBinaryPtr binary = lowerBlock(block);
+        checkBytes(binary, jump, sizeof(jump));
+        TESTS_ASSERT_EQUAL(getDependenciesCount(binary), 1);
+        TESTS_ASSERT(getDependencyName(binary, 0) == cString("B_1004"));
+    }
 
     // ------------------------------------------------------------------
     // Part 3: the differential test of the rows (WP9)

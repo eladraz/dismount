@@ -1441,7 +1441,7 @@ void BlockLowering::lower()
     }
 
     // The block continues in the next guest instruction
-    if (!endsTheBlock && (instructions.begin() != instructions.end()))
+    if (!endsTheBlock)
     {
         m_operation = SemanticOperation::OP_NOP;
         m_typeBits = 0;
