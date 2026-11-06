@@ -1440,6 +1440,24 @@ void BlockLowering::lower()
         flush();
     }
 
+    // The guest instructions which produced no IR at the end of the block
+    {
+        const cList<SemanticBlock::GuestInstruction>& guests =
+                                        m_block.getGuestInstructions();
+        for (cList<SemanticBlock::GuestInstruction>::iterator g =
+                guests.begin(); g != guests.end(); g++)
+        {
+            if ((*g).m_firstInstruction == m_index)
+            {
+                AMD64Lowering::LabelDefinition definition;
+                definition.m_name = AMD64Lowering::getBlockLabel(
+                                            (*g).m_address.getAddress());
+                definition.m_offset = getOffset();
+                m_guestLabels.append(definition);
+            }
+        }
+    }
+
     // The block continues in the next guest instruction
     if (!endsTheBlock)
     {

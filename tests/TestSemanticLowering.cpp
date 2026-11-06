@@ -392,6 +392,7 @@ public:
         testDifferentialRows();
         testLowerBlockApi();
         testEmptyBlock();
+        testTrailingGuestLabels();
 #ifdef LOWERING_TEST_NATIVE
         testNativeRows();
         testNativeEdgeEncodings();
@@ -752,6 +753,65 @@ private:
         checkBytes(binary, jump, sizeof(jump));
         TESTS_ASSERT_EQUAL(getDependenciesCount(binary), 1);
         TESTS_ASSERT(getDependencyName(binary, 0) == cString("B_1004"));
+    }
+
+    // 3d: every guest instruction of a block gets its label, also those
+    // which produced no IR at the end of the block (R-L2)
+    void testTrailingGuestLabels()
+    {
+        const SemanticType type = SemanticType::integer(64);
+        const SemanticOperand x5 = SemanticOperand::registerOperand(RISCV_REG_X0 + 5, type);
+        static const uint8 jump[] = { 0xE9, 0x00, 0x00, 0x00, 0x00 };
+
+        AMD64Lowering lowering;
+        TestRegisterMap registerMap;
+
+        // One guest instruction without IR: its label is at the jump
+        {
+            SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+            block.beginGuestInstruction(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, 0x8), 4);
+            AMD64Lowering::LoweredBlock lowered;
+            lowering.lowerBlock(block, registerMap, lowered);
+            TESTS_ASSERT_EQUAL(lowered.m_code.getSize(), sizeof(jump));
+            TESTS_ASSERT_EQUAL(lowered.m_labels.length(), 1);
+            TESTS_ASSERT((*lowered.m_labels.begin()).m_name == cString("B_8"));
+            TESTS_ASSERT_EQUAL((*lowered.m_labels.begin()).m_offset, 0);
+            TESTS_ASSERT_EQUAL(lowered.m_dependencies.length(), 1);
+            TESTS_ASSERT((*lowered.m_dependencies.begin()).m_name == cString("B_c"));
+        }
+
+        // Two trailing guest instructions without IR: their labels are
+        // before the fall-through jump
+        {
+            SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+            block.beginGuestInstruction(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, 0x1000), 4);
+            block.append(SemanticInstruction(SemanticOperation::OP_MOVE, type, x5,
+                         SemanticOperand::immediate(1, type)));
+            block.beginGuestInstruction(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, 0x1004), 4);
+            block.beginGuestInstruction(ProcessorAddress(
+                    ProcessorAddress::PROCESSOR_64, 0x1008), 4);
+            AMD64Lowering::LoweredBlock lowered;
+            lowering.lowerBlock(block, registerMap, lowered);
+            const uint jumpOffset = lowered.m_code.getSize() - sizeof(jump);
+            TESTS_ASSERT(jumpOffset > 0);
+            TESTS_ASSERT_EQUAL(lowered.m_labels.length(), 3);
+            cList<AMD64Lowering::LabelDefinition>::iterator label = lowered.m_labels.begin();
+            TESTS_ASSERT((*label).m_name == cString("B_1000"));
+            TESTS_ASSERT_EQUAL((*label).m_offset, 0);
+            label++;
+            TESTS_ASSERT((*label).m_name == cString("B_1004"));
+            TESTS_ASSERT_EQUAL((*label).m_offset, jumpOffset);
+            label++;
+            TESTS_ASSERT((*label).m_name == cString("B_1008"));
+            TESTS_ASSERT_EQUAL((*label).m_offset, jumpOffset);
+            TESTS_ASSERT_EQUAL(lowered.m_dependencies.length(), 1);
+            TESTS_ASSERT((*lowered.m_dependencies.begin()).m_name == cString("B_100c"));
+            TESTS_ASSERT_EQUAL((*lowered.m_dependencies.begin()).m_offset,
+                               lowered.m_code.getSize() - 4);
+        }
     }
 
     // ------------------------------------------------------------------
