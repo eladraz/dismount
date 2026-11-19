@@ -167,9 +167,10 @@
  *
  * Author: Elad Raz <e@eladraz.com>
  */
+#include "dismount/dismount.h"
+// After the precompiled header: MSVC ignores everything above it
 #include <stdio.h>
 #include <string.h>
-#include "dismount/dismount.h"
 #include "xStl/types.h"
 #include "xStl/data/string.h"
 #include "xStl/data/sarray.h"
