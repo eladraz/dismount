@@ -108,8 +108,12 @@ public:
         SemanticPrinter::print(block, *architecture, output);
         output.flush();
 
+        // endl is "\r\n" when DOUBLE_NEWLINE is defined (Windows builds);
+        // the expected dumps use "\n"
+        cString actual(output.m_text);
+        actual.replace(cString(XSTL_STRING("\r\n")), cString(XSTL_STRING("\n")));
         const cString expected(row.m_expected);
-        if (!(output.m_text == expected))
+        if (!(actual == expected))
         {
             m_failures++;
             cout << "FAILED row encoding " << HEXDWORD(row.m_encoding) << endl;
