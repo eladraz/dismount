@@ -331,6 +331,17 @@ bool AMD64Architecture::isSupported(SemanticOperation::Operation operation,
         }
     }
 
+    // The fused multiply-add of the scalar f32/f64 (AMD64LoweringFloat.cpp,
+    // section 8: vfmadd231sd/ss, FMA3)
+    if ((operation == SemanticOperation::OP_FLOAT_MULTIPLY_ADD) &&
+        (type.getKind() == SemanticType::KIND_FLOAT) && !type.isVector() &&
+        !type.isScalable() &&
+        ((type.getFloatFormat() == SemanticType::FLOAT_SINGLE) ||
+         (type.getFloatFormat() == SemanticType::FLOAT_DOUBLE)))
+    {
+        return true;
+    }
+
     // The general purpose registers are 64 bits: the scalar integer
     // operations of 64 bits are the ones which IA-32 has for 32 bits
     if ((type.getKind() == SemanticType::KIND_INTEGER) && !type.isVector() &&

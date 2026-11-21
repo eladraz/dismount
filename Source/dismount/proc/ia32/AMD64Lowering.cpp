@@ -94,7 +94,7 @@
  *   OP_FLOAT_SUBTRACT                  DONE   subsd/subss
  *   OP_FLOAT_MULTIPLY                  DONE   mulsd/mulss (default behavior)
  *   OP_FLOAT_DIVIDE                    DONE   divsd/divss
- *   OP_FLOAT_MULTIPLY_ADD              REFUSED no fused multiply-add (-ffp-contract=off)
+ *   OP_FLOAT_MULTIPLY_ADD              DONE   vfmadd231sd/ss (FMA3, one rounding, NaN rule of the source ISA; AMD64LoweringFloat.cpp section 8)
  *   OP_FLOAT_SQUARE_ROOT               DONE   sqrtsd/sqrtss
  *   OP_FLOAT_MINIMUM                   TODO   later
  *   OP_FLOAT_MAXIMUM                   TODO   later

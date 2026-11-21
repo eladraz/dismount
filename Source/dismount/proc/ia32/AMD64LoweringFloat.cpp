@@ -9,8 +9,7 @@
  *   Section 1  arithmetic: OP_FLOAT_ADD, SUBTRACT, MULTIPLY, DIVIDE,
  *              SQUARE_ROOT (addsd/subsd/mulsd/divsd/sqrtsd and the ss forms),
  *              NEGATE and ABSOLUTE (the sign bit of the integer image).
- *              OP_FLOAT_MULTIPLY_ADD is refused: build the guest with
- *              -ffp-contract=off.
+ *              OP_FLOAT_MULTIPLY_ADD: section 8 (the fused form).
  *   Section 2  compare: OP_COMPARE of floats with the COND_FLOAT_* conditions
  *              (ucomisd/ucomiss and the parity-aware setcc).
  *   Section 3  select: OP_SELECT of floats (a bit select, cmov on the images).
@@ -65,6 +64,28 @@
  *              The NaN, the zeros (with their sign), the infinities and the
  *              integral values pass unchanged in every mode.
  *
+ *   Section 8  fused multiply-add: OP_FLOAT_MULTIPLY_ADD, d = a * b + c with
+ *              one rounding (dismount lifts fmadd/fmsub/fnmadd/fnmsub of
+ *              AArch64 and RISC-V through operand negations, which are sign
+ *              flips and so exact). The product-add is vfmadd231sd /
+ *              vfmadd231ss (FMA3, VEX-encoded: C4 E2 F1|71 B9 C2, emitted by
+ *              emitFusedMultiplyAdd231), the one rounding of the interpreter.
+ *              Host requirement: FMA3 (x86-64-v3), on top of SSE4.1 for
+ *              OP_FLOAT_ROUND (section 6); the lowered code faults with SIGILL on a
+ *              host without FMA3. Rounding: nearest even (the MXCSR default;
+ *              ROUND_DYNAMIC too), or a directed mode (toward -inf, +inf,
+ *              zero), with the rounding control of MXCSR set around the one
+ *              instruction (lineRoundingBegin, the helper of the integer to
+ *              float conversions). Nearest away and round to odd throw.
+ *              The NaN results follow the source ISA of the block (the
+ *              interpreter's environment). RISC-V: the canonical NaN. ARM
+ *              (FPCR.DN = 0): the first signaling NaN of (c, n, m), else the
+ *              first NaN, quieted with its sign and payload; the default NaN
+ *              (positive) for an invalid product (infinity times zero) whose
+ *              addend is not a signaling NaN, and for infinity minus
+ *              infinity. The x86 result is a NaN exactly in those cases, so
+ *              the NaN part runs only when it is one.
+ *
  *   Section 7  minimum and maximum: OP_FLOAT_MINIMUM / MAXIMUM with
  *              BEHAVIOR_MINMAX_NUMBER, the number rule of the signed zeros
  *              (-0 below +0) and the NaN rule of the source ISA (the block's
@@ -79,9 +100,9 @@
  *              with bt for the quiet bit.
  *
  * Not implemented here: the x87 extended format, the rounding modes other
- * than nearest even for the arithmetic (only OP_FLOAT_ROUND and the float to
- * integer conversions take the directed modes), the behaviors other than the
- * default and BEHAVIOR_MINMAX_NUMBER (BEHAVIOR_MULTIPLY_EXTENDED, the ARM
+ * than nearest even for the arithmetic and the fused multiply-add (only
+ * OP_FLOAT_ROUND and the float to integer conversions take the directed
+ * modes), the behaviors other than the default and BEHAVIOR_MINMAX_NUMBER (BEHAVIOR_MULTIPLY_EXTENDED, the ARM
  * minimum and maximum propagation rules BEHAVIOR_MINMAX_PROPAGATE_NAN: they
  * throw), the vector floats, and the float moves, loads and
  * stores (BITCAST and the 128 bit values). The refused ones throw
@@ -219,23 +240,33 @@ void BlockLowering::checkIntegerToFloatRounding(const SemanticInstruction& instr
     }
 }
 
-void BlockLowering::lineConvertToFloat(const char* convert, SemanticOperation::RoundingMode mode)
+// The rounding control of MXCSR (bits 14:13): 0 nearest even, 1 down, 2 up,
+// 3 toward zero. The original control word is saved at [rsp], the changed one
+// is loaded from [rsp+4]; lineRoundingEnd() restores it and frees the slot
+static uint roundingControlOf(SemanticOperation::RoundingMode mode)
 {
-    // The rounding control of MXCSR (bits 14:13): 0 nearest even, 1 down,
-    // 2 up, 3 toward zero. The original control word is saved at [rsp], the
-    // changed one is loaded from [rsp+4]; both are restored after the convert
-    uint control = 0;
+    switch (mode)
+    {
+    case SemanticOperation::ROUND_TOWARD_NEGATIVE: return 1;
+    case SemanticOperation::ROUND_TOWARD_POSITIVE: return 2;
+    case SemanticOperation::ROUND_TOWARD_ZERO: return 3;
+    default: return 0;
+    }
+}
+
+void BlockLowering::lineRoundingBegin(SemanticOperation::RoundingMode mode)
+{
     switch (mode)
     {
     case SemanticOperation::ROUND_DYNAMIC:
     case SemanticOperation::ROUND_NEAREST_EVEN:
-        line(convert);
         return;
-    case SemanticOperation::ROUND_TOWARD_NEGATIVE: control = 1; break;
-    case SemanticOperation::ROUND_TOWARD_POSITIVE: control = 2; break;
-    case SemanticOperation::ROUND_TOWARD_ZERO: control = 3; break;
+    case SemanticOperation::ROUND_TOWARD_NEGATIVE:
+    case SemanticOperation::ROUND_TOWARD_POSITIVE:
+    case SemanticOperation::ROUND_TOWARD_ZERO:
+        break;
     default:
-        fail("the rounding mode of this integer to float conversion is not implemented");
+        fail("the rounding mode of this float operation is not implemented");
     }
     char text[120];
     line("sub rsp, 8");
@@ -243,13 +274,32 @@ void BlockLowering::lineConvertToFloat(const char* convert, SemanticOperation::R
     line("mov ecx, dword ptr [rsp]");
     snprintf(text, sizeof(text), "and ecx, 0x%x", 0xFFFF9FFFu);
     line(text);
-    snprintf(text, sizeof(text), "or ecx, 0x%x", control << 13);
+    snprintf(text, sizeof(text), "or ecx, 0x%x", roundingControlOf(mode) << 13);
     line(text);
     line("mov dword ptr [rsp+4], ecx");
     line("ldmxcsr dword ptr [rsp+4]");
-    line(convert);
+}
+
+void BlockLowering::lineRoundingEnd(SemanticOperation::RoundingMode mode)
+{
+    if ((mode == SemanticOperation::ROUND_DYNAMIC) ||
+        (mode == SemanticOperation::ROUND_NEAREST_EVEN))
+        return;
     line("ldmxcsr dword ptr [rsp]");
     line("add rsp, 8");
+}
+
+void BlockLowering::lineConvertToFloat(const char* convert, SemanticOperation::RoundingMode mode)
+{
+    if ((mode == SemanticOperation::ROUND_DYNAMIC) ||
+        (mode == SemanticOperation::ROUND_NEAREST_EVEN))
+    {
+        line(convert);
+        return;
+    }
+    lineRoundingBegin(mode);
+    line(convert);
+    lineRoundingEnd(mode);
 }
 
 void BlockLowering::checkFloatInstruction(const SemanticInstruction& instruction) const
@@ -356,8 +406,9 @@ void BlockLowering::loadXmm(uint xmm, const SemanticOperand& operand, uint bits)
         line(text);
         return;
     }
-    cString current((bits == 64) ? "movsd " : "movss ");
-    current += cString(xmm == 0 ? "xmm0, " : "xmm1, ");
+    snprintf(text, sizeof(text), "%s xmm%u, ", (bits == 64) ? "movsd" : "movss",
+             xmm);
+    cString current(text);
     current += getMemory(operand, bits);
     line(current);
 }
@@ -1134,6 +1185,301 @@ void BlockLowering::lowerArmNaNMinMax(const SemanticOperand& s0,
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Section 8: fused multiply-add (OP_FLOAT_MULTIPLY_ADD)
+/////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+// The work registers of the fused multiply-add. rax keeps the product (its
+// NaN is replaced at the end); rcx, rdx, r8 and r9 are scratch
+enum FusedRegister { FR_AX = 0, FR_CX = 1, FR_DX = 2, FR_R8 = 3, FR_R9 = 4 };
+
+// The name of a work register at the width of the operation
+const char* fusedRegister(uint reg, uint bits)
+{
+    static const char* const names64[] = { "rax", "rcx", "rdx", "r8", "r9" };
+    static const char* const names32[] = { "eax", "ecx", "edx", "r8d", "r9d" };
+    return (bits == 64) ? names64[reg] : names32[reg];
+}
+
+// The bit images of the format: the magnitude (the sign cleared), the
+// infinity (the exponent all ones, no fraction) and the quiet bit
+uint64 fusedMagnitudeMask(uint bits)
+{
+    return (bits == 64) ? 0x7FFFFFFFFFFFFFFFULL : 0x7FFFFFFFULL;
+}
+
+uint64 fusedInfinity(uint bits)
+{
+    return (bits == 64) ? 0x7FF0000000000000ULL : 0x7F800000ULL;
+}
+
+uint64 fusedQuietBit(uint bits)
+{
+    return (bits == 64) ? 0x0008000000000000ULL : 0x00400000ULL;
+}
+
+} // namespace
+
+// A work register loaded from an operand (a constant or a memory slot). The
+// loads don't change the flags
+void BlockLowering::loadFusedOperand(uint reg, const SemanticOperand& operand,
+                                     uint bits)
+{
+    char text[160];
+    if (isConstantOperand(operand))
+    {
+        snprintf(text, sizeof(text), "mov %s, 0x%llx", fusedRegister(reg, bits),
+                 (unsigned long long)getConstant(operand, bits));
+        line(text);
+        return;
+    }
+    cString current("mov ");
+    current += cString(fusedRegister(reg, bits));
+    current += cString(", ");
+    current += getMemory(operand, bits);
+    line(current);
+}
+
+// The fused multiply-add: xmm0 = xmm1 * xmm2 + xmm0 with one rounding.
+// VEX.LIG.66.0F38 B9 /r (vfmadd231sd: W1; vfmadd231ss: W0), vvvv = xmm1
+// (inverted, 1110b), L = 0, ModRM = 11 000 010. The bytes go straight to the
+// binary, after the text assembled so far
+void BlockLowering::emitFusedMultiplyAdd231(uint bits)
+{
+    flush();
+    const uint8 bytes[5] = { 0xC4, 0xE2, (uint8)((bits == 64) ? 0xF1 : 0x71),
+                             0xB9, 0xC2 };
+    m_assembler.getFirstPass()->appendBuffer(bytes, 5);
+}
+
+// The flags of a test of the operand's magnitude (in 'reg'; r9 holds the
+// constant). A signaling NaN is the magnitude in (infinity, infinity + quiet):
+// the difference from infinity + 1 is below quiet - 1 (unsigned: below), and a
+// NaN is above the infinity
+void BlockLowering::fusedNaNTest(uint reg, const SemanticOperand& operand,
+                                 bool signaling, uint bits)
+{
+    char text[160];
+    const char* value = fusedRegister(reg, bits);
+    const char* constant = fusedRegister(FR_R9, bits);
+    loadFusedOperand(reg, operand, bits);
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", constant,
+             (unsigned long long)fusedMagnitudeMask(bits));
+    line(text);
+    snprintf(text, sizeof(text), "and %s, %s", value, constant);
+    line(text);
+    if (signaling)
+    {
+        snprintf(text, sizeof(text), "mov %s, 0x%llx", constant,
+                 (unsigned long long)(fusedInfinity(bits) + 1));
+        line(text);
+        snprintf(text, sizeof(text), "sub %s, %s", value, constant);
+        line(text);
+        snprintf(text, sizeof(text), "mov %s, 0x%llx", constant,
+                 (unsigned long long)(fusedQuietBit(bits) - 1));
+        line(text);
+        snprintf(text, sizeof(text), "cmp %s, %s", value, constant);
+    } else
+    {
+        snprintf(text, sizeof(text), "mov %s, 0x%llx", constant,
+                 (unsigned long long)fusedInfinity(bits));
+        line(text);
+        snprintf(text, sizeof(text), "cmp %s, %s", value, constant);
+    }
+    line(text);
+}
+
+// rdx = the first signaling NaN of (c, n, m) when 'signaling', else the first
+// NaN, in that order; 0 when there is none (a NaN bit image is never 0). The
+// operands are tested from the last one, so that each earlier one overrides
+void BlockLowering::fusedNaNChain(bool signaling, const SemanticOperand& c,
+                                  const SemanticOperand& n,
+                                  const SemanticOperand& m, uint bits)
+{
+    char text[160];
+    snprintf(text, sizeof(text), "xor %s, %s", fusedRegister(FR_DX, bits),
+             fusedRegister(FR_DX, bits));
+    line(text);
+    const SemanticOperand* operands[3] = { &m, &n, &c };
+    for (uint i = 0; i < 3; i++)
+    {
+        fusedNaNTest(FR_R8, *operands[i], signaling, bits);
+        loadFusedOperand(FR_CX, *operands[i], bits);
+        snprintf(text, sizeof(text), "%s %s, %s", signaling ? "cmovb" : "cmova",
+                 fusedRegister(FR_DX, bits), fusedRegister(FR_CX, bits));
+        line(text);
+    }
+}
+
+// The NaN part of the ARM rule (FPCR.DN = 0; the interpreter's
+// NAN_SIGNALING_FIRST with the addend first). On entry xmm0 is the x86 result
+// and rax its bits; the caller compares xmm0 with itself and keeps rdx when it
+// is a NaN. The result, in rdx:
+//   the first signaling NaN of (c, n, m), else the first NaN, with the quiet
+//   bit set (the sign and the payload are kept);
+//   the default NaN (positive, quiet) when there is no NaN, and for an
+//   invalid product (infinity times zero, n and m) whose addend is not a
+//   signaling NaN: the addend's NaN is not propagated then.
+// xmm1 and xmm2 keep the chains' results; rax and xmm0 are not touched.
+void BlockLowering::lowerArmFusedNaN(const SemanticOperand& c,
+                                     const SemanticOperand& n,
+                                     const SemanticOperand& m, uint bits)
+{
+    char text[160];
+    const bool isDouble = (bits == 64);
+    const char* dx = fusedRegister(FR_DX, bits);
+    const char* cx = fusedRegister(FR_CX, bits);
+    const char* r8 = fusedRegister(FR_R8, bits);
+    const char* r9 = fusedRegister(FR_R9, bits);
+
+    // xmm1 = the first signaling NaN (0: none), xmm2 = the first NaN (0: none)
+    fusedNaNChain(true, c, n, m, bits);
+    line(isDouble ? "movq xmm1, rdx" : "movd xmm1, edx");
+    fusedNaNChain(false, c, n, m, bits);
+    line(isDouble ? "movq xmm2, rdx" : "movd xmm2, edx");
+
+    // rdx = 1 for an invalid product: |n| = infinity and |m| = 0, or the
+    // other way round. (|n| ^ inf) | |m| = 0 or |n| | (|m| ^ inf) = 0
+    loadFusedOperand(FR_R8, n, bits);
+    loadFusedOperand(FR_R9, m, bits);
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", cx,
+             (unsigned long long)fusedMagnitudeMask(bits));
+    line(text);
+    snprintf(text, sizeof(text), "and %s, %s", r8, cx);
+    line(text);
+    snprintf(text, sizeof(text), "and %s, %s", r9, cx);
+    line(text);
+    snprintf(text, sizeof(text), "mov %s, 0", dx);
+    line(text);
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", cx,
+             (unsigned long long)fusedInfinity(bits));
+    line(text);
+    snprintf(text, sizeof(text), "xor %s, %s", cx, r8);
+    line(text);
+    snprintf(text, sizeof(text), "or %s, %s", cx, r9);
+    line(text);
+    snprintf(text, sizeof(text), "test %s, %s", cx, cx);
+    line(text);
+    line("setz dl");
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", cx,
+             (unsigned long long)fusedInfinity(bits));
+    line(text);
+    snprintf(text, sizeof(text), "xor %s, %s", cx, r9);
+    line(text);
+    snprintf(text, sizeof(text), "or %s, %s", cx, r8);
+    line(text);
+    snprintf(text, sizeof(text), "test %s, %s", cx, cx);
+    line(text);
+    line("setz cl");
+    line("movzx ecx, cl");
+    line("or edx, ecx");
+
+    // The NaN pick is dropped for an invalid product (rcx = 0 then)
+    line(isDouble ? "movq rcx, xmm2" : "movd ecx, xmm2");
+    snprintf(text, sizeof(text), "xor %s, %s", r9, r9);
+    line(text);
+    snprintf(text, sizeof(text), "test %s, %s", dx, dx);
+    line(text);
+    snprintf(text, sizeof(text), "cmovnz %s, %s", cx, r9);
+    line(text);
+
+    // rdx = the signaling pick, else the NaN pick (0 when there is no NaN)
+    line(isDouble ? "movq rdx, xmm1" : "movd edx, xmm1");
+    snprintf(text, sizeof(text), "test %s, %s", dx, dx);
+    line(text);
+    snprintf(text, sizeof(text), "cmovz %s, %s", dx, cx);
+    line(text);
+    // No NaN: the default NaN, then the quiet bit (the default has it)
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", cx,
+             (unsigned long long)(fusedInfinity(bits) | fusedQuietBit(bits)));
+    line(text);
+    snprintf(text, sizeof(text), "test %s, %s", dx, dx);
+    line(text);
+    snprintf(text, sizeof(text), "cmovz %s, %s", dx, cx);
+    line(text);
+    snprintf(text, sizeof(text), "mov %s, 0x%llx", cx,
+             (unsigned long long)fusedQuietBit(bits));
+    line(text);
+    snprintf(text, sizeof(text), "or %s, %s", dx, cx);
+    line(text);
+}
+
+// OP_FLOAT_MULTIPLY_ADD: d = s0 * s1 + s2 with one rounding. The NaN rule
+// is the source ISA's (see section 8 of the header); the rounding is nearest
+// even (checkFloatInstruction)
+void BlockLowering::lowerFloatMultiplyAdd(const SemanticInstruction& instruction)
+{
+    const SemanticOperand& destination = instruction.getDestination();
+    const uint bits = getFloatWidth(destination.getType());
+    checkFloatBehavior(instruction);
+    // The directed modes set MXCSR around the instruction (lineRoundingBegin);
+    // nearest away has no MXCSR form (a sequence would round twice)
+    const SemanticOperation::RoundingMode rounding = instruction.getRoundingMode();
+    switch (rounding)
+    {
+    case SemanticOperation::ROUND_DYNAMIC:
+    case SemanticOperation::ROUND_NEAREST_EVEN:
+    case SemanticOperation::ROUND_TOWARD_NEGATIVE:
+    case SemanticOperation::ROUND_TOWARD_POSITIVE:
+    case SemanticOperation::ROUND_TOWARD_ZERO:
+        break;
+    default:
+        fail("the nearest away and the round to odd are not implemented for the fused multiply-add");
+    }
+    for (uint s = 0; s < 3; s++)
+    {
+        if (getFloatWidth(instruction.getSource(s).getType()) != bits)
+            fail("a source is not of the width of the destination");
+    }
+    const SemanticOperand& n = instruction.getSource(0);
+    const SemanticOperand& m = instruction.getSource(1);
+    const SemanticOperand& c = instruction.getSource(2);
+    // The NaN rule is chosen before anything is emitted (as the minimum)
+    bool isArm = false;
+    switch (m_block.getArchitecture())
+    {
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_LE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_32_BE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_LE:
+    case OpcodeSubsystems::DISASSEMBLER_ARM_64_BE:
+        isArm = true;
+        break;
+    case OpcodeSubsystems::DISASSEMBLER_RISCV_64:
+        break;
+    default:
+        fail("the NaN rule of this source ISA for the fused multiply-add is not implemented");
+        break;
+    }
+
+    // xmm0 = c, xmm1 = n, xmm2 = m, then xmm0 = n * m + c
+    loadXmm(0, c, bits);
+    loadXmm(1, n, bits);
+    loadXmm(2, m, bits);
+    lineRoundingBegin(rounding);
+    emitFusedMultiplyAdd231(bits);
+    lineRoundingEnd(rounding);
+    line((bits == 64) ? "movq rax, xmm0" : "movd eax, xmm0");
+
+    // rdx = the NaN result when the x86 result is a NaN (it is one exactly
+    // when an operand is a NaN or the product is invalid)
+    char text[160];
+    if (isArm)
+        lowerArmFusedNaN(c, n, m, bits);
+    else
+    {
+        // RISC-V: the canonical NaN, positive and quiet
+        snprintf(text, sizeof(text), "mov %s, 0x%llx",
+                 fusedRegister(FR_DX, bits),
+                 (unsigned long long)(fusedInfinity(bits) | fusedQuietBit(bits)));
+        line(text);
+    }
+    line((bits == 64) ? "ucomisd xmm0, xmm0" : "ucomiss xmm0, xmm0");
+    line((bits == 64) ? "cmovp rax, rdx" : "cmovp eax, edx");
+    storeBits(destination, SCRATCH_A, bits);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Dispatch
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1151,8 +1497,7 @@ bool BlockLowering::lowerFloat(const SemanticInstruction& instruction)
         lowerFloatArithmetic(instruction);
         return true;
     case SemanticOperation::OP_FLOAT_MULTIPLY_ADD:
-        fail("fused multiply-add is not implemented: build the guest with "
-             "-ffp-contract=off");
+        lowerFloatMultiplyAdd(instruction);
         return true;
     case SemanticOperation::OP_COMPARE:
         if (instruction.getSource(0).getType().getKind() !=
