@@ -114,6 +114,15 @@
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Lowering.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringWide.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringInteger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringFloat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\arm\ArmArchitecture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -675,6 +684,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\ia32\AMD64Lowering.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\dismount\proc\ia32\AMD64BlockLowering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h">

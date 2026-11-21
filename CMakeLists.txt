@@ -71,6 +71,9 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/semantics/SemanticPrinter.cpp
 	Source/dismount/semantics/SemanticLowering.cpp
 	Source/dismount/proc/ia32/AMD64Lowering.cpp
+	Source/dismount/proc/ia32/AMD64LoweringWide.cpp
+	Source/dismount/proc/ia32/AMD64LoweringInteger.cpp
+	Source/dismount/proc/ia32/AMD64LoweringFloat.cpp
 	Source/dismount/proc/ia32/IA32Architecture.cpp
 	Source/dismount/proc/ia32/AMD64Architecture.cpp
 	Source/dismount/proc/ia32/IA32OperandDecoder.cpp

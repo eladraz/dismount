@@ -45,6 +45,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\IA32Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Lowering.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringWide.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringInteger.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringFloat.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmArchitecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp" />
     <ClCompile Include="Source\dismount\proc\riscv\RiscvArchitecture.cpp" />
@@ -232,6 +235,7 @@
     <ClInclude Include="Include\dismount\proc\ia32\IA32Architecture.h" />
     <ClInclude Include="Include\dismount\proc\ia32\AMD64Architecture.h" />
     <ClInclude Include="Include\dismount\proc\ia32\AMD64Lowering.h" />
+    <ClInclude Include="Source\dismount\proc\ia32\AMD64BlockLowering.h" />
     <ClInclude Include="Include\dismount\proc\arm\ArmArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvArchitecture.h" />
     <ClInclude Include="Include\dismount\proc\riscv\RiscvSemantics.h" />
