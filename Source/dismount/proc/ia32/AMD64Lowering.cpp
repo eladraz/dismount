@@ -51,18 +51,18 @@
  *   OP_CACHE_MAINTENANCE               TODO   later
  *   OP_PROBE_ACCESS                    TODO   later
  *   OP_ADD                             DONE   WP8b
- *   OP_ADD_CARRY                       TODO   WP8b
+ *   OP_ADD_CARRY                       DONE   d = s0 + s1 + (s2 & 1), 8-64 (AMD64LoweringInteger.cpp)
  *   OP_SUBTRACT                        DONE   WP8b
  *   OP_SUBTRACT_BORROW                 TODO   WP8b
  *   OP_NEGATE                          DONE   WP8b
  *   OP_MULTIPLY                        DONE   WP8b low half, 8/16/32/64
  *   OP_MULTIPLY_HIGH_SIGNED            DONE   WP8b 16/32/64
  *   OP_MULTIPLY_HIGH_UNSIGNED          DONE   WP8b 16/32/64
- *   OP_MULTIPLY_HIGH_SIGNED_UNSIGNED   TODO   WP8b: mulhu - (s0<0 ? s1 : 0)
- *   OP_DIVIDE_SIGNED                   TODO   WP8b: behavior (RISC-V all ones, x86 faults): guard idiv
- *   OP_DIVIDE_UNSIGNED                 TODO   WP8b: same
- *   OP_REMAINDER_SIGNED                TODO   WP8b: same
- *   OP_REMAINDER_UNSIGNED              TODO   WP8b: same
+ *   OP_MULTIPLY_HIGH_SIGNED_UNSIGNED   DONE   16/32/64: mul, minus s1 when s0 < 0 (8 bits refused)
+ *   OP_DIVIDE_SIGNED                   DONE   idiv guarded; behaviours fault/zero/all ones (lowerBlock only)
+ *   OP_DIVIDE_UNSIGNED                 DONE   div guarded; behaviours fault/zero/all ones (lowerBlock only)
+ *   OP_REMAINDER_SIGNED                DONE   as OP_DIVIDE_SIGNED, the remainder
+ *   OP_REMAINDER_UNSIGNED              DONE   as OP_DIVIDE_UNSIGNED, the remainder
  *   OP_ABSOLUTE_DIFFERENCE_SIGNED      TODO   later
  *   OP_ABSOLUTE_DIFFERENCE_UNSIGNED    TODO   later
  *   OP_CARRYLESS_MULTIPLY              TODO   later
@@ -78,12 +78,12 @@
  *   OP_SHIFT_RIGHT_ARITHMETIC          DONE   WP8b
  *   OP_ROTATE_LEFT                     DONE   WP8b
  *   OP_ROTATE_RIGHT                    DONE   WP8b
- *   OP_COUNT_LEADING_ZEROS             TODO   later (lzcnt/bsr)
- *   OP_COUNT_TRAILING_ZEROS            TODO   later (tzcnt/bsf)
+ *   OP_COUNT_LEADING_ZEROS             DONE   bsr + cmov for zero, 8-64
+ *   OP_COUNT_TRAILING_ZEROS            DONE   bsf + cmov for zero, 8-64
  *   OP_COUNT_LEADING_SIGN_BITS         TODO   later
- *   OP_POPULATION_COUNT                TODO   later (popcnt)
- *   OP_BYTE_SWAP                       TODO   later (bswap)
- *   OP_BIT_REVERSE                     TODO   later
+ *   OP_POPULATION_COUNT                DONE   SWAR, 8-64 (no popcnt)
+ *   OP_BYTE_SWAP                       DONE   rol / bswap, 8-64
+ *   OP_BIT_REVERSE                     DONE   SWAR + bswap, 8-64
  *   OP_BIT_DEPOSIT                     TODO   later
  *   OP_BIT_GATHER                      TODO   later
  *   OP_COMPARE                         DONE   WP8b all 10 integer conditions + ALWAYS/NEVER

@@ -715,7 +715,7 @@ private:
         block.append(SemanticInstruction(SemanticOperation::OP_MOVE, type, x3, x1));
         block.beginGuestInstruction(ProcessorAddress(
                 ProcessorAddress::PROCESSOR_64, 0x1238), 4);
-        block.append(SemanticInstruction(SemanticOperation::OP_DIVIDE_SIGNED, type,
+        block.append(SemanticInstruction(SemanticOperation::OP_CARRYLESS_MULTIPLY, type,
                                          x3, x1, x2));
         bool isRefused = false;
         try
@@ -726,7 +726,7 @@ private:
             isRefused = true;
             cSArray<char> message = cString(e.getMessage()).getASCIIstring();
             cout << "refused: " << message.getBuffer() << endl;
-            TESTS_ASSERT(strstr(message.getBuffer(), "divide_signed") != NULL);
+            TESTS_ASSERT(strstr(message.getBuffer(), "carryless_multiply") != NULL);
             TESTS_ASSERT(strstr(message.getBuffer(), "0x1238") != NULL);
         }
         TESTS_ASSERT(isRefused);
