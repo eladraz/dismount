@@ -182,6 +182,21 @@ private:
     bool lowerWide(const SemanticInstruction& instruction);
     bool lowerIntegerExtra(const SemanticInstruction& instruction);
     bool lowerFloat(const SemanticInstruction& instruction);
+    // The operations of AMD64LoweringInteger.cpp. A division uses the local
+    // labels L_d<index>_<tag> of its IR instruction, so it is only lowered by
+    // lowerBlock() (see defineLocalLabel())
+    void lowerDivide(const SemanticInstruction& instruction);
+    void lowerCountZeros(const SemanticInstruction& instruction);
+    void lowerPopulationCount(const SemanticInstruction& instruction);
+    void lowerByteSwap(const SemanticInstruction& instruction);
+    void lowerBitReverse(const SemanticInstruction& instruction);
+    void lowerHighSignedUnsigned(const SemanticInstruction& instruction);
+    void lowerAddCarry(const SemanticInstruction& instruction);
+    // Define the local label 'name' at the current offset of the code
+    void defineLocalLabel(const cString& name);
+    // Leave the code with the divide error of the current IR instruction:
+    // the guest instruction is the program counter, then the exit
+    void writeDivideFault();
 };
 
 } // namespace amd64lowering

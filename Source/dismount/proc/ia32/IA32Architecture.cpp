@@ -356,6 +356,8 @@ bool isScalarIntegerOperation(SemanticOperation::Operation operation)
     case SemanticOperation::OP_COUNT_TRAILING_ZEROS:
     case SemanticOperation::OP_POPULATION_COUNT:
     case SemanticOperation::OP_BYTE_SWAP:
+    case SemanticOperation::OP_BIT_REVERSE:
+    case SemanticOperation::OP_MULTIPLY_HIGH_SIGNED_UNSIGNED:
     case SemanticOperation::OP_COMPARE:
     case SemanticOperation::OP_TEST_FLAGS:
     case SemanticOperation::OP_ATOMIC_EXCHANGE:

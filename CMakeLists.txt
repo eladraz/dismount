@@ -256,6 +256,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestSemanticPrinter.cpp
 		tests/TestSemanticLowering.cpp
 		tests/TestSemanticLegalizerArm64.cpp
+		tests/TestSemanticLoweringInteger.cpp
 		tests/TestSemanticFloatRiscv.cpp
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp
