@@ -34,8 +34,10 @@
  *   Flags    OP_SET_FLAGS whose flags are never read is removed. The other
  *            flags are materialized from the recipe, unless the target has
  *            the same flags and the lowering can set them directly.
- *   Alias    Writing a guest sub-register (al, ah, ax) becomes an OP_INSERT
- *            into its parent register; reading it, an OP_EXTRACT.
+ *   Alias    Reading a guest sub-register (w0, s0) is a truncate of its
+ *            parent register; writing one that zero extends its parent (w0
+ *            zeroes x0[32..63]) is a zero extend of the value into the parent.
+ *            The zero registers (xzr, wzr) read as 0 and drop their writes.
  *   Memory   The guest memory model is kept on the target: an IA-32 (total
  *            store order) guest on a weak ARM target gets the fences or the
  *            acquire/release accesses that TSO implies.
@@ -64,12 +66,35 @@ public:
      */
     void legalize(SemanticBlock& block);
 
+    /*
+     * The sub-register rule alone, exposed for the differential tests of the
+     * rule (tests/TestSemanticLegalizerArm64.cpp: the rule runs on the flag
+     * rows, which legalize() refuses until the flags rule is in). Rewrite a
+     * block in place: a read of a sub-register is a truncate of its parent, a
+     * write of one that zero extends its parent (ARM64 w0 and x0) is computed
+     * in a temporary and written back, a zero register reads as 0 and its
+     * writes go to a temporary nobody reads. The guest instructions keep
+     * their addresses. A sub-register write which keeps the rest of its parent
+     * is refused (no target has it yet).
+     *
+     * RISC-V has sub-registers too: fflags (bits 0-4 of fcsr) and vxsat (bit
+     * 0 of vcsr) are read as a truncate of their parent, and the writes of
+     * them are refused (no zero extension), as are frm (fcsr bits 5-7) and
+     * vxrm (vcsr bits 1-2), which have a bit offset. RISC-V x0 is a zero
+     * register, so it reads as 0 and its writes are dropped.
+     *
+     * block - A block lifted from the guest processor
+     *
+     * Throw exception for a sub-register which is not a plain part of a full
+     * register (bit offset or a parent of its own), and for a sub-register
+     * write which keeps the rest of its parent. The block is unchanged then.
+     */
+    void expandSubRegisters(SemanticBlock& block);
+
 private:
     // Remove OP_SET_FLAGS whose flags are not read before they are written
     // again, and the temporaries which are not read
     void removeDeadValues(SemanticBlock& block);
-    // Change sub-register accesses into OP_EXTRACT / OP_INSERT
-    void expandSubRegisters(SemanticBlock& block);
     // Materialize the flags which are read, from their recipes
     void materializeFlags(SemanticBlock& block);
     // Split values which are wider than the target supports

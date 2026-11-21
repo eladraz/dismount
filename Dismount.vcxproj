@@ -176,6 +176,7 @@
     <ClCompile Include="Source\dismount\semantics\SemanticInterpreter.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticLifter.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticLegalizer.cpp" />
+    <ClCompile Include="Source\dismount\semantics\SemanticLegalizerSubRegisters.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticPrinter.cpp" />
     <ClCompile Include="Source\dismount\semantics\SemanticLowering.cpp" />
     <ClCompile Include="Source\dismount\SectionMemoryInterface.cpp" />
