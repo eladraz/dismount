@@ -10,6 +10,7 @@
  */
 #include "xStl/types.h"
 #include "xStl/data/string.h"
+#include "xStl/data/array.h"
 #include "xStl/parser/parser.h"
 #include "xStl/stream/stringerStream.h"
 #include "dismount/IntegerEncoding.h"
@@ -400,6 +401,14 @@ private:
     void assembleInstruction(Parser& parser, const char* source);
 
     /*
+     * Assemble the line of 'source' (the original text, 'length' bytes) which
+     * the parser is at, through the memo of the encodings by line text (see
+     * the note in IA32Assembler.cpp). The memo is consulted only for lines
+     * without a label.
+     */
+    void assembleLine(Parser& parser, const char* source, uint length);
+
+    /*
      * Try to find opcode according to it's name and it's parameters and
      * write it into the first-binary pass
      *
@@ -414,6 +423,33 @@ private:
                      const Operand& first,
                      const Operand& second,
                      const Operand& third);
+
+    /*
+     * One row of the opcode tables whose mnemonic matches a name, as
+     * candidates() returns it.
+     */
+    struct Candidate {
+        // The Encoding::m_table of the row
+        uint m_table;
+        // The opcode entry
+        const ia32dis::OpcodeEntry* m_opcode;
+        // The operand width and the address size flip of matchMnemonic()
+        uint m_operandWidth;
+        bool m_addressSizeFlip;
+        // True if the row matched the name without its size suffix
+        bool m_suffixMatch;
+    };
+
+    /*
+     * The rows of the opcode tables which findEncoding() can match with the
+     * name (or with bareName, the name without its size suffix when
+     * suffixWidth is not 0), in the order of the tables. The rows whose mnemonic
+     * doesn't match are left out, so a row is not compared with the name for
+     * every instruction. The lists are cached per name and processor mode.
+     */
+    const cArray<Candidate>& candidates(const cString& name,
+                                        const cString& bareName,
+                                        uint suffixWidth) const;
 
     /*
      * Search the opcode tables for the shortest encoding of the instruction
@@ -664,6 +700,10 @@ private:
 
     // The mode of the processor
     IA32eInstructionSet::DisassemblerTypes m_processorMode;
+
+    // True if the instruction being assembled has a label operand (see
+    // writeImmediate(), it is not memoized)
+    bool m_hasLabel;
 };
 
 #endif // __TBA_DISMOUNT_ASSEMBLER_PROCESSORS_IA32_IA32ASSEMBLER_H

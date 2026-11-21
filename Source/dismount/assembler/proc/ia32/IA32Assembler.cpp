@@ -12,6 +12,8 @@
 #include "xStl/except/trace.h"
 #include "xStl/exceptions.h"
 #include "xStl/parser/parser.h"
+#include "xStl/data/array.h"
+#include "xStl/data/hash.h"
 #include "dismount/assembler/proc/ia32/IA32Assembler.h"
 #include "dismount/IntegerEncoding.h"
 #include "dismount/proc/ia32/opcodeTable.h"
@@ -243,7 +245,8 @@ uint scaleBits(uint scale)
 IA32AssemblerStream::IA32AssemblerStream(FirstPassBinary& binary,
                            IA32eInstructionSet::DisassemblerTypes processorMode) :
     m_binary(binary),
-    m_processorMode(processorMode)
+    m_processorMode(processorMode),
+    m_hasLabel(false)
 {
 }
 
@@ -272,9 +275,10 @@ void IA32AssemblerStream::assemble()
     cSArray<char> source = text.getASCIIstring();
     text.makeLower();
     cSArray<char> ascii = text.getASCIIstring();
+    const uint length = ascii.getSize() - 1; // Reduce the null terminate character!
     Parser parser(ascii.getBuffer(),
                   ascii.getBuffer(),
-                  ascii.getSize() - 1, // Reduce the null terminate character!
+                  length,
                   1);
 
     // Each line holds a single instruction, and a ';' starts a comment which
@@ -283,13 +287,70 @@ void IA32AssemblerStream::assemble()
     while (!parser.isEOS())
     {
         if (!isNextChar(parser, ';'))
-            assembleInstruction(parser, source.getBuffer());
+            assembleLine(parser, source.getBuffer(), length);
         skipLine(parser);
         parser.readBlanks();
     }
 
     // The buffered text has been consumed
     clean();
+}
+
+/*
+ * The encoding of an instruction line depends on its text and on the processor
+ * mode only: a relative operand is relative to the start of the instruction and
+ * a rip relative displacement to its end. The bytes are appended to the current
+ * block, and the only other effect, the dependency of a label, is never
+ * memoized (see IA32AssemblerStream::writeImmediate()). The memo is kept for the
+ * whole run, like the candidate rows of candidates(): one per processor mode.
+ * It stops growing at MEMO_LIMIT entries (the lines beyond it are assembled
+ * as before).
+ */
+static const uint MEMO_LIMIT = 1u << 18;
+
+void IA32AssemblerStream::assembleLine(Parser& parser, const char* source,
+                                       uint length)
+{
+    // The line from the instruction to the end of the line (see skipLine())
+    const uint start = parser.getIterator();
+    uint end = start;
+    while ((end < length) && !cChar::isNewLine(source[end]))
+        end++;
+
+    static cHash<cString, cArray<uint8> > memos[3];
+    static uint memoCount[3] = { 0, 0, 0 };
+    const uint mode = (uint)m_processorMode;
+    cHash<cString, cArray<uint8> >& memo = memos[mode];
+
+    cSArray<char> keyText;
+    keyText.changeSize(end - start + 1);
+    for (uint i = start; i < end; i++)
+        keyText[i - start] = source[i];
+    keyText[end - start] = 0;
+    cString key(keyText.getBuffer());
+
+    if (memo.hasKey(key))
+    {
+        const cArray<uint8>& bytes = memo[key];
+        m_binary.appendBuffer(bytes.getBuffer(), bytes.getSize());
+        return;
+    }
+
+    const uint oldSize = m_binary.getCurrentBlockData().getSize();
+    m_hasLabel = false;
+    assembleInstruction(parser, source);
+    if (m_hasLabel || (memoCount[mode] >= MEMO_LIMIT))
+        return;
+
+    // Record the bytes this line appended to the current block
+    const cBuffer& block = m_binary.getCurrentBlockData();
+    const uint count = block.getSize() - oldSize;
+    cArray<uint8> bytes;
+    bytes.changeSize(count);
+    for (uint i = 0; i < count; i++)
+        bytes[i] = block[oldSize + i];
+    memo.append(key, bytes);
+    memoCount[mode]++;
 }
 
 void IA32AssemblerStream::assembleInstruction(Parser& parser, const char* source)
@@ -616,9 +677,140 @@ bool IA32AssemblerStream::findEncoding(const cString& name,
                       ((name[nameLength - 1] == 'd') ? 32 : 64);
     }
 
+    // The rows of the tables which match the name, in the order of the tables
+    // (see candidates()). The passes repeat the same rows.
+    const cArray<Candidate>& rows = candidates(name, bareName, suffixWidth);
+
+    for (uint pass = 0; (pass < 3) && !found; pass++)
+    {
+        for (uint r = 0; r < rows.getSize(); r++)
+        {
+            const Candidate& row = rows[r];
+            const ia32dis::OpcodeEntry* opcode = row.m_opcode;
+            const uint tableIndex = row.m_table;
+            const uint operandWidth = row.m_operandWidth;
+            const bool addressSizeFlip = row.m_addressSizeFlip;
+            const bool suffixMatch = row.m_suffixMatch;
+
+            Encoding enc;
+            enc.m_table = tableIndex;
+            enc.m_opcode = opcode;
+            enc.m_operandWidth = 0;
+            enc.m_addressSizePrefix = addressSizeFlip ||
+                ((addressWidth != 0) && (addressWidth != getDefaultAddressWidth()));
+            enc.m_hasModrm = false;
+            enc.m_regFieldSet = false;
+            enc.m_modrm.m_packed = 0;
+            enc.m_hasSib = false;
+            enc.m_sib.m_packed = 0;
+            enc.m_displacementSize = 0;
+            enc.m_segment = segment;
+            enc.m_prefixes = prefixes;
+            enc.m_rex.m_packed = ia32dis::AMD64_REX_PREFIX;
+            enc.m_needsRex = false;
+            enc.m_hasHighByteRegister = false;
+            enc.m_isRipRelative = false;
+            enc.m_length = 0;
+
+            // The operand size which the spelling of the mnemonic and the
+            // prefix o16 / o32 / o64 select
+            if ((operandWidth != 0) && !setOperandWidth(operandWidth, enc))
+                continue;
+            if (suffixMatch && !setOperandWidth(suffixWidth, enc))
+                continue;
+            if ((prefixes.m_operandWidth != 0) &&
+                !setOperandWidth(prefixes.m_operandWidth, enc))
+                continue;
+
+            // A fixed ModRM byte (x87 'fchs' is D9 E0) is part of the opcode
+            if (opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG)
+            {
+                enc.m_hasModrm = true;
+                enc.m_regFieldSet = true;
+                enc.m_modrm.m_packed =
+                    (uint8)((opcode->m_modrm >> 16) & 0xFF);
+            }
+
+            if (!matchOpcode(opcode, first, second, third, pass, enc))
+                continue;
+
+            // The modrm filter of the entry may allow memory references
+            // only (fnstsw m16 is DD /7, fnstsw ax is DF E0)
+            if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod == 3) &&
+                ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
+                ((opcode->m_modrm & ia32dis::MODRM_MOD_REGISTERS) == 0))
+                continue;
+            // and the other way round (movhlps has registers only)
+            if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod != 3) &&
+                ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
+                ((opcode->m_modrm & ia32dis::MODRM_MOD_MEMORY) == 0))
+                continue;
+
+            if (!finishRex(enc))
+                continue;
+
+            enc.m_length = calculateLength(enc);
+            if (!checkOffsets(enc, first, second, third))
+                continue;
+
+            // The shortest instruction wins. On a tie the smaller immediate
+            // wins (add ax, 0x7f is 83 /0 ib, not 05 iw), as nasm does.
+            uint immediateBytes = 0;
+            ia32dis::OperandType types[3] = { opcode->m_firstOperand,
+                                              opcode->m_secondOperand,
+                                              opcode->m_thridOperand };
+            for (uint i = 0; i < 3; i++)
+                immediateBytes += getImmediateSize(types[i], enc);
+
+            // nasm encodes 'fadd st0, st0' as DC C0 (ST(i), ST(0)), not D8 C0
+            bool preferDc = preferDcForSt0 && (enc.m_table == 2) && found &&
+                (enc.m_length == best.m_length) &&
+                (opcode->m_prefix == 0xDC) && (best.m_opcode->m_prefix == 0xD8) &&
+                first.isFpuRegister() && second.isFpuRegister() &&
+                (first.getReference() == 0) && (second.getReference() == 0);
+
+            // The entries which exist in 64 bit mode only (movd xmm, r/m32/64)
+            // lose the ties to the entries of the IA-32 set
+            // (movq xmm, m64), as in nasm
+            bool isBetterEntry = found &&
+                (enc.m_length == best.m_length) &&
+                (immediateBytes == bestImmediateBytes) &&
+                (opcode->m_mode64 != ia32dis::MODE64_ONLY) &&
+                (best.m_opcode->m_mode64 == ia32dis::MODE64_ONLY);
+
+            if (!found || (enc.m_length < best.m_length) || preferDc ||
+                isBetterEntry ||
+                ((enc.m_length == best.m_length) &&
+                 (immediateBytes < bestImmediateBytes)))
+            {
+                best = enc;
+                bestImmediateBytes = immediateBytes;
+                found = true;
+            }
+
+        }
+    }
+    return found;
+}
+
+const cArray<IA32AssemblerStream::Candidate>&
+IA32AssemblerStream::candidates(const cString& name, const cString& bareName,
+                                uint suffixWidth) const
+{
+    // The rows depend on the name and the processor mode only (bareName and
+    // suffixWidth are derived from the name). The assembler of a lowered block
+    // is created per block, so the lists are kept for the whole run: one cache
+    // per processor mode (INTEL_16, INTEL_32, AMD_64), like the mnemonic index
+    // of the ARM assembler.
+    static cHash<cString, cArray<Candidate> > caches[3];
+    cHash<cString, cArray<Candidate> >& cache = caches[(uint)m_processorMode];
+    if (cache.hasKey(name))
+        return cache[name];
+
     // The tables. The entries of 64 bit mode come last: they replace the
     // entries of the IA-32 tables which have the same encoding (see
     // isReplacedByAmd64Entry())
+    const bool mode64 = is64BitMode();
     enum { NUMBER_OF_SOURCES = 7 };
     static const ia32dis::OpcodeEntry* const tables[NUMBER_OF_SOURCES] = {
         ia32dis::gIa32OneByteOpcodeTable,
@@ -631,142 +823,49 @@ bool IA32AssemblerStream::findEncoding(const cString& name,
     // The value of Encoding::m_table for each source
     static const uint tableIndexes[NUMBER_OF_SOURCES] = { 0, 1, 2, 3, 4, 0, 1 };
 
-    for (uint pass = 0; (pass < 3) && !found; pass++)
+    cArray<Candidate> rows;
+    for (uint source = 0; source < NUMBER_OF_SOURCES; source++)
     {
-        for (uint source = 0; source < NUMBER_OF_SOURCES; source++)
+        // The entries of 64 bit mode exist only in 64 bit mode
+        if ((source >= 5) && !mode64)
+            continue;
+        const uint tableIndex = tableIndexes[source];
+        const ia32dis::OpcodeEntry* table = tables[source];
+        for (const ia32dis::OpcodeEntry* opcode = table;
+             opcode->m_opcodeName != ia32dis::OPCODEEOT; opcode++)
         {
-            // The entries of 64 bit mode exist only in 64 bit mode
-            if ((source >= 5) && !mode64)
+            if (opcode->m_opcodeName == ia32dis::INVALID)
                 continue;
-            const uint tableIndex = tableIndexes[source];
-            const ia32dis::OpcodeEntry* table = tables[source];
-            for (const ia32dis::OpcodeEntry* opcode = table;
-                 opcode->m_opcodeName != ia32dis::OPCODEEOT; opcode++)
+
+            // The entries which exist in one processor mode only
+            if (mode64 ? (opcode->m_mode64 == ia32dis::MODE64_INVALID) :
+                         (opcode->m_mode64 == ia32dis::MODE64_ONLY))
+                continue;
+            if (mode64 && (source < 2) && isReplacedByAmd64Entry(opcode, source))
+                continue;
+
+            Candidate row;
+            row.m_table = tableIndex;
+            row.m_opcode = opcode;
+            row.m_operandWidth = 0;
+            row.m_addressSizeFlip = false;
+            row.m_suffixMatch = false;
+            if (!matchMnemonic(opcode->m_opcodeName, name,
+                               row.m_operandWidth, row.m_addressSizeFlip))
             {
-                if (opcode->m_opcodeName == ia32dis::INVALID)
+                if ((suffixWidth == 0) ||
+                    !matchMnemonic(opcode->m_opcodeName, bareName,
+                                   row.m_operandWidth, row.m_addressSizeFlip))
                     continue;
-
-                // The entries which exist in one processor mode only
-                if (mode64 ? (opcode->m_mode64 == ia32dis::MODE64_INVALID) :
-                             (opcode->m_mode64 == ia32dis::MODE64_ONLY))
-                    continue;
-                if (mode64 && (source < 2) && isReplacedByAmd64Entry(opcode, source))
-                    continue;
-
-                uint operandWidth = 0;
-                bool addressSizeFlip = false;
-                bool suffixMatch = false;
-                if (!matchMnemonic(opcode->m_opcodeName, name,
-                                   operandWidth, addressSizeFlip))
-                {
-                    if ((suffixWidth == 0) ||
-                        !matchMnemonic(opcode->m_opcodeName, bareName,
-                                       operandWidth, addressSizeFlip))
-                        continue;
-                    suffixMatch = true;
-                    operandWidth = 0;
-                    addressSizeFlip = false;
-                }
-
-                Encoding enc;
-                enc.m_table = tableIndex;
-                enc.m_opcode = opcode;
-                enc.m_operandWidth = 0;
-                enc.m_addressSizePrefix = addressSizeFlip ||
-                    ((addressWidth != 0) && (addressWidth != getDefaultAddressWidth()));
-                enc.m_hasModrm = false;
-                enc.m_regFieldSet = false;
-                enc.m_modrm.m_packed = 0;
-                enc.m_hasSib = false;
-                enc.m_sib.m_packed = 0;
-                enc.m_displacementSize = 0;
-                enc.m_segment = segment;
-                enc.m_prefixes = prefixes;
-                enc.m_rex.m_packed = ia32dis::AMD64_REX_PREFIX;
-                enc.m_needsRex = false;
-                enc.m_hasHighByteRegister = false;
-                enc.m_isRipRelative = false;
-                enc.m_length = 0;
-
-                // The operand size which the spelling of the mnemonic and the
-                // prefix o16 / o32 / o64 select
-                if ((operandWidth != 0) && !setOperandWidth(operandWidth, enc))
-                    continue;
-                if (suffixMatch && !setOperandWidth(suffixWidth, enc))
-                    continue;
-                if ((prefixes.m_operandWidth != 0) &&
-                    !setOperandWidth(prefixes.m_operandWidth, enc))
-                    continue;
-
-                // A fixed ModRM byte (x87 'fchs' is D9 E0) is part of the opcode
-                if (opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG)
-                {
-                    enc.m_hasModrm = true;
-                    enc.m_regFieldSet = true;
-                    enc.m_modrm.m_packed =
-                        (uint8)((opcode->m_modrm >> 16) & 0xFF);
-                }
-
-                if (!matchOpcode(opcode, first, second, third, pass, enc))
-                    continue;
-
-                // The modrm filter of the entry may allow memory references
-                // only (fnstsw m16 is DD /7, fnstsw ax is DF E0)
-                if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod == 3) &&
-                    ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
-                    ((opcode->m_modrm & ia32dis::MODRM_MOD_REGISTERS) == 0))
-                    continue;
-                // and the other way round (movhlps has registers only)
-                if (enc.m_hasModrm && (enc.m_modrm.m_bits.m_mod != 3) &&
-                    ((opcode->m_modrm & ia32dis::MODRM_EXACT_FLAG) == 0) &&
-                    ((opcode->m_modrm & ia32dis::MODRM_MOD_MEMORY) == 0))
-                    continue;
-
-                if (!finishRex(enc))
-                    continue;
-
-                enc.m_length = calculateLength(enc);
-                if (!checkOffsets(enc, first, second, third))
-                    continue;
-
-                // The shortest instruction wins. On a tie the smaller immediate
-                // wins (add ax, 0x7f is 83 /0 ib, not 05 iw), as nasm does.
-                uint immediateBytes = 0;
-                ia32dis::OperandType types[3] = { opcode->m_firstOperand,
-                                                  opcode->m_secondOperand,
-                                                  opcode->m_thridOperand };
-                for (uint i = 0; i < 3; i++)
-                    immediateBytes += getImmediateSize(types[i], enc);
-
-                // nasm encodes 'fadd st0, st0' as DC C0 (ST(i), ST(0)), not D8 C0
-                bool preferDc = preferDcForSt0 && (enc.m_table == 2) && found &&
-                    (enc.m_length == best.m_length) &&
-                    (opcode->m_prefix == 0xDC) && (best.m_opcode->m_prefix == 0xD8) &&
-                    first.isFpuRegister() && second.isFpuRegister() &&
-                    (first.getReference() == 0) && (second.getReference() == 0);
-
-                // The entries which exist in 64 bit mode only (movd xmm, r/m32/64)
-                // lose the ties to the entries of the IA-32 set
-                // (movq xmm, m64), as in nasm
-                bool isBetterEntry = found &&
-                    (enc.m_length == best.m_length) &&
-                    (immediateBytes == bestImmediateBytes) &&
-                    (opcode->m_mode64 != ia32dis::MODE64_ONLY) &&
-                    (best.m_opcode->m_mode64 == ia32dis::MODE64_ONLY);
-
-                if (!found || (enc.m_length < best.m_length) || preferDc ||
-                    isBetterEntry ||
-                    ((enc.m_length == best.m_length) &&
-                     (immediateBytes < bestImmediateBytes)))
-                {
-                    best = enc;
-                    bestImmediateBytes = immediateBytes;
-                    found = true;
-                }
+                row.m_suffixMatch = true;
+                row.m_operandWidth = 0;
+                row.m_addressSizeFlip = false;
             }
+            rows.append(row);
         }
     }
-    return found;
+    cache.append(name, rows);
+    return cache[name];
 }
 
 bool IA32AssemblerStream::isReplacedByAmd64Entry(const ia32dis::OpcodeEntry* opcode,
@@ -2029,6 +2128,7 @@ void IA32AssemblerStream::writeImmediate(ia32dis::OperandType ia32disType,
     uint size = getImmediateSize(ia32disType, enc);
     if (compilerOperand.getKind() == Operand::LABEL)
     {
+        m_hasLabel = true;
         // The rel32 of a label is left 0 and the label is a dependency of the
         // binary. The position is the offset of the field inside the block
         m_binary.getCurrentDependecies().addDependency(
