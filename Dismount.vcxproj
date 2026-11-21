@@ -47,6 +47,7 @@
     <ClCompile Include="Source\dismount\proc\ia32\AMD64Lowering.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringWide.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringInteger.cpp" />
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringAtomic.cpp" />
     <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringFloat.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\ArmArchitecture.cpp" />
     <ClCompile Include="Source\dismount\proc\arm\Arm64Architecture.cpp" />

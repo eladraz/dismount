@@ -40,9 +40,9 @@
  *   OP_SCATTER                         TODO   later
  *   OP_LOAD_INTERLEAVED                TODO   later
  *   OP_STORE_INTERLEAVED               TODO   later
- *   OP_ATOMIC_EXCHANGE                 TODO   later (needs IR labels for the guest alignment trap)
- *   OP_ATOMIC_COMPARE_EXCHANGE         TODO   later
- *   OP_ATOMIC_RMW                      TODO   later
+ *   OP_ATOMIC_EXCHANGE                 DONE   xchg, 8-64 (AMD64LoweringAtomic.cpp)
+ *   OP_ATOMIC_COMPARE_EXCHANGE         DONE   lock cmpxchg, 8-64; 128 bits refused (rbx)
+ *   OP_ATOMIC_RMW                      DONE   add/sub lock xadd; and/or/xor/and_not/min/max lock cmpxchg loop, 8-64 (lowerBlock)
  *   OP_LOAD_EXCLUSIVE                  TODO   later
  *   OP_STORE_EXCLUSIVE                 TODO   later
  *   OP_FENCE                           DONE   WP8a mfence only for store->load or sequential order (TSO target)
@@ -1294,6 +1294,12 @@ void BlockLowering::lower()
             break;
         case SemanticOperation::OP_LABEL:
             lowerLabel(instruction);
+            break;
+        case SemanticOperation::OP_ATOMIC_EXCHANGE:
+        case SemanticOperation::OP_ATOMIC_COMPARE_EXCHANGE:
+        case SemanticOperation::OP_ATOMIC_RMW:
+            // (AMD64LoweringAtomic.cpp)
+            lowerAtomic(instruction);
             break;
         default:
             // The groups of operations of the other files, then the patterns

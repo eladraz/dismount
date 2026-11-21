@@ -317,6 +317,15 @@ private:
     void lowerBitReverse(const SemanticInstruction& instruction);
     void lowerHighSignedUnsigned(const SemanticInstruction& instruction);
     void lowerAddCarry(const SemanticInstruction& instruction);
+    // The atomic operations (AMD64LoweringAtomic.cpp). The loops of the RMW
+    // combine operations use a local label, so they are lowered by lowerBlock()
+    void lowerAtomic(const SemanticInstruction& instruction);
+    void lowerAtomicRmw(const SemanticInstruction& instruction, uint bits);
+    void lowerAtomicLoop(const SemanticInstruction& instruction, uint bits);
+    // Write 'mnemonic <size> [r14+rdx], reg' (the guest address is in rdx)
+    void lineAtomicAccess(const char* mnemonic, uint bits, const char* reg);
+    // Throw unless the operand is an integer of 'bits'
+    void checkAtomicWidth(const SemanticOperand& operand, uint bits) const;
     // Define the local label 'name' at the current offset of the code
     void defineLocalLabel(const cString& name);
     // Leave the code with the divide error of the current IR instruction:

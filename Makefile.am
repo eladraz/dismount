@@ -51,6 +51,7 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/proc/ia32/AMD64Lowering.cpp            \
                          Source/dismount/proc/ia32/AMD64LoweringWide.cpp        \
                          Source/dismount/proc/ia32/AMD64LoweringInteger.cpp     \
+                         Source/dismount/proc/ia32/AMD64LoweringAtomic.cpp      \
                          Source/dismount/proc/ia32/AMD64LoweringFloat.cpp       \
                          Source/dismount/proc/ia32/IA32Architecture.cpp         \
                          Source/dismount/proc/ia32/AMD64Architecture.cpp        \

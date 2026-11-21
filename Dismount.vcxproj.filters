@@ -120,6 +120,9 @@
     <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringInteger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringAtomic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\proc\ia32\AMD64LoweringFloat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

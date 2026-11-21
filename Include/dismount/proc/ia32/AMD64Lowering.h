@@ -45,7 +45,8 @@
  *    scratch         rax, rcx and rdx. They are free at the start of every IR
  *                    instruction and nothing is kept in them between two IR
  *                    instructions. Some operations use more: the minimum and
- *                    maximum (ARM NaN rule) clobber r8 and r9, and the float
+ *                    maximum (ARM NaN rule) clobber r8 and r9, the atomic
+ *                    read-modify-write loops clobber r8 (AMD64LoweringAtomic.cpp), and the float
  *                    code uses xmm0 to xmm3 (the rounding helper uses xmm2).
  *                    None of them is kept between IR instructions either.
  *                    The state and memory base registers, rsp and the other
