@@ -41,20 +41,6 @@ uint64 getGuestAddress(const SemanticBlock& block, uint index)
     return address;
 }
 
-// The operand 'n' of an instruction: the destination for n = 0, the source
-// n - 1 otherwise
-const SemanticOperand& getOperand(const SemanticInstruction& instruction,
-                                  uint n)
-{
-    if (n == 0)
-        return instruction.getDestination();
-    return instruction.getSource(n - 1);
-}
-
-// The number of operands of an instruction which are looked at: the
-// destination and the sources
-const uint OPERANDS_COUNT = 1 + SemanticInstruction::MAX_SOURCES;
-
 // Return true if the instruction only computes its destination: removing it
 // changes nothing else in the guest state or in the memory
 bool isPure(const SemanticInstruction& instruction)
@@ -63,6 +49,7 @@ bool isPure(const SemanticInstruction& instruction)
     return !SemanticOperation::hasSideEffects(operation) &&
            !SemanticOperation::isMemoryAccess(operation) &&
            !SemanticOperation::isControlFlow(operation) &&
+           (instruction.getFlagMask() == 0) &&
            ((instruction.getAttributes() &
              (SemanticInstruction::ATTRIBUTE_MAY_FAULT |
               SemanticInstruction::ATTRIBUTE_FLOAT_EXCEPTIONS)) == 0);
@@ -84,7 +71,7 @@ void SemanticLegalizer::legalize(SemanticBlock& block)
         legalizeFail("legalizer: the block was not lifted from the guest");
 
     expandSubRegisters(block);
-    materializeFlags(block);
+    expandFlags(block);
     splitWideValues(block);
     widenNarrowValues(block);
     expandOperations(block);
@@ -132,40 +119,6 @@ void SemanticLegalizer::removeDeadValues(SemanticBlock& block)
                 continue;
             *i = SemanticInstruction();
             isRemoved = true;
-        }
-    }
-}
-
-void SemanticLegalizer::materializeFlags(SemanticBlock& block)
-{
-    // The guest has no flag registers yet (RISC-V compares and branches
-    // on the registers): the flags are not materialized, an instruction
-    // which uses them is an error
-    const cList<SemanticInstruction>& instructions = block.getInstructions();
-    uint index = 0;
-    for (cList<SemanticInstruction>::iterator i = instructions.begin();
-         i != instructions.end(); i++, index++)
-    {
-        const SemanticOperation::Operation operation = (*i).getOperation();
-        bool isFlags = (operation == SemanticOperation::OP_SET_FLAGS) ||
-                       (operation == SemanticOperation::OP_TEST_FLAGS);
-        for (uint n = 0; n < OPERANDS_COUNT; n++)
-        {
-            const SemanticOperand& operand = getOperand(*i, n);
-            if ((operand.getKind() == SemanticOperand::KIND_REGISTER) &&
-                (m_guest->getRegister(operand.getIndex()).m_file ==
-                 ArchitectureRegister::FILE_FLAG))
-            {
-                isFlags = true;
-            }
-        }
-        if (isFlags)
-        {
-            char text[256];
-            snprintf(text, sizeof(text),
-                     "legalizer: flags at guest 0x%llx are not implemented",
-                     (unsigned long long)getGuestAddress(block, index));
-            legalizeFail(text);
         }
     }
 }

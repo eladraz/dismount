@@ -44,6 +44,7 @@ libdismount_la_SOURCES = Source/dismount/DefaultOpcodeDataFormatter.cpp         
                          Source/dismount/semantics/SemanticInterpreter.cpp      \
                          Source/dismount/semantics/SemanticLifter.cpp           \
                          Source/dismount/semantics/SemanticLegalizer.cpp        \
+                         Source/dismount/semantics/SemanticLegalizerFlags.cpp \
                          Source/dismount/semantics/SemanticLegalizerSubRegisters.cpp \
                          Source/dismount/semantics/SemanticPrinter.cpp          \
                          Source/dismount/semantics/SemanticLowering.cpp         \
