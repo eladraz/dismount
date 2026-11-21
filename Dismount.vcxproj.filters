@@ -492,6 +492,9 @@
     <ClCompile Include="Source\dismount\semantics\SemanticLegalizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\dismount\semantics\SemanticLegalizerFlags.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Source\dismount\semantics\SemanticLegalizerSubRegisters.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

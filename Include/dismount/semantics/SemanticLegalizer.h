@@ -31,9 +31,10 @@
  *              OP_ROTATE_LEFT       -> OP_ROTATE_RIGHT by (size - count)
  *              vector OP_DIVIDE_*   -> one scalar operation per lane
  *              OP_FLOAT_* on f80    -> OP_HELPER (software x87)
- *   Flags    OP_SET_FLAGS whose flags are never read is removed. The other
- *            flags are materialized from the recipe, unless the target has
- *            the same flags and the lowering can set them directly.
+ *   Flags    OP_SET_FLAGS is expanded into IR which writes the flag registers
+ *            from the recipe (integer recipes, the conditional form of ccmp),
+ *            and OP_TEST_FLAGS into the boolean IR of its condition. The
+ *            expansion computes what the SemanticInterpreter computes.
  *   Alias    Reading a guest sub-register (w0, s0) is a truncate of its
  *            parent register; writing one that zero extends its parent (w0
  *            zeroes x0[32..63]) is a zero extend of the value into the parent.
@@ -91,12 +92,45 @@ public:
      */
     void expandSubRegisters(SemanticBlock& block);
 
+    /*
+     * The flags rule alone, exposed for the same reason. Rewrite a
+     * block in place: every OP_SET_FLAGS becomes IR which writes the flag
+     * registers of the architecture from the recipe (see
+     * SemanticOperation::FlagRecipe), every OP_TEST_FLAGS becomes the boolean
+     * IR of its condition. The flags which the architecture has no register
+     * for are constants (ARM has no parity flag): they are not written and
+     * they read as 0. The other instructions, and the numbering of the
+     * temporaries and labels, are kept. A block without flag operations is
+     * unchanged.
+     *
+     * The emitted IR uses the integer compare, the boolean and integer logic,
+     * the shifts, the moves and the truncations and extensions; a float compare
+     * recipe emits OP_COMPARE on the float type with the COND_FLOAT conditions
+     * (the target must lower them, see SemanticOperation::Condition).
+     *
+     * The fusion (fuse = true, the default): a test of the flags which
+     * follows an unconditional OP_SET_FLAGS of all of N Z C V (the A64 compare
+     * and the plain add, or a logic result) computes its condition from the
+     * operands with a compare, not from the flag registers, when that flag
+     * write is overwritten by a later write of all of N Z C V before any join,
+     * branch or effect of the block. The operands must hold the same values
+     * at the test (the registers they read are checked). A flag write which a
+     * later write overwrites before any read is removed. fuse = false gives
+     * the expansion alone, which the tests compare the fused block with.
+     *
+     * block - A block lifted from the guest processor
+     * fuse  - The fusion described above
+     *
+     * Throw exception for a recipe or a condition the rule doesn't expand
+     * yet, and for a flag operation at a width the rule doesn't handle. The
+     * block is unchanged then.
+     */
+    void expandFlags(SemanticBlock& block, bool fuse = true);
+
 private:
     // Remove OP_SET_FLAGS whose flags are not read before they are written
     // again, and the temporaries which are not read
     void removeDeadValues(SemanticBlock& block);
-    // Materialize the flags which are read, from their recipes
-    void materializeFlags(SemanticBlock& block);
     // Split values which are wider than the target supports
     void splitWideValues(SemanticBlock& block);
     // Widen values which are narrower than the target supports
