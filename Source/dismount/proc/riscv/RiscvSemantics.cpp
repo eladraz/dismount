@@ -204,12 +204,20 @@ uint RiscvLiftContext::getRoundingMode(uint index) const
     {
         // The dynamic mode: frm, where 5 and 6 (and 7) are reserved and make
         // the instruction an illegal one
-        const SemanticType frmType = SemanticType::integer(3);
+        // The field is bits 5-7 of the 32 bit fcsr, read on 32 bits: a 3 bit
+        // value has no lowering on the target (see expandSubRegisters)
+        const SemanticType wordType = SemanticType::integer(32);
         const SemanticType booleanType = SemanticType::integer(1);
+        const SemanticOperand shifted = m_block.newTemporary(wordType);
+        m_block.append(SemanticInstruction(Op::OP_SHIFT_RIGHT_LOGICAL, wordType,
+                                           shifted, getRegister(RISCV_REG_FCSR),
+                                           getImmediate(5, wordType)));
+        const SemanticOperand frm = m_block.newTemporary(wordType);
+        m_block.append(SemanticInstruction(Op::OP_AND, wordType, frm, shifted,
+                                           getImmediate(7, wordType)));
         SemanticOperand ok = m_block.newTemporary(booleanType);
-        SemanticInstruction compare(Op::OP_COMPARE, frmType, ok,
-                                    getRegister(RISCV_REG_FRM),
-                                    getImmediate(4, frmType));
+        SemanticInstruction compare(Op::OP_COMPARE, wordType, ok, frm,
+                                    getImmediate(4, wordType));
         compare.setCondition(Op::COND_UNSIGNED_LESS_EQUAL);
         m_block.append(compare);
         SemanticOperand skip = m_block.newLabel();

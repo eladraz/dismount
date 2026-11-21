@@ -40,6 +40,8 @@
 #include "dismount/proc/riscv/RiscvArchitecture.h"
 #include "dismount/proc/riscv/RiscvSemantics.h"
 #include "dismount/proc/riscv/RiscvHelpers.h"
+#include "dismount/proc/ia32/IA32Architecture.h"
+#include "dismount/proc/ia32/AMD64Architecture.h"
 
 using namespace riscvdis;
 
@@ -703,10 +705,71 @@ private:
         TESTS_ASSERT(RiscvHelpers::getSm4Sbox(0x80) == 0xea);
     }
 
+    // A block that reads frm (bits 5-7 of fcsr, a 3 bit field) into x10
+    static void buildFrmBlock(SemanticBlock& block)
+    {
+        const SemanticType type3 = SemanticType::integer(3);
+        const SemanticType type64 = SemanticType::integer(64);
+        const SemanticOperand field = block.newTemporary(type3);
+        block.append(SemanticInstruction(SemanticOperation::OP_MOVE, type3, field,
+                     SemanticOperand::registerOperand(RISCV_REG_FRM, type3)));
+        block.append(SemanticInstruction(SemanticOperation::OP_ZERO_EXTEND, type64,
+                     SemanticOperand::registerOperand(RISCV_REG_X0 + 10, type64),
+                     field));
+    }
+
+    // The legalizer's read of a sub-register with an offset: AH (bits 8-15 of
+    // rax) is a shift and a truncate of rax, and the interpreter gives its
+    // value. frm (bits 5-7 of fcsr) is a 3 bit field, which is refused
+    void testSubRegisterOffsetRead()
+    {
+        ArchitectureDescriptionPtr rv = ArchitectureDescriptionFactory::getArchitecture(
+                                OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+        ArchitectureDescriptionPtr amd64 = ArchitectureDescriptionFactory::getArchitecture(
+                                OpcodeSubsystems::DISASSEMBLER_AMD_64);
+
+        SemanticBlock refused(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+        buildFrmBlock(refused);
+        SemanticLegalizer rvLegalizer(rv, amd64);
+        bool isRefused = false;
+        try
+        {
+            rvLegalizer.expandSubRegisters(refused);
+        } catch (cException&)
+        {
+            isRefused = true;
+        }
+        TESTS_ASSERT(isRefused);
+
+        const SemanticType type8 = SemanticType::integer(8);
+        const SemanticType type64 = SemanticType::integer(64);
+        SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_AMD_64);
+        const SemanticOperand high = block.newTemporary(type8);
+        block.append(SemanticInstruction(SemanticOperation::OP_MOVE, type8, high,
+                     SemanticOperand::registerOperand(ia32dis::IA32_REG_AH, type8)));
+        block.append(SemanticInstruction(SemanticOperation::OP_ZERO_EXTEND, type64,
+                     SemanticOperand::registerOperand(ia32dis::AMD64_REG_RCX, type64),
+                     high));
+        SemanticLegalizer legalizer(amd64, amd64);
+        legalizer.expandSubRegisters(block);
+        TestRiscvRunMemory memory(cBuffer(), 0, false);
+        SemanticInterpreter interpreter(amd64, memory);
+        const uint64 raxValues[] = { 0x1234, 0xabcdef00, 0x0080 };
+        const uint64 ahValues[] = { 0x12, 0xef, 0x00 };
+        for (uint i = 0; i < 3; i++)
+        {
+            interpreter.setRegister(ia32dis::AMD64_REG_RAX, SemanticValue(raxValues[i]));
+            interpreter.run(block);
+            TESTS_ASSERT(interpreter.getRegister(ia32dis::AMD64_REG_RCX).getWord(0) ==
+                         ahValues[i]);
+        }
+    }
+
     virtual void test()
     {
         testCoverage();
         testRows();
+        testSubRegisterOffsetRead();
         testClassification();
         testHelpers();
         cout << "RISC-V semantics tests passed" << endl;

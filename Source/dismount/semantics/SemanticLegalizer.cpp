@@ -136,36 +136,6 @@ void SemanticLegalizer::removeDeadValues(SemanticBlock& block)
     }
 }
 
-void SemanticLegalizer::expandSubRegisters(SemanticBlock& block)
-{
-    // The guest has no sub-registers yet (RISC-V): every register operand is
-    // a full register. The rewrite into OP_EXTRACT / OP_INSERT is not
-    // implemented, so a sub-register is an error, not a silent miscompile
-    const cList<SemanticInstruction>& instructions = block.getInstructions();
-    uint index = 0;
-    for (cList<SemanticInstruction>::iterator i = instructions.begin();
-         i != instructions.end(); i++, index++)
-    {
-        for (uint n = 0; n < OPERANDS_COUNT; n++)
-        {
-            const SemanticOperand& operand = getOperand(*i, n);
-            if (operand.getKind() != SemanticOperand::KIND_REGISTER)
-                continue;
-            const ArchitectureRegister& guestRegister =
-                                    m_guest->getRegister(operand.getIndex());
-            if (guestRegister.m_parent != ArchitectureRegister::NO_PARENT)
-            {
-                char text[256];
-                snprintf(text, sizeof(text),
-                         "legalizer: sub-register %s at guest 0x%llx is not "
-                         "implemented", guestRegister.m_name,
-                         (unsigned long long)getGuestAddress(block, index));
-                legalizeFail(text);
-            }
-        }
-    }
-}
-
 void SemanticLegalizer::materializeFlags(SemanticBlock& block)
 {
     // The guest has no flag registers yet (RISC-V compares and branches

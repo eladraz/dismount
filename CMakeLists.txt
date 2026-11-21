@@ -68,6 +68,7 @@ list(APPEND DISMOUNT_LIB_FILES
 	Source/dismount/semantics/SemanticInterpreter.cpp
 	Source/dismount/semantics/SemanticLifter.cpp
 	Source/dismount/semantics/SemanticLegalizer.cpp
+	Source/dismount/semantics/SemanticLegalizerSubRegisters.cpp
 	Source/dismount/semantics/SemanticPrinter.cpp
 	Source/dismount/semantics/SemanticLowering.cpp
 	Source/dismount/proc/ia32/AMD64Lowering.cpp
@@ -253,6 +254,7 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestRiscvSemanticsVector.cpp
 		tests/TestSemanticPrinter.cpp
 		tests/TestSemanticLowering.cpp
+		tests/TestSemanticLegalizerArm64.cpp
 		tests/TestSemanticFloatRiscv.cpp
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp

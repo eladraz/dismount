@@ -72,6 +72,9 @@
     <ClCompile Include="TestSemanticLowering.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestSemanticLegalizerArm64.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemanticFloatRiscv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
