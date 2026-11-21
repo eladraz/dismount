@@ -987,7 +987,10 @@ uint runFusedBlock(const char* name, SemanticBlock& block, uint bits, uint form,
                 memcpy((void*)&x, &a, 8);
                 memcpy((void*)&y, &b, 8);
                 memcpy((void*)&z, &c, 8);
-                const double unfused = x * y + z;
+                // The product is stored first: the compiler may not contract
+                // the multiply and the add into one fused operation
+                volatile double product = x * y;
+                const double unfused = product + z;
                 uint64 bitsOfUnfused;
                 memcpy(&bitsOfUnfused, &unfused, 8);
                 unfusedDiffers = (bitsOfUnfused != fusedReference(a, b, c, bits, 0, rounding));
@@ -997,7 +1000,8 @@ uint runFusedBlock(const char* name, SemanticBlock& block, uint bits, uint form,
                 memcpy((void*)&fx, &a32, 4);
                 memcpy((void*)&fy, &b32, 4);
                 memcpy((void*)&fz, &c32, 4);
-                const float unfused = fx * fy + fz;
+                volatile float product = fx * fy;
+                const float unfused = product + fz;
                 uint32 bitsOfUnfused;
                 memcpy(&bitsOfUnfused, &unfused, 4);
                 unfusedDiffers = (bitsOfUnfused != (uint32)fusedReference(a, b, c, bits, 0, rounding));
