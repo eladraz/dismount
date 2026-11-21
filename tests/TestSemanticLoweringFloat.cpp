@@ -28,6 +28,8 @@
 #endif
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+#include <fenv.h>
 #include "xStl/types.h"
 #include "xStl/data/string.h"
 #include "xStl/data/smartptr.h"
@@ -156,6 +158,7 @@ const uint X_RESULT = 10;
 // The floating point registers: two inputs, and the results
 const uint F_IN_A = 1;
 const uint F_IN_B = 2;
+const uint F_IN_C = 3;
 const uint F_OUT = 10;
 const uint F_SELECT = 11;
 
@@ -844,6 +847,225 @@ uint runFloatBlock(const char* name, SemanticBlock& block, uint bits,
     return differences;
 }
 
+// The fused multiply-add block (Part F6): d = a * b + c with one rounding,
+// with the operands negated as the lifters of AArch64 and RISC-V negate them.
+// Bit 0 of 'form' negates a (fnmadd, fnmsub: a = -a) and bit 1 negates c
+// (fmsub, fnmsub); the product is a * b (the b operand is never negated)
+SemanticBlock fusedBlock(uint form, uint bits,
+                         SemanticOperation::RoundingMode rounding)
+{
+    SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+    const SemanticType type = floatType(bits);
+    SemanticOperand a = floatRegister(F_IN_A, bits);
+    const SemanticOperand b = floatRegister(F_IN_B, bits);
+    SemanticOperand c = floatRegister(F_IN_C, bits);
+    const SemanticOperand out = floatRegister(F_OUT, bits);
+    if ((form & 1) != 0)
+    {
+        const SemanticOperand t = block.newTemporary(type);
+        block.append(SemanticInstruction(SemanticOperation::OP_FLOAT_NEGATE, type, t, a));
+        a = t;
+    }
+    if ((form & 2) != 0)
+    {
+        const SemanticOperand t = block.newTemporary(type);
+        block.append(SemanticInstruction(SemanticOperation::OP_FLOAT_NEGATE, type, t, c));
+        c = t;
+    }
+    SemanticInstruction fused(SemanticOperation::OP_FLOAT_MULTIPLY_ADD,
+                              type, out, a, b, c);
+    fused.setRoundingMode(rounding);
+    block.append(fused);
+    return block;
+}
+
+// The reference of the fused product-add: C's fma() (one rounding, the
+// round to nearest even) on the bit images, with the sign of a and c negated
+// as the form says. The result is returned as bits
+uint64 fusedReference(uint64 a, uint64 b, uint64 c, uint bits, uint form,
+                      SemanticOperation::RoundingMode rounding)
+{
+    // The host rounding of fma() (restored at the end of the reference)
+    int hostMode = FE_TONEAREST;
+    switch (rounding)
+    {
+    case SemanticOperation::ROUND_TOWARD_NEGATIVE: hostMode = FE_DOWNWARD; break;
+    case SemanticOperation::ROUND_TOWARD_POSITIVE: hostMode = FE_UPWARD; break;
+    case SemanticOperation::ROUND_TOWARD_ZERO: hostMode = FE_TOWARDZERO; break;
+    default: break;
+    }
+    const int savedMode = fegetround();
+    fesetround(hostMode);
+    uint64 result = 0;
+    if ((form & 1) != 0)
+        a ^= bitsMask(bits) & ~(bitsMask(bits) >> 1);
+    if ((form & 2) != 0)
+        c ^= bitsMask(bits) & ~(bitsMask(bits) >> 1);
+    if (bits == 64)
+    {
+        double x, y, z, r;
+        memcpy(&x, &a, 8);
+        memcpy(&y, &b, 8);
+        memcpy(&z, &c, 8);
+        r = fma(x, y, z);
+        memcpy(&result, &r, 8);
+        fesetround(savedMode);
+        return result;
+    }
+    float x, y, z, r;
+    const uint32 a32 = (uint32)a, b32 = (uint32)b, c32 = (uint32)c;
+    memcpy(&x, &a32, 4);
+    memcpy(&y, &b32, 4);
+    memcpy(&z, &c32, 4);
+    r = fmaf(x, y, z);
+    uint32 result32;
+    memcpy(&result32, &r, 4);
+    fesetround(savedMode);
+    return result32;
+}
+
+// The product-add of the three inputs natively and in the interpreter: the
+// edge inputs in every triple, the cancellation triple (its fused product
+// differs from the unfused one) and random inputs. The results are compared
+// bit for bit (the canonical NaN of RISC-V is exact, both sides), and the
+// native result against C's fma() when it is not a NaN. Adds to 'cases'
+uint runFusedBlock(const char* name, SemanticBlock& block, uint bits, uint form,
+                   SemanticOperation::RoundingMode rounding, uint& cases)
+{
+    block.setFallThroughAddress(ProcessorAddress(
+                ProcessorAddress::PROCESSOR_64, BLOCK_ADDRESS + 4));
+    cBuffer code;
+    if (!buildNative(block, FloatRegisterMap(), code))
+    {
+        fprintf(stderr, "TestSemanticLoweringFloat: %s: the native code is "
+                "not assembled\n", name);
+        return 1;
+    }
+    void* memory = mmap(NULL, 0x10000, PROT_READ | PROT_WRITE | PROT_EXEC,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (memory == MAP_FAILED)
+        return 0;
+    for (uint i = 0; i < code.getSize(); i++)
+        ((uint8*)memory)[i] = code[i];
+    NativeFunction function = reinterpret_cast<NativeFunction>(memory);
+
+    const bool isWide = (bits == 64);
+    const uint64* edges = isWide ? gEdges64 : gEdges32;
+    const uint edgeCount = isWide ?
+                (uint)(sizeof(gEdges64) / sizeof(gEdges64[0])) :
+                (uint)(sizeof(gEdges32) / sizeof(gEdges32[0]));
+    // (1 + 2^-52) * (1 - 2^-53) + (-1): the product rounds to 1 unfused
+    static const uint64 cancel64[3] = { 0x3FF0000000000001ULL,
+                    0x3FEFFFFFFFFFFFFFULL, 0xBFF0000000000000ULL };
+    static const uint64 cancel32[3] = { 0x3F800001ULL, 0x3F7FFFFFULL,
+                    0xBF800000ULL };
+    const uint64* cancel = isWide ? cancel64 : cancel32;
+    const uint64 mask = bitsMask(bits);
+    const uint cubes = edgeCount * edgeCount * edgeCount;
+    const uint trials = cubes + 1 + RANDOM_TRIALS;
+    ArchitectureDescriptionPtr guest = getGuest();
+    uint differences = 0;
+    for (uint trial = 0; (trial < trials) && (differences == 0); trial++)
+    {
+        uint64 a, b, c;
+        if (trial < cubes)
+        {
+            a = edges[trial / (edgeCount * edgeCount)] & mask;
+            b = edges[(trial / edgeCount) % edgeCount] & mask;
+            c = edges[trial % edgeCount] & mask;
+        } else if (trial == cubes)
+        {
+            a = cancel[0];
+            b = cancel[1];
+            c = cancel[2];
+            // The unfused product rounds: the triple tests the single rounding
+            volatile double x = 0, y = 0, z = 0;
+            volatile float fx = 0, fy = 0, fz = 0;
+            bool unfusedDiffers;
+            if (isWide)
+            {
+                memcpy((void*)&x, &a, 8);
+                memcpy((void*)&y, &b, 8);
+                memcpy((void*)&z, &c, 8);
+                const double unfused = x * y + z;
+                uint64 bitsOfUnfused;
+                memcpy(&bitsOfUnfused, &unfused, 8);
+                unfusedDiffers = (bitsOfUnfused != fusedReference(a, b, c, bits, 0, rounding));
+            } else
+            {
+                const uint32 a32 = (uint32)a, b32 = (uint32)b, c32 = (uint32)c;
+                memcpy((void*)&fx, &a32, 4);
+                memcpy((void*)&fy, &b32, 4);
+                memcpy((void*)&fz, &c32, 4);
+                const float unfused = fx * fy + fz;
+                uint32 bitsOfUnfused;
+                memcpy(&bitsOfUnfused, &unfused, 4);
+                unfusedDiffers = (bitsOfUnfused != (uint32)fusedReference(a, b, c, bits, 0, rounding));
+            }
+            if (!unfusedDiffers && (form == 0) &&
+                (rounding == SemanticOperation::ROUND_NEAREST_EVEN))
+            {
+                fprintf(stderr, "TestSemanticLoweringFloat: %s (%llu bits): the "
+                        "cancellation triple does not separate fused and unfused\n",
+                        name, (unsigned long long)bits);
+                differences++;
+            }
+        } else
+        {
+            a = floatRandom() & mask;
+            b = floatRandom() & mask;
+            c = floatRandom() & mask;
+        }
+
+        static uint64 state[0x800];
+        for (uint i = 0; i < 0x800; i++)
+            state[i] = STATE_FILL;
+        state[FLOAT_STATE_INDEX + F_IN_A] = a;
+        state[FLOAT_STATE_INDEX + F_IN_B] = b;
+        state[FLOAT_STATE_INDEX + F_IN_C] = c;
+        function(state, NULL);
+
+        FloatTestMemory guestMemory;
+        SemanticInterpreter interpreter(guest, guestMemory);
+        interpreter.setRegister(RISCV_REG_F0 + F_IN_A, SemanticValue(a));
+        interpreter.setRegister(RISCV_REG_F0 + F_IN_B, SemanticValue(b));
+        interpreter.setRegister(RISCV_REG_F0 + F_IN_C, SemanticValue(c));
+        if (interpreter.run(block) != SemanticInterpreter::EXIT_FALL_THROUGH)
+        {
+            fprintf(stderr, "TestSemanticLoweringFloat: %s: the interpreter "
+                    "does not run the block\n", name);
+            differences++;
+            break;
+        }
+        cases++;
+        const uint64 nativeResult = state[FLOAT_STATE_INDEX + F_OUT];
+        const uint64 interpretedResult =
+                interpreter.getRegister(RISCV_REG_F0 + F_OUT).getWord(0);
+        differences += compareFloatOutput(name, bits, F_OUT, nativeResult,
+                                          interpretedResult, true, a, b);
+
+        // C's fma(), for a result which is not a NaN
+        const uint64 reference = fusedReference(a, b, c, bits, form, rounding) & mask;
+        if (!isNanBits(reference, bits) && (nativeResult & mask) != reference)
+        {
+            fprintf(stderr, "TestSemanticLoweringFloat: %s (%llu bits): native "
+                    "%016llx fma() %016llx for %016llx %016llx %016llx\n", name,
+                    (unsigned long long)bits, (unsigned long long)nativeResult,
+                    (unsigned long long)reference, (unsigned long long)a,
+                    (unsigned long long)b, (unsigned long long)c);
+            differences++;
+        }
+        if (state[PC_STATE_INDEX] != interpreter.getNextAddress())
+        {
+            fprintf(stderr, "TestSemanticLoweringFloat: %s: the next address "
+                    "differs\n", name);
+            differences++;
+        }
+    }
+    munmap(memory, 0x10000);
+    return differences;
+}
+
 // The shape of a conversion block: the input is an integer of 'inputBits'
 // in x1 or a float in f1, the output is an integer in x10 (zero extended to
 // 64 bits) or a float of 'outputBits' in f10. 'exact': the float output is
@@ -1015,7 +1237,8 @@ public:
     TestObjectTestSemanticLoweringFloat() : m_failures(0), m_cases(0),
                                             m_convertCases(0),
                                             m_classifyCases(0),
-                                            m_roundCases(0) {}
+                                            m_roundCases(0),
+                                            m_fusedCases(0) {}
 
     virtual void test()
     {
@@ -1030,6 +1253,8 @@ public:
         cout << "classify: " << m_classifyCases << " cases native==interpreter" << endl;
         testRoundNative();
         cout << "round: " << m_roundCases << " cases native==interpreter" << endl;
+        testFusedNative();
+        cout << "fused: " << m_fusedCases << " cases native==interpreter==fma()" << endl;
 #else
         cout << "float: native comparisons skipped (not an x86-64 Linux host)" << endl;
         cout << "convert: native comparisons skipped (not an x86-64 Linux host)" << endl;
@@ -1116,14 +1341,30 @@ private:
             TESTS_EXCEPTION(lowerBlock(block));
         }
 
-        // Fused multiply-add: the legalizer and the lowering refuse it
+        // Fused multiply-add (section 8): the legalizer accepts it, the
+        // lowering assembles it (VEX vfmadd231sd/ss), and a static directed
+        // rounding is refused
+        for (uint w = 0; w < 2; w++)
+        {
+            const uint bits = (w == 0) ? 32 : 64;
+            SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
+            const SemanticType type = floatType(bits);
+            block.append(SemanticInstruction(SemanticOperation::OP_FLOAT_MULTIPLY_ADD,
+                         type, floatRegister(F_OUT, bits), floatRegister(F_IN_A, bits),
+                         floatRegister(F_IN_B, bits), floatRegister(F_IN_C, bits)));
+            SemanticLegalizer fusedLegalizer(getGuest(), getTarget());
+            fusedLegalizer.legalize(block);
+            lowerBlock(block);
+            blocks++;
+        }
         {
             SemanticBlock block(OpcodeSubsystems::DISASSEMBLER_RISCV_64);
             const SemanticType type = floatType(64);
-            block.append(SemanticInstruction(SemanticOperation::OP_FLOAT_MULTIPLY_ADD,
+            SemanticInstruction fused(SemanticOperation::OP_FLOAT_MULTIPLY_ADD,
                          type, floatRegister(F_OUT, 64), floatRegister(F_IN_A, 64),
-                         floatRegister(F_IN_B, 64), floatRegister(F_OUT, 64)));
-            TESTS_EXCEPTION(legalizer.legalize(block));
+                         floatRegister(F_IN_B, 64), floatRegister(F_IN_C, 64));
+            fused.setRoundingMode(SemanticOperation::ROUND_NEAREST_AWAY);
+            block.append(fused);
             TESTS_EXCEPTION(lowerBlock(block));
         }
         // The minimum is not lowered yet
@@ -1440,6 +1681,37 @@ private:
             legalizer.legalize(block);
             FloatOutputs outputs = { false, true, false, true };
             m_failures += runFloatBlock("select half", block, 16, outputs, m_cases);
+        }
+        TESTS_ASSERT(m_failures == failuresBefore);
+    }
+    // ------------------------------------------------------------------
+    // Part F6: the fused multiply-add runs natively, as the interpreter runs
+    // it, with one rounding: the four forms of the lifters (fusedBlock), the
+    // edge triples, the cancellation triple and random inputs
+    // ------------------------------------------------------------------
+    void testFusedNative()
+    {
+        const uint failuresBefore = m_failures;
+        for (uint w = 0; w < 2; w++)
+        {
+            const uint bits = (w == 0) ? 32 : 64;
+            static const SemanticOperation::RoundingMode modes[] = {
+                SemanticOperation::ROUND_NEAREST_EVEN,
+                SemanticOperation::ROUND_DYNAMIC,
+                SemanticOperation::ROUND_TOWARD_NEGATIVE,
+                SemanticOperation::ROUND_TOWARD_POSITIVE,
+                SemanticOperation::ROUND_TOWARD_ZERO };
+            for (uint mode = 0; mode < 5; mode++)
+            {
+                for (uint form = 0; form < 4; form++)
+                {
+                    SemanticBlock block = fusedBlock(form, bits, modes[mode]);
+                    SemanticLegalizer legalizer(getGuest(), getTarget());
+                    legalizer.legalize(block);
+                    m_failures += runFusedBlock("fused multiply-add", block, bits,
+                                                form, modes[mode], m_fusedCases);
+                }
+            }
         }
         TESTS_ASSERT(m_failures == failuresBefore);
     }
@@ -1801,6 +2073,8 @@ private:
     uint m_classifyCases;
     // The cases of the round to an integral value (Part F5)
     uint m_roundCases;
+    // The fused multiply-adds made natively (Part F6)
+    uint m_fusedCases;
 };
 
 // Instance test object

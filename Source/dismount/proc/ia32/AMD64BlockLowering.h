@@ -249,6 +249,12 @@ private:
     // A directed mode sets the rounding control of MXCSR for that conversion
     // only, through an 8 byte stack slot below rsp. Clobbers rcx and the flags
     void lineConvertToFloat(const char* convert, SemanticOperation::RoundingMode mode);
+    // The rounding control of MXCSR for the directed modes, around one
+    // instruction: lineRoundingBegin(mode) saves MXCSR and loads the control
+    // of 'mode' (nothing for nearest even and dynamic), lineRoundingEnd(mode)
+    // restores it. Both clobber rcx and use an 8 byte slot below rsp
+    void lineRoundingBegin(SemanticOperation::RoundingMode mode);
+    void lineRoundingEnd(SemanticOperation::RoundingMode mode);
     // Round xmm0 (a float of 'bits') to an integral value in the mode (SSE4.1
     // roundsd/roundss; nearest away by a sequence). Clobbers rax, rcx, rdx,
     // xmm1 and xmm2
@@ -291,6 +297,16 @@ private:
     void lowerFloatMinMax(const SemanticInstruction& instruction);
     void lowerRiscvNaNMinMax(const SemanticOperand& s0, const SemanticOperand& s1, uint bits);
     void lowerArmNaNMinMax(const SemanticOperand& s0, const SemanticOperand& s1, uint bits);
+    // OP_FLOAT_MULTIPLY_ADD of a scalar f32/f64 (section 8): d = s0 * s1 + s2,
+    // one rounding (vfmadd231sd/ss, FMA3), and the NaN rule of the source ISA
+    void lowerFloatMultiplyAdd(const SemanticInstruction& instruction);
+    void emitFusedMultiplyAdd231(uint bits);
+    void loadFusedOperand(uint reg, const SemanticOperand& operand, uint bits);
+    void fusedNaNTest(uint reg, const SemanticOperand& operand, bool signaling, uint bits);
+    void fusedNaNChain(bool signaling, const SemanticOperand& c,
+                       const SemanticOperand& n, const SemanticOperand& m, uint bits);
+    void lowerArmFusedNaN(const SemanticOperand& c, const SemanticOperand& n,
+                          const SemanticOperand& m, uint bits);
     // The operations of AMD64LoweringInteger.cpp. A division uses the local
     // labels L_d<index>_<tag> of its IR instruction, so it is only lowered by
     // lowerBlock() (see defineLocalLabel())
