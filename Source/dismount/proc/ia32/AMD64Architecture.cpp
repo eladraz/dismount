@@ -305,5 +305,19 @@ bool AMD64Architecture::isSupported(SemanticOperation::Operation operation,
     {
         return m_ia32.isSupported(operation, SemanticType::integer(32));
     }
+    // The bitwise logic of 128 bits (a scalar or a vector) is two qwords of
+    // the lowering, and the vectors of up to 64 bits are one piece
+    // (AMD64LoweringWide.cpp)
+    if (((operation == SemanticOperation::OP_AND) ||
+         (operation == SemanticOperation::OP_OR) ||
+         (operation == SemanticOperation::OP_XOR) ||
+         (operation == SemanticOperation::OP_NOT) ||
+         (operation == SemanticOperation::OP_AND_NOT)) &&
+        (type.getKind() == SemanticType::KIND_INTEGER) && !type.isScalable() &&
+        ((type.getTotalBits() == 128) ||
+         (type.isVector() && (type.getTotalBits() <= 64))))
+    {
+        return true;
+    }
     return m_ia32.isSupported(operation, type);
 }

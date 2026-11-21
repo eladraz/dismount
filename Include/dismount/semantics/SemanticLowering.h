@@ -72,7 +72,13 @@ public:
                                    uint& targetRegister) const = 0;
 
     /*
-     * Return the offset of a guest register in the guest state, in bytes
+     * Return the offset of a guest register in the guest state, in bytes.
+     *
+     * A register of 128 bits (a vector register) needs at least 16 bytes at
+     * its offset, and the operands which read or write it have the register's
+     * width (the lowering moves the 16 bytes). Its slot is 16-byte aligned
+     * (reforge's StateLayout does so). Operands of 128 bits must not be
+     * placed at an 8-byte slot: the write would clobber the next register.
      */
     virtual uint getStateOffset(uint guestRegister) const = 0;
 
@@ -84,7 +90,8 @@ public:
     /*
      * Return the offset in the guest state of the slot of a temporary value
      * of the block (SemanticBlock::newTemporary()), in bytes. Each temporary
-     * has its own slot of at least 8 bytes: the value lives in its low bytes
+     * has its own slot of at least 16 bytes (a 128 bit value): the value
+     * lives in its low bytes
      */
     virtual uint getTemporaryOffset(uint temporary) const = 0;
 
