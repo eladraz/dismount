@@ -260,6 +260,8 @@ if(DISMOUNT_BUILD_TESTS)
 		tests/TestSemanticLoweringFloat.cpp
 		tests/TestSemanticLoweringWide.cpp
 		tests/TestSemanticLoweringInteger.cpp
+		tests/TestSemanticLoweringArm64.cpp
+		tests/TestSemanticLoweringRiscv.cpp
 		tests/TestSemanticFloatRiscv.cpp
 		tests/TestArm64Semantics.cpp
 		tests/TestArm64SemanticsSve.cpp
