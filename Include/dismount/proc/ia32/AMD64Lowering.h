@@ -44,10 +44,15 @@
  *                    [r14 + rax], the guest address is in rax.
  *    scratch         rax, rcx and rdx. They are free at the start of every IR
  *                    instruction and nothing is kept in them between two IR
- *                    instructions. All the other registers (including rsp)
- *                    are never touched: the code doesn't use the host stack.
+ *                    instructions. Some operations use more: the minimum and
+ *                    maximum (ARM NaN rule) clobber r8 and r9, and the float
+ *                    code uses xmm0 to xmm3 (the rounding helper uses xmm2).
+ *                    None of them is kept between IR instructions either.
+ *                    The state and memory base registers, rsp and the other
+ *                    general purpose registers are never touched: the code
+ *                    doesn't use the host stack.
  *    The state and the memory base register must be 64 bit general purpose
- *    registers other than rax, rcx, rdx and rsp.
+ *    registers other than rax, rcx, rdx, r8, r9 and rsp.
  *
  *  Control flow
  *    The code of a block is a sequence of instructions which falls through

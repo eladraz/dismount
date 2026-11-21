@@ -86,28 +86,28 @@
  *   OP_BIT_REVERSE                     DONE   SWAR + bswap, 8-64
  *   OP_BIT_DEPOSIT                     TODO   later
  *   OP_BIT_GATHER                      TODO   later
- *   OP_COMPARE                         DONE   WP8b all 10 integer conditions + ALWAYS/NEVER
- *   OP_SELECT                          DONE   WP8b scalar integer
+ *   OP_COMPARE                         DONE   WP8b all 10 integer conditions + ALWAYS/NEVER; floats
+ *   OP_SELECT                          DONE   WP8b scalar integer; floats
  *   OP_SET_FLAGS                       TODO   later
  *   OP_TEST_FLAGS                      TODO   later
- *   OP_FLOAT_ADD                       TODO   later
- *   OP_FLOAT_SUBTRACT                  TODO   later
- *   OP_FLOAT_MULTIPLY                  TODO   later
- *   OP_FLOAT_DIVIDE                    TODO   later
- *   OP_FLOAT_MULTIPLY_ADD              TODO   later
- *   OP_FLOAT_SQUARE_ROOT               TODO   later
+ *   OP_FLOAT_ADD                       DONE   addsd/addss
+ *   OP_FLOAT_SUBTRACT                  DONE   subsd/subss
+ *   OP_FLOAT_MULTIPLY                  DONE   mulsd/mulss (default behavior)
+ *   OP_FLOAT_DIVIDE                    DONE   divsd/divss
+ *   OP_FLOAT_MULTIPLY_ADD              REFUSED no fused multiply-add (-ffp-contract=off)
+ *   OP_FLOAT_SQUARE_ROOT               DONE   sqrtsd/sqrtss
  *   OP_FLOAT_MINIMUM                   TODO   later
  *   OP_FLOAT_MAXIMUM                   TODO   later
- *   OP_FLOAT_ABSOLUTE                  TODO   later
- *   OP_FLOAT_NEGATE                    TODO   later
+ *   OP_FLOAT_ABSOLUTE                  DONE   sign bit cleared (btr)
+ *   OP_FLOAT_NEGATE                    DONE   sign bit toggled (btc)
  *   OP_FLOAT_COPY_SIGN                 TODO   later
- *   OP_FLOAT_ROUND                     TODO   later
- *   OP_FLOAT_CONVERT                   TODO   later
- *   OP_SIGNED_TO_FLOAT                 TODO   later
- *   OP_UNSIGNED_TO_FLOAT               TODO   later
- *   OP_FLOAT_TO_SIGNED                 TODO   later
- *   OP_FLOAT_TO_UNSIGNED               TODO   later
- *   OP_FLOAT_CLASSIFY                  TODO   later
+ *   OP_FLOAT_ROUND                     DONE   roundsd/roundss (SSE4.1), all modes (AMD64LoweringFloat.cpp section 6)
+ *   OP_FLOAT_CONVERT                   DONE   f32<->f64 (cvtss2sd/cvtsd2ss)
+ *   OP_SIGNED_TO_FLOAT                 DONE   8-64 to f32/f64 (cvtsi2ss/sd)
+ *   OP_UNSIGNED_TO_FLOAT               DONE   8-64 to f32/f64, 64 bit halve-and-double (sticky bit)
+ *   OP_FLOAT_TO_SIGNED                 DONE   32/64 toward zero, indefinite/NaN-zero/NaN-max (cvtt + cmov); every rounding mode but odd (round first)
+ *   OP_FLOAT_TO_UNSIGNED               DONE   32/64 toward zero, indefinite/NaN-zero/NaN-max (cmov); every rounding mode but odd (round first)
+ *   OP_FLOAT_CLASSIFY                  DONE   f32/f64 fclass mask, branch free (AMD64LoweringFloat.cpp)
  *   OP_FLOAT_SCALE                     TODO   later
  *   OP_FLOAT_GET_EXPONENT              TODO   later
  *   OP_FLOAT_RECIPROCAL_ESTIMATE       TODO   later
@@ -1023,19 +1023,29 @@ void BlockLowering::lowerCompare(const SemanticInstruction& instruction)
 void BlockLowering::lowerSelect(const SemanticInstruction& instruction)
 {
     const SemanticOperand& destination = instruction.getDestination();
+    // A scalar is selected as its bits: an integer, or a float which is not
+    // f32/f64 (half precision, see AMD64LoweringFloat.cpp). A vector select
+    // takes one condition bit per lane, which the single byte tested here
+    // doesn't give, so it is refused
+    if (destination.getType().isVector() || destination.getType().isScalable())
+        fail("a vector select is not implemented");
+    const uint destinationBits = destination.getType().getTotalBits();
+    const SemanticType bitType = SemanticType::integer(destinationBits);
+    // (a boolean is one byte in the state: its compare writes the byte and
+    // every reader tests the byte, so the other bytes of its slot are never read)
+    const uint storedBits = (destinationBits == 1) ? 8 : destinationBits;
     const SemanticOperand& condition = instruction.getSource(0);
-    const SemanticOperand ifTrue = retype(instruction.getSource(1),
-                                          destination.getType());
-    const SemanticOperand ifFalse = retype(instruction.getSource(2),
-                                           destination.getType());
+    const SemanticOperand ifTrue = retype(instruction.getSource(1), bitType);
+    const SemanticOperand ifFalse = retype(instruction.getSource(2), bitType);
     if (isConstant(condition))
     {
         load(SCRATCH_A, (getConstant(condition, 1) != 0) ? ifTrue : ifFalse,
              EXTEND_ZERO);
-        store(destination, SCRATCH_A);
+        storeBits(destination, SCRATCH_A, storedBits);
         return;
     }
-    // (the conditional move has no 8 bit form: the values are 32 or 64 bit)
+    // (the conditional move has no 8 bit form: the values are zero extended
+    // to 64 bits, and only the low bits are stored)
     load(SCRATCH_A, ifFalse, EXTEND_ZERO);
     load(SCRATCH_C, ifTrue, EXTEND_ZERO);
     cString text("cmp ");
@@ -1043,7 +1053,7 @@ void BlockLowering::lowerSelect(const SemanticInstruction& instruction)
     text += cString(", 0");
     line(text);
     line("cmovne rax, rcx");
-    store(destination, SCRATCH_A);
+    storeBits(destination, SCRATCH_A, storedBits);
 }
 
 cString BlockLowering::getExitReasonStore(uint64 reason) const
@@ -1258,10 +1268,14 @@ void BlockLowering::lower()
             lowerRotate(instruction);
             break;
         case SemanticOperation::OP_COMPARE:
-            lowerCompare(instruction);
+            // (a compare of floats is in AMD64LoweringFloat.cpp)
+            if (!lowerFloat(instruction))
+                lowerCompare(instruction);
             break;
         case SemanticOperation::OP_SELECT:
-            lowerSelect(instruction);
+            // (a select of floats is in AMD64LoweringFloat.cpp)
+            if (!lowerFloat(instruction))
+                lowerSelect(instruction);
             break;
         case SemanticOperation::OP_BRANCH:
         case SemanticOperation::OP_CALL:

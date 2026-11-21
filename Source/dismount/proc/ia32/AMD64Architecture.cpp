@@ -298,12 +298,56 @@ bool AMD64Architecture::getFloatEnvironment(
 bool AMD64Architecture::isSupported(SemanticOperation::Operation operation,
                                     const SemanticType& type) const
 {
+    // The class of a scalar float as an integer mask of 32 or 64 bits
+    // (AMD64LoweringFloat.cpp, section 5). The type is the integer result; the
+    // float width of the operand is the lowering's
+    if ((operation == SemanticOperation::OP_FLOAT_CLASSIFY) &&
+        (type.getKind() == SemanticType::KIND_INTEGER) && !type.isVector() &&
+        !type.isScalable() &&
+        ((type.getTotalBits() == 32) || (type.getTotalBits() == 64)))
+    {
+        return true;
+    }
+    // The conversions between the scalar floats (f32, f64) and the scalar
+    // integers of 32 and 64 bits (AMD64LoweringFloat.cpp, section 4). The
+    // type is the float for an integer to float conversion, the integer for
+    // a float to integer one
+    if (!type.isVector() && !type.isScalable())
+    {
+        if (((operation == SemanticOperation::OP_SIGNED_TO_FLOAT) ||
+             (operation == SemanticOperation::OP_UNSIGNED_TO_FLOAT)) &&
+            (type.getKind() == SemanticType::KIND_FLOAT) &&
+            ((type.getFloatFormat() == SemanticType::FLOAT_SINGLE) ||
+             (type.getFloatFormat() == SemanticType::FLOAT_DOUBLE)))
+        {
+            return true;
+        }
+        if (((operation == SemanticOperation::OP_FLOAT_TO_SIGNED) ||
+             (operation == SemanticOperation::OP_FLOAT_TO_UNSIGNED)) &&
+            (type.getKind() == SemanticType::KIND_INTEGER) &&
+            ((type.getTotalBits() == 32) || (type.getTotalBits() == 64)))
+        {
+            return true;
+        }
+    }
+
     // The general purpose registers are 64 bits: the scalar integer
     // operations of 64 bits are the ones which IA-32 has for 32 bits
     if ((type.getKind() == SemanticType::KIND_INTEGER) && !type.isVector() &&
         (type.getTotalBits() == 64))
     {
         return m_ia32.isSupported(operation, SemanticType::integer(32));
+    }
+    // The sign of a scalar float is toggled or cleared in its integer image
+    // (AMD64LoweringFloat.cpp); the IA-32 table only has the SSE arithmetic
+    if (((operation == SemanticOperation::OP_FLOAT_NEGATE) ||
+         (operation == SemanticOperation::OP_FLOAT_ABSOLUTE)) &&
+        (type.getKind() == SemanticType::KIND_FLOAT) && !type.isVector() &&
+        !type.isScalable() &&
+        ((type.getFloatFormat() == SemanticType::FLOAT_SINGLE) ||
+         (type.getFloatFormat() == SemanticType::FLOAT_DOUBLE)))
+    {
+        return true;
     }
     // The bitwise logic of 128 bits (a scalar or a vector) is two qwords of
     // the lowering, and the vectors of up to 64 bits are one piece
