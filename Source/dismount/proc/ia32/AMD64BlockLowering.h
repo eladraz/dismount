@@ -231,6 +231,66 @@ private:
     bool lowerWide(const SemanticInstruction& instruction);
     bool lowerIntegerExtra(const SemanticInstruction& instruction);
     bool lowerFloat(const SemanticInstruction& instruction);
+
+    // The scalar floating point lowering (AMD64LoweringFloat.cpp): the
+    // width in bits (32 or 64) of a scalar float type, throws for the others
+    uint getFloatWidth(const SemanticType& type) const;
+    // Throw for the behavior and the attributes the lowering doesn't do
+    void checkFloatBehavior(const SemanticInstruction& instruction) const;
+    // Throw for the behavior and the attributes the lowering doesn't do
+    void checkFloatInstruction(const SemanticInstruction& instruction) const;
+    // Throw for a rounding mode the lowering of OP_FLOAT_ROUND and of the
+    // float to integer conversions doesn't do (round to odd)
+    void checkFloatRounding(const SemanticInstruction& instruction) const;
+    // Throw for a rounding mode the integer to float conversions don't do
+    // (nearest away: no directed form in MXCSR)
+    void checkIntegerToFloatRounding(const SemanticInstruction& instruction) const;
+    // Emit the integer to float conversion 'convert' (cvtsi2sd/ss) in 'mode'.
+    // A directed mode sets the rounding control of MXCSR for that conversion
+    // only, through an 8 byte stack slot below rsp. Clobbers rcx and the flags
+    void lineConvertToFloat(const char* convert, SemanticOperation::RoundingMode mode);
+    // Round xmm0 (a float of 'bits') to an integral value in the mode (SSE4.1
+    // roundsd/roundss; nearest away by a sequence). Clobbers rax, rcx, rdx,
+    // xmm1 and xmm2
+    void roundXmm0(SemanticOperation::RoundingMode mode, uint bits);
+    // Load a float operand of 'bits' into xmm0 or xmm1 (rax for a constant)
+    void loadXmm(uint xmm, const SemanticOperand& operand, uint bits);
+    // Store xmm0 into a float destination of 'bits'
+    void storeXmm(const SemanticOperand& destination, uint bits);
+    // Load the bits of an operand into a scratch register (zero extended)
+    void loadBits(Scratch scratch, const SemanticOperand& operand, uint bits);
+    // Store the low bits of a scratch register into a destination
+    void storeBits(const SemanticOperand& destination, Scratch scratch,
+                   uint bits);
+    void lowerFloatArithmetic(const SemanticInstruction& instruction);
+    void lowerFloatCompare(const SemanticInstruction& instruction);
+    void lowerFloatSelect(const SemanticInstruction& instruction);
+    // OP_FLOAT_ROUND of a scalar f32/f64 to an integral value (section 4)
+    void lowerFloatRound(const SemanticInstruction& instruction);
+    // Load the bit image 'pattern' of a float of 'bits' into an xmm register
+    // (through rcx)
+    void loadPatternXmm(uint xmm, uint64 pattern, uint bits);
+    // The fixed point count of a conversion (source 1, zero when absent)
+    uint getFractionBits(const SemanticInstruction& instruction) const;
+    // Load a float operand into xmm0 times 2^fraction (a float to integer
+    // conversion of a fixed point count), then round it to an integral value
+    // in 'mode' unless the mode is toward zero (the conversion truncates)
+    void loadScaledXmm(const SemanticOperand& source, uint sourceBits,
+                       uint fraction, SemanticOperation::RoundingMode mode);
+    // The conversions between the floats and the integers (section 4 of
+    // AMD64LoweringFloat.cpp)
+    void lowerIntegerToFloat(const SemanticInstruction& instruction);
+    void lowerFloatToInteger(const SemanticInstruction& instruction);
+    void lowerFloatConvert(const SemanticInstruction& instruction);
+    // OP_FLOAT_CLASSIFY of a scalar f32/f64: the fclass mask (section 5 of
+    // AMD64LoweringFloat.cpp)
+    void lowerFloatClassify(const SemanticInstruction& instruction);
+    // OP_FLOAT_MINIMUM / OP_FLOAT_MAXIMUM of a scalar f32/f64 with
+    // BEHAVIOR_MINMAX_NUMBER (IEEE 754-2019 minimumNumber / maximumNumber, the
+    // RISC-V fmin and fmax; section 6 of AMD64LoweringFloat.cpp)
+    void lowerFloatMinMax(const SemanticInstruction& instruction);
+    void lowerRiscvNaNMinMax(const SemanticOperand& s0, const SemanticOperand& s1, uint bits);
+    void lowerArmNaNMinMax(const SemanticOperand& s0, const SemanticOperand& s1, uint bits);
     // The operations of AMD64LoweringInteger.cpp. A division uses the local
     // labels L_d<index>_<tag> of its IR instruction, so it is only lowered by
     // lowerBlock() (see defineLocalLabel())

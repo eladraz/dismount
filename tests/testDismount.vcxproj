@@ -180,6 +180,7 @@
     <ClCompile Include="TestSemanticPrinter.cpp" />
     <ClCompile Include="TestSemanticLowering.cpp" />
     <ClCompile Include="TestSemanticLegalizerArm64.cpp" />
+    <ClCompile Include="TestSemanticLoweringFloat.cpp" />
     <ClCompile Include="TestSemanticLoweringWide.cpp" />
     <ClCompile Include="TestSemanticLoweringInteger.cpp" />
     <ClCompile Include="TestSemanticFloatRiscv.cpp" />

@@ -684,6 +684,9 @@ const OpcodeEntry gIa32ThreeBytes3AOpcodeTable[] = {
     {"pclmulqdq",  0x44,   0xFF,  OPND_SIMD_MODRM,     OPND_SIMD_RM,         OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER, MANDATORY_66},
     {"pextrw",     0x15,   0xFF,  OPND_MODRM_R32_WORDPTR,  OPND_SIMD_MODRM,      OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER, MANDATORY_66},
     {"aeskeygenassist",0xDF,   0xFF,  OPND_SIMD_MODRM,     OPND_SIMD_RM,         OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER, MANDATORY_66},
+    // SSE4.1 round to integral (the lowering of OP_FLOAT_ROUND)
+    {"roundss",    0x0A,   0xFF,  OPND_SIMD_MODRM,     OPND_SIMD_RM,         OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER, MANDATORY_66},
+    {"roundsd",    0x0B,   0xFF,  OPND_SIMD_MODRM,     OPND_SIMD_RM,         OPND_IMMEDIATE_8BIT, MODRM_ALL_FILTER,                 true,     Opcode::FLOW_NO_ALTER, MANDATORY_66},
 
     // End marker
     {OPCODEEOT, 0,0, OPND_NO_OPERAND,OPND_NO_OPERAND,OPND_NO_OPERAND, 0, false, Opcode::FLOW_NO_ALTER}
