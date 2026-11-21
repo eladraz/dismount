@@ -183,6 +183,8 @@
     <ClCompile Include="TestSemanticLoweringFloat.cpp" />
     <ClCompile Include="TestSemanticLoweringWide.cpp" />
     <ClCompile Include="TestSemanticLoweringInteger.cpp" />
+    <ClCompile Include="TestSemanticLoweringArm64.cpp" />
+    <ClCompile Include="TestSemanticLoweringRiscv.cpp" />
     <ClCompile Include="TestSemanticFloatRiscv.cpp" />
     <ClCompile Include="TestArm64Semantics.cpp" />
     <ClCompile Include="TestArm64SemanticsSve.cpp" />

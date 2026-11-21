@@ -84,6 +84,12 @@
     <ClCompile Include="TestSemanticLoweringInteger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TestSemanticLoweringArm64.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestSemanticLoweringRiscv.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TestSemanticFloatRiscv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
