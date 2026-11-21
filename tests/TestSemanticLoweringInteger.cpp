@@ -344,7 +344,10 @@ public:
              << " cases native==interpreter" << endl;
 #endif
         TESTS_ASSERT(m_failures == 0);
+#ifdef LOWERING_INTEGER_NATIVE
+        // No vacuous pass: the native comparisons ran (or were skipped)
         TESTS_ASSERT(m_cases > 0 || m_skipped > 0);
+#endif
         cout << "Semantic lowering integer tests passed" << endl;
     }
 
