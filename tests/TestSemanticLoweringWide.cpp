@@ -308,6 +308,33 @@ static SemanticOperand bitsOf(SemanticBlock& block, const SemanticOperand& value
     return out;
 }
 
+// The pseudo random numbers of the tests (xorshift64, fixed seed)
+static uint64 gWideRandom = 0x9E3779B97F4A7C15ULL;
+static uint64 wideRandom()
+{
+    gWideRandom ^= gWideRandom << 13;
+    gWideRandom ^= gWideRandom >> 7;
+    gWideRandom ^= gWideRandom << 17;
+    return gWideRandom;
+}
+
+// A register value: an edge value most of the time, or a pointer into the
+// guest memory (the blocks which access it)
+static uint64 wideValue(bool isPointer)
+{
+    static const uint64 edges[] = {
+        0, 1, 2, 7, 8, 15, 16, 31, 32, 63, 64, 0x7F, 0x80, 0xFF, 0x100,
+        0x7FFF, 0x8000, 0xFFFF, 0x7FFFFFFFULL, 0x80000000ULL, 0xFFFFFFFFULL,
+        0x100000000ULL, 0x7FFFFFFFFFFFFFFFULL, 0x8000000000000000ULL,
+        ~(uint64)0, 0x12345678ABCDEF01ULL };
+    const uint64 r = wideRandom();
+    if (isPointer)
+        return NATIVE_GUEST_BASE + 0x4000 + ((r % 0x2000) & ~(uint64)15);
+    if (r % 3 == 0)
+        return wideRandom();
+    return edges[(r >> 8) % (sizeof(edges) / sizeof(edges[0]))];
+}
+
 #ifdef WIDE_TEST_NATIVE
 // ----------------------------------------------------------------------
 // The native comparisons
@@ -334,33 +361,6 @@ public:
     }
     uint8 m_bytes[NATIVE_MEMORY_SIZE];
 };
-
-// The pseudo random numbers of the native tests (xorshift64, fixed seed)
-static uint64 gWideRandom = 0x9E3779B97F4A7C15ULL;
-static uint64 wideRandom()
-{
-    gWideRandom ^= gWideRandom << 13;
-    gWideRandom ^= gWideRandom >> 7;
-    gWideRandom ^= gWideRandom << 17;
-    return gWideRandom;
-}
-
-// A register value: an edge value most of the time, or a pointer into the
-// guest memory (the blocks which access it)
-static uint64 wideValue(bool isPointer)
-{
-    static const uint64 edges[] = {
-        0, 1, 2, 7, 8, 15, 16, 31, 32, 63, 64, 0x7F, 0x80, 0xFF, 0x100,
-        0x7FFF, 0x8000, 0xFFFF, 0x7FFFFFFFULL, 0x80000000ULL, 0xFFFFFFFFULL,
-        0x100000000ULL, 0x7FFFFFFFFFFFFFFFULL, 0x8000000000000000ULL,
-        ~(uint64)0, 0x12345678ABCDEF01ULL };
-    const uint64 r = wideRandom();
-    if (isPointer)
-        return NATIVE_GUEST_BASE + 0x4000 + ((r % 0x2000) & ~(uint64)15);
-    if (r % 3 == 0)
-        return wideRandom();
-    return edges[(r >> 8) % (sizeof(edges) / sizeof(edges[0]))];
-}
 
 typedef void (*NativeFunction)(void* state, void* memoryBias);
 
