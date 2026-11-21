@@ -16,18 +16,28 @@
 namespace amd64lowering {
 
 // The widths a value can have in the state, as a bit mask of the widths
-// (an i1 is a byte holding 0 or 1)
+// (an i1 is a byte holding 0 or 1). WIDTH_128 is a 16 byte slot (a wide value,
+// see AMD64LoweringWide.cpp): it is not part of WIDTH_ALL, the operations
+// of the narrow values refuse it
 enum {
-    WIDTH_1  = 0x01,
-    WIDTH_8  = 0x02,
-    WIDTH_16 = 0x04,
-    WIDTH_32 = 0x08,
-    WIDTH_64 = 0x10,
+    WIDTH_1   = 0x01,
+    WIDTH_8   = 0x02,
+    WIDTH_16  = 0x04,
+    WIDTH_32  = 0x08,
+    WIDTH_64  = 0x10,
+    WIDTH_128 = 0x20,
     // The integers of the machine
     WIDTH_INTEGERS = WIDTH_8 | WIDTH_16 | WIDTH_32 | WIDTH_64,
     // The integers and the boolean
     WIDTH_ALL = WIDTH_1 | WIDTH_INTEGERS
 };
+
+// Return true if the operand is a constant
+inline bool isConstant(const SemanticOperand& operand)
+{
+    return (operand.getKind() == SemanticOperand::KIND_IMMEDIATE) ||
+           (operand.getKind() == SemanticOperand::KIND_GUEST_ADDRESS);
+}
 
 // How a narrow value is widened into a register
 enum Extension {
@@ -96,6 +106,45 @@ private:
     cString getImmediate(const SemanticOperand& operand, uint bits) const;
     // Return true if the constant can be the immediate of a 'bits' operation
     bool isImmediate(const SemanticOperand& operand, uint bits) const;
+
+    // The wide values (AMD64LoweringWide.cpp). A wide value is a slot of its
+    // size: 8 to 64 bits, or 128 bits (a vector or a 128 bit integer), the
+    // low bytes first. Return the number of bits of a value, a boolean is 1
+    uint getWideBits(const SemanticType& type) const;
+    // Return the memory operand of the slot of an operand, 'extra' bytes
+    // after its start: 'oword [r15+0x210]' for 128 bits
+    cString getSlotMemory(const SemanticOperand& operand, uint extra,
+                          uint bits) const;
+    // Load 'bits' of the operand, 'extra' bytes after its start, zero extended
+    // into the scratch register (a constant is loaded whole)
+    void loadPiece(Scratch scratch, const SemanticOperand& operand,
+                   uint extra, uint bits);
+    // Store the low 'bits' of the scratch register at 'extra' bytes of the
+    // slot of the destination
+    void storePiece(const SemanticOperand& destination, uint extra,
+                    Scratch scratch, uint bits);
+    // Copy 'bits' bits of a value to the destination: through xmm0 for 128
+    // bits, through rax for the others. A constant has no 128 bit form: it
+    // is refused for 128 bits, so a BITCAST of a constant is up to 64 bits
+    void copySlot(const SemanticOperand& destination,
+                  const SemanticOperand& source, uint bits);
+    void lowerWideLoad(const SemanticInstruction& instruction);
+    void lowerWideStore(const SemanticInstruction& instruction);
+    void lowerWideConcat(const SemanticInstruction& instruction);
+    // Store zero at 'extra' bytes of the destination: a qword
+    void zeroQword(const SemanticOperand& destination, uint extra);
+    // Return the constant bit position of an EXTRACT or INSERT operand, a
+    // lane index scaled by 'scale' (1 for a bit offset). Throw if the operand
+    // is not a constant
+    uint64 getWidePosition(const SemanticOperand& position, uint scale) const;
+    void lowerWideExtract(const SemanticInstruction& instruction);
+    void lowerWideInsert(const SemanticInstruction& instruction);
+    void lowerWideBroadcast(const SemanticInstruction& instruction);
+    // AND, OR, XOR, NOT and AND_NOT of 128 bits, one qword at a time
+    void lowerWideLogic(const SemanticInstruction& instruction);
+    // The float values of 8 to 64 bits: their bits are moved as an integer
+    void lowerWideFloatLoad(const SemanticInstruction& instruction);
+    void lowerWideFloatStore(const SemanticInstruction& instruction);
 
     // Write a line of assembly (the lines of an IR instruction are assembled
     // together, see flush())

@@ -216,7 +216,7 @@ public:
         return 0x1000 + guestRegister * 8;
     }
     virtual uint getStateRegister() const { return ia32dis::AMD64_REG_R15; }
-    virtual uint getTemporaryOffset(uint temporary) const { return 0x200 + temporary * 8; }
+    virtual uint getTemporaryOffset(uint temporary) const { return 0x200 + temporary * 16; }
     virtual uint getMemoryBaseRegister() const { return ia32dis::AMD64_REG_R14; }
     virtual uint getProgramCounterOffset() const { return 0x100; }
     virtual uint getExitReasonOffset() const { return 0x110; }

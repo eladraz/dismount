@@ -28,10 +28,10 @@
  *   OP_ZERO_EXTEND                     DONE   WP8a
  *   OP_SIGN_EXTEND                     DONE   WP8a
  *   OP_TRUNCATE                        DONE   WP8a
- *   OP_EXTRACT                         TODO   later
- *   OP_INSERT                          TODO   later
- *   OP_CONCAT                          TODO   later
- *   OP_BITCAST                         TODO   later (int<->float)
+ *   OP_EXTRACT                         DONE   constant position, 1..64 bits (AMD64LoweringWide.cpp)
+ *   OP_INSERT                          DONE   constant position, into 1..64 bits and 128 bits (bytes)
+ *   OP_CONCAT                          DONE   2x64->128, 2x8..32->8..64 (AMD64LoweringWide.cpp)
+ *   OP_BITCAST                         DONE   any width, int<->float<->vector (AMD64LoweringWide.cpp)
  *   OP_LOAD                            DONE   WP8a 8/16/32/64, [base+rax]
  *   OP_STORE                           DONE   WP8a 8/16/32/64
  *   OP_LOAD_MASKED                     TODO   later
@@ -67,11 +67,11 @@
  *   OP_ABSOLUTE_DIFFERENCE_UNSIGNED    TODO   later
  *   OP_CARRYLESS_MULTIPLY              TODO   later
  *   OP_CARRYLESS_MULTIPLY_HIGH         TODO   later
- *   OP_AND                             DONE   WP8b
- *   OP_OR                              DONE   WP8b
- *   OP_XOR                             DONE   WP8b
- *   OP_NOT                             DONE   WP8b
- *   OP_AND_NOT                         DONE   WP8b
+ *   OP_AND                             DONE   WP8b; 128 bits (two qwords)
+ *   OP_OR                              DONE   WP8b; 128 bits
+ *   OP_XOR                             DONE   WP8b; 128 bits
+ *   OP_NOT                             DONE   WP8b; 128 bits
+ *   OP_AND_NOT                         DONE   WP8b; 128 bits
  *   OP_BITWISE_SELECT                  TODO   later
  *   OP_SHIFT_LEFT                      DONE   WP8b count >= width clamped
  *   OP_SHIFT_RIGHT_LOGICAL             DONE   WP8b
@@ -126,7 +126,7 @@
  *   OP_SHIFT_RIGHT_ROUNDING            TODO   later
  *   OP_DOT_PRODUCT                     TODO   later
  *   OP_PAIRWISE_ADD                    TODO   later
- *   OP_BROADCAST                       TODO   later
+ *   OP_BROADCAST                       DONE   lanes of 8..64 bits, up to 128 bits (AMD64LoweringWide.cpp)
  *   OP_SHUFFLE                         TODO   later
  *   OP_INTERLEAVE                      TODO   later
  *   OP_SLIDE                           TODO   later
@@ -161,7 +161,9 @@
  *
  * Not covered inside the DONE rows: a guest register which lives in a target
  * register (SemanticRegisterMap::getTargetRegister() true) throws, widths
- * other than 1 (boolean), 8, 16, 32 and 64 bits throw, a conditional branch
+ * other than 1 (boolean), 8, 16, 32 and 64 bits throw (128 bits only in the
+ * operations of AMD64LoweringWide.cpp: MOVE LOAD STORE ZERO_EXTEND TRUNCATE
+ * BITCAST CONCAT EXTRACT INSERT BROADCAST AND OR XOR NOT AND_NOT), a conditional branch
  * to a register throws, a block with local labels throws in lower() (use
  * lowerBlock()).
  *
@@ -262,13 +264,6 @@ const char* getConditionCode(SemanticOperation::Condition condition)
     case SemanticOperation::COND_UNSIGNED_GREATER_EQUAL:return "ae";
     default:                                            return NULL;
     }
-}
-
-// Return true if the operand is a constant
-bool isConstant(const SemanticOperand& operand)
-{
-    return (operand.getKind() == SemanticOperand::KIND_IMMEDIATE) ||
-           (operand.getKind() == SemanticOperand::KIND_GUEST_ADDRESS);
 }
 
 // Return true if the value is a signed 32 bit number
@@ -443,6 +438,7 @@ uint BlockLowering::getWidthMask(uint bits)
     case 16: return WIDTH_16;
     case 32: return WIDTH_32;
     case 64: return WIDTH_64;
+    case 128: return WIDTH_128;
     default: return 0;
     }
 }
@@ -1218,6 +1214,14 @@ void BlockLowering::lower()
         if (m_operation != SemanticOperation::OP_NOP)
             endsTheBlock = false;
 
+        // The wide values and the bit moves first: they own the 128 bit
+        // moves (AMD64LoweringWide.cpp), before the narrow cases below
+        if (lowerWide(instruction))
+        {
+            flush();
+            continue;
+        }
+
         switch (m_operation)
         {
         case SemanticOperation::OP_NOP:
@@ -1279,7 +1283,7 @@ void BlockLowering::lower()
             break;
         default:
             // The groups of operations of the other files, then the patterns
-            if (!lowerWide(instruction) && !lowerIntegerExtra(instruction) &&
+            if (!lowerIntegerExtra(instruction) &&
                 !lowerFloat(instruction) && !applyPattern(instruction))
             {
                 fail("the operation is not implemented");
